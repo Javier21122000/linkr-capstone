@@ -1,0 +1,28 @@
+# macOS
+.DS_Store
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Node / Vite
+node_modules/
+dist/
+
+# Java / Maven
+target/
+*.class
+
+# IntelliJ
+.idea/
+*.iml
+
+# VS Code
+.vscode/
+
+# Logs
+*.log
+
+# Build
+build/

@@ -1,10 +1,14 @@
 # macOS
 .DS_Store
 
-# Environment variables
+# Environment variables / secrets
 .env
 .env.*
 !.env.example
+application-local.properties
+application-local.yml
+*.pem
+*.key
 
 # Node / Vite
 node_modules/

@@ -1,38 +1,85 @@
-import { ArrowDown, Sparkles } from "lucide-react";
-import { useMemo, useState } from "react";
+import { ArrowDown, RotateCcw } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { EventRow } from "../components/events/EventRow";
 import { FeaturedEvent } from "../components/events/FeaturedEvent";
 import { FilterChip } from "../components/ui/FilterChip";
-import { demoEvents, discoverFilters } from "../data/demoEvents";
-import type { DiscoverFilter } from "../types/event";
+import { categoryOptions } from "../lib/eventPresentation";
+import { getEvents, getEventsErrorMessage, isRequestCancelled } from "../lib/events";
+import type { EventCategory, EventSummary } from "../types/event";
 
-function eventMatchesFilter(filter: DiscoverFilter, event: (typeof demoEvents)[number]) {
-  if (filter === "All") return true;
-  if (filter === "Tonight") return event.timing === "tonight";
-  return event.category === filter;
+type EventsState =
+  | { readonly status: "loading" }
+  | { readonly status: "success"; readonly events: readonly EventSummary[] }
+  | { readonly status: "error"; readonly message: string };
+
+function EventsLoadingState() {
+  return (
+    <div className="discover-layout" aria-busy="true" aria-label="Caricamento eventi">
+      <div className="min-h-[24rem] animate-pulse rounded-[1.75rem] bg-line/70 motion-reduce:animate-none sm:min-h-[30rem] lg:min-h-[38rem]" />
+      <div className="space-y-5" aria-hidden="true">
+        <div className="h-16 animate-pulse rounded-2xl bg-line/70 motion-reduce:animate-none" />
+        {Array.from({ length: 3 }, (_, index) => (
+          <div key={index} className="flex gap-4 border-t border-line pt-5">
+            <div className="h-32 w-24 shrink-0 animate-pulse rounded-2xl bg-line/70 motion-reduce:animate-none" />
+            <div className="flex-1 space-y-3 py-2">
+              <div className="h-3 w-2/5 animate-pulse rounded-full bg-line/70 motion-reduce:animate-none" />
+              <div className="h-6 w-4/5 animate-pulse rounded-full bg-line/70 motion-reduce:animate-none" />
+              <div className="h-4 w-3/5 animate-pulse rounded-full bg-line/70 motion-reduce:animate-none" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+interface EventsMessageProps {
+  readonly title: string;
+  readonly description: string;
+  readonly actionLabel?: string;
+  readonly onAction?: () => void;
+}
+
+function EventsMessage({ title, description, actionLabel, onAction }: EventsMessageProps) {
+  return (
+    <div className="rounded-[1.75rem] border border-line bg-surface px-6 py-16 text-center">
+      <h2 className="text-2xl font-extrabold tracking-[-0.04em] text-ink">{title}</h2>
+      <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-muted">{description}</p>
+      {actionLabel && onAction && (
+        <button className="button-primary mt-6 inline-flex items-center gap-2" type="button" onClick={onAction}>
+          <RotateCcw size={17} aria-hidden="true" />
+          {actionLabel}
+        </button>
+      )}
+    </div>
+  );
 }
 
 export function DiscoverPage() {
-  const [activeFilter, setActiveFilter] = useState<DiscoverFilter>("All");
-  const [savedEventIds, setSavedEventIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [activeCategory, setActiveCategory] = useState<EventCategory | null>(null);
+  const [requestKey, setRequestKey] = useState(0);
+  const [eventsState, setEventsState] = useState<EventsState>({ status: "loading" });
 
-  const filteredEvents = useMemo(
-    () => demoEvents.filter((event) => eventMatchesFilter(activeFilter, event)),
-    [activeFilter],
-  );
+  useEffect(() => {
+    const controller = new AbortController();
+    setEventsState({ status: "loading" });
 
-  const featuredEvent = filteredEvents[0];
-  const nearbyEvents = filteredEvents.slice(1);
+    void getEvents(activeCategory ?? undefined, controller.signal)
+      .then((events) => setEventsState({ status: "success", events }))
+      .catch((error: unknown) => {
+        if (!isRequestCancelled(error)) {
+          setEventsState({ status: "error", message: getEventsErrorMessage(error) });
+        }
+      });
 
-  function toggleSaved(eventId: string) {
-    setSavedEventIds((current) => {
-      const next = new Set(current);
-      if (next.has(eventId)) next.delete(eventId);
-      else next.add(eventId);
-      return next;
-    });
-  }
+    return () => controller.abort();
+  }, [activeCategory, requestKey]);
+
+  const selectedLabel = categoryOptions.find((option) => option.value === activeCategory)?.label ?? "Tutte";
+  const events = eventsState.status === "success" ? eventsState.events : [];
+  const featuredEvent = events[0];
+  const nearbyEvents = events.slice(1);
 
   return (
     <div className="pb-32 md:pb-20">
@@ -49,37 +96,39 @@ export function DiscoverPage() {
           </p>
         </div>
 
-        <div className="mt-8 flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none sm:mt-10" aria-label="Filter demo events">
-          {discoverFilters.map((filter) => (
+        <div className="mt-8 flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none sm:mt-10" aria-label="Filtra gli eventi per categoria">
+          {categoryOptions.map((option) => (
             <FilterChip
-              key={filter}
-              label={filter}
-              selected={activeFilter === filter}
-              onSelect={() => setActiveFilter(filter)}
+              key={option.value ?? "all"}
+              label={option.label}
+              selected={activeCategory === option.value}
+              onSelect={() => setActiveCategory(option.value)}
             />
           ))}
         </div>
-
-        <div className="mt-4 flex items-start gap-2.5 rounded-2xl border border-linkr/20 bg-linkr-soft px-4 py-3 text-sm text-ink sm:max-w-max">
-          <Sparkles className="mt-0.5 shrink-0 text-linkr-strong" size={16} aria-hidden="true" />
-          <p>
-            <strong>Demo preview.</strong> Events, venues, attendance counts and initials are sample data.
-          </p>
-        </div>
       </section>
 
-      <section className="page-shell" aria-label={`${activeFilter} demo events`}>
+      <section className="page-shell" aria-label={`Eventi: ${selectedLabel}`}>
         <p className="sr-only" aria-live="polite">
-          {filteredEvents.length} demo events shown for {activeFilter}
+          {eventsState.status === "loading" && "Caricamento eventi in corso"}
+          {eventsState.status === "error" && "Impossibile caricare gli eventi"}
+          {eventsState.status === "success" && `${events.length} eventi mostrati per la categoria ${selectedLabel}`}
         </p>
 
-        {featuredEvent ? (
+        {eventsState.status === "loading" && <EventsLoadingState />}
+
+        {eventsState.status === "error" && (
+          <EventsMessage
+            title="Non riusciamo a caricare gli eventi"
+            description={eventsState.message}
+            actionLabel="Riprova"
+            onAction={() => setRequestKey((current) => current + 1)}
+          />
+        )}
+
+        {eventsState.status === "success" && featuredEvent && (
           <div className="discover-layout">
-            <FeaturedEvent
-              event={featuredEvent}
-              saved={savedEventIds.has(featuredEvent.id)}
-              onToggleSaved={toggleSaved}
-            />
+            <FeaturedEvent event={featuredEvent} />
 
             <aside className="nearby-panel" aria-labelledby="nearby-title">
               <div className="flex items-end justify-between gap-4 border-b border-line pb-5">
@@ -94,32 +143,25 @@ export function DiscoverPage() {
 
               {nearbyEvents.length > 0 ? (
                 <div className="divide-y divide-line">
-                  {nearbyEvents.map((event) => (
-                    <EventRow
-                      key={event.id}
-                      event={event}
-                      saved={savedEventIds.has(event.id)}
-                      onToggleSaved={toggleSaved}
-                    />
-                  ))}
+                  {nearbyEvents.map((event) => <EventRow key={event.id} event={event} />)}
                 </div>
               ) : (
                 <div className="py-10">
-                  <p className="text-lg font-bold text-ink">One strong match for this filter.</p>
-                  <p className="mt-2 text-sm leading-6 text-muted">
-                    Choose another category to explore more of the demo programme.
-                  </p>
+                  <p className="text-lg font-bold text-ink">Un solo evento in questa categoria.</p>
+                  <p className="mt-2 text-sm leading-6 text-muted">Scegli un’altra categoria per esplorare altri eventi.</p>
                 </div>
               )}
             </aside>
           </div>
-        ) : (
-          <div className="rounded-[1.75rem] border border-line bg-surface px-6 py-16 text-center">
-            <h2 className="text-2xl font-extrabold tracking-[-0.04em]">No demo events in this view</h2>
-            <button className="button-primary mt-6" type="button" onClick={() => setActiveFilter("All")}>
-              Show all events
-            </button>
-          </div>
+        )}
+
+        {eventsState.status === "success" && events.length === 0 && (
+          <EventsMessage
+            title="Nessun evento disponibile"
+            description={activeCategory ? `Non ci sono eventi nella categoria ${selectedLabel}.` : "Non ci sono ancora eventi da mostrare."}
+            actionLabel={activeCategory ? "Mostra tutte le categorie" : undefined}
+            onAction={activeCategory ? () => setActiveCategory(null) : undefined}
+          />
         )}
       </section>
 

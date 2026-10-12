@@ -9,5 +9,3 @@ export const apiClient = axios.create({
   },
   timeout: 10_000,
 });
-
-// No request is performed in Phase 2. Endpoints will be integrated explicitly in Phase 3.

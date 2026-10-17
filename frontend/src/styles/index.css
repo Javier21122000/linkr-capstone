@@ -446,6 +446,25 @@ a {
   color: white;
 }
 
+.account-nav-label {
+  max-width: 5.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (min-width: 48rem) {
+  .account-nav-label {
+    max-width: 8rem;
+  }
+}
+
+@media (min-width: 64rem) {
+  .account-nav-label {
+    max-width: 12rem;
+  }
+}
+
 .mobile-nav {
   position: fixed;
   z-index: 50;
@@ -463,14 +482,23 @@ a {
 
 .mobile-nav__item {
   display: flex;
+  min-width: 0;
   min-height: 3.5rem;
   align-items: center;
   justify-content: center;
   gap: 0.45rem;
   border-radius: 0.95rem;
+  padding-inline: 0.75rem;
   color: var(--color-muted);
   font-size: 0.75rem;
   font-weight: 800;
+}
+
+.mobile-nav__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .mobile-nav__item[aria-current="page"] {

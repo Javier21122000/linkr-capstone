@@ -3,10 +3,12 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 
 import { EventImage } from "../components/events/EventImage";
+import { EventPeopleSection } from "../components/events/EventPeopleSection";
 import { EventParticipationPanel } from "../components/events/EventParticipationPanel";
 import { categoryLabels, formatEventDate, formatEventTimeRange } from "../lib/eventPresentation";
 import { getEvent, getEventsErrorMessage, isRequestCancelled } from "../lib/events";
 import type { EventDetail } from "../types/event";
+import type { ParticipationResponse } from "../types/participation";
 
 type EventState =
   | { readonly status: "loading" }
@@ -17,15 +19,24 @@ export function EventDetailPage() {
   const { eventId } = useParams<{ eventId: string }>();
   const [requestKey, setRequestKey] = useState(0);
   const [eventState, setEventState] = useState<EventState>({ status: "loading" });
+  const [participation, setParticipation] = useState<ParticipationResponse | null | undefined>(undefined);
+  const [participationRevision, setParticipationRevision] = useState(0);
+
+  function handleParticipationSaved(nextParticipation: ParticipationResponse) {
+    setParticipation(nextParticipation);
+    setParticipationRevision((current) => current + 1);
+  }
 
   useEffect(() => {
     if (!eventId) {
       setEventState({ status: "error", message: "Identificativo evento non valido." });
+      setParticipation(undefined);
       return;
     }
 
     const controller = new AbortController();
     setEventState({ status: "loading" });
+    setParticipation(undefined);
 
     void getEvent(eventId, controller.signal)
       .then((event) => setEventState({ status: "success", event }))
@@ -115,6 +126,16 @@ export function EventDetailPage() {
               eventId={eventState.event.id}
               startsAt={eventState.event.startsAt}
               endsAt={eventState.event.endsAt}
+              onParticipationChange={setParticipation}
+              onParticipationSaved={handleParticipationSaved}
+            />
+
+            <EventPeopleSection
+              eventId={eventState.event.id}
+              startsAt={eventState.event.startsAt}
+              endsAt={eventState.event.endsAt}
+              participation={participation}
+              participationRevision={participationRevision}
             />
           </div>
         </article>

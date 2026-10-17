@@ -5,7 +5,8 @@ import { useAuth } from "../../context/AuthContext";
 import { BrandMark } from "../ui/BrandMark";
 
 export function AppHeader() {
-  const { status } = useAuth();
+  const { status, user } = useAuth();
+  const profileLabel = user ? `@${user.username}` : "Profilo";
 
   return (
     <header className="sticky top-0 z-40 border-b border-line/80 bg-canvas/96">
@@ -20,8 +21,8 @@ export function AppHeader() {
           </NavLink>
         </nav>
 
-        <div className="flex items-center gap-2">
-          <div className="inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-2 text-sm font-bold text-ink sm:px-4">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="inline-flex shrink-0 items-center gap-2 rounded-full border border-line bg-surface px-3 py-2 text-sm font-bold text-ink sm:px-4">
             <MapPin size={17} className="text-linkr-strong" aria-hidden="true" />
             <span>Milano</span>
           </div>
@@ -31,8 +32,14 @@ export function AppHeader() {
               <NavLink to="/register" className="button-primary hidden items-center lg:inline-flex">Registrati</NavLink>
             </>
           ) : (
-            <NavLink to="/profile" className="desktop-nav-link hidden gap-2 md:inline-flex">
-              <UserRound size={18} aria-hidden="true" /> Profilo
+            <NavLink
+              to="/profile"
+              className="desktop-nav-link hidden min-w-0 gap-2 md:inline-flex"
+              aria-label={`Apri il profilo di ${profileLabel}`}
+              title={profileLabel}
+            >
+              <UserRound size={18} className="shrink-0" aria-hidden="true" />
+              <span className="account-nav-label">{profileLabel}</span>
             </NavLink>
           )}
         </div>

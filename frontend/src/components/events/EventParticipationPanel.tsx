@@ -24,9 +24,11 @@ interface EventParticipationPanelProps {
   readonly eventId: string;
   readonly startsAt: string;
   readonly endsAt?: string | null;
+  onParticipationChange(participation: ParticipationResponse | null | undefined): void;
+  onParticipationSaved(participation: ParticipationResponse): void;
 }
 
-export function EventParticipationPanel({ eventId, startsAt, endsAt }: EventParticipationPanelProps) {
+export function EventParticipationPanel({ eventId, startsAt, endsAt, onParticipationChange, onParticipationSaved }: EventParticipationPanelProps) {
   const { status, authorizedRequest } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -44,9 +46,11 @@ export function EventParticipationPanel({ eventId, startsAt, endsAt }: EventPart
   useEffect(() => {
     setActionError(null);
     setEndedFromServer(false);
+    onParticipationChange(undefined);
 
     if (status === "anonymous") {
       setState({ status: "ready", participation: null });
+      onParticipationChange(null);
       return undefined;
     }
 
@@ -54,18 +58,23 @@ export function EventParticipationPanel({ eventId, startsAt, endsAt }: EventPart
     setState({ status: "loading" });
 
     void authorizedRequest((accessToken) => getEventParticipation(accessToken, eventId, controller.signal))
-      .then((participation) => setState({ status: "ready", participation }))
+      .then((participation) => {
+        setState({ status: "ready", participation });
+        onParticipationChange(participation);
+      })
       .catch((error: unknown) => {
         if (axios.isCancel(error)) return;
         if (isParticipationNotFound(error)) {
           setState({ status: "ready", participation: null });
+          onParticipationChange(null);
         } else {
           setState({ status: "error", message: getParticipationErrorMessage(error) });
+          onParticipationChange(undefined);
         }
       });
 
     return () => controller.abort();
-  }, [authorizedRequest, eventId, requestKey, status]);
+  }, [authorizedRequest, eventId, onParticipationChange, requestKey, status]);
 
   function goToLogin() {
     navigate("/login", { state: { from: location } });
@@ -89,6 +98,7 @@ export function EventParticipationPanel({ eventId, startsAt, endsAt }: EventPart
         { status: nextStatus, visibleToOthers },
       ));
       setState({ status: "ready", participation });
+      onParticipationSaved(participation);
     } catch (error) {
       if (isEventEndedConflict(error)) setEndedFromServer(true);
       setActionError(getParticipationErrorMessage(error));
@@ -108,6 +118,7 @@ export function EventParticipationPanel({ eventId, startsAt, endsAt }: EventPart
     try {
       await authorizedRequest((accessToken) => deleteEventParticipation(accessToken, eventId));
       setState({ status: "ready", participation: null });
+      onParticipationChange(null);
     } catch (error) {
       setActionError(getParticipationErrorMessage(error));
     } finally {
@@ -196,7 +207,7 @@ export function EventParticipationPanel({ eventId, startsAt, endsAt }: EventPart
                 <span>
                   <span className="block text-sm font-extrabold leading-5">Mostra il mio profilo agli altri partecipanti</span>
                   <span className="mt-1 block text-sm font-semibold leading-5 text-muted">
-                    Quando la discovery sarà disponibile, le persone interessate allo stesso evento potranno trovare il tuo profilo.
+                    Se attivi questa opzione, le persone interessate allo stesso evento potranno trovarti nella sezione 'Chi viene con te?'.
                   </span>
                 </span>
               </label>

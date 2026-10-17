@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 
 import { UserAvatar } from "../components/auth/UserAvatar";
+import { ProfileParticipations } from "../components/events/ProfileParticipations";
 import { ProfileInterests } from "../components/interests/ProfileInterests";
 import { useAuth } from "../context/AuthContext";
 import { getAuthRequestErrorMessage } from "../lib/auth";
@@ -61,7 +62,7 @@ export function ProfilePage() {
   }
 
   return (
-    <div className="page-shell pb-32 pt-8 sm:pt-12 md:pb-20 lg:pt-16">
+    <div className="page-shell page-with-mobile-nav pt-8 sm:pt-12 lg:pt-16">
       <section className="mx-auto max-w-2xl" aria-labelledby="profile-title">
         <p className="section-kicker">Il tuo profilo</p>
         <div className="mt-5 flex items-center gap-5">
@@ -101,6 +102,8 @@ export function ProfilePage() {
             </div>
           </div>
         </div>
+
+        <ProfileParticipations />
 
         <ProfileInterests saved={interestsSaved} initialInterests={savedInterests} />
 

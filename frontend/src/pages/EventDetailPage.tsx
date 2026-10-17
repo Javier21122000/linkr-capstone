@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 
 import { EventImage } from "../components/events/EventImage";
+import { EventParticipationPanel } from "../components/events/EventParticipationPanel";
 import { categoryLabels, formatEventDate, formatEventTimeRange } from "../lib/eventPresentation";
 import { getEvent, getEventsErrorMessage, isRequestCancelled } from "../lib/events";
 import type { EventDetail } from "../types/event";
@@ -38,7 +39,7 @@ export function EventDetailPage() {
   }, [eventId, requestKey]);
 
   return (
-    <div className="page-shell pb-32 pt-8 sm:pt-12 md:pb-20 lg:pt-16">
+    <div className="page-shell page-with-mobile-nav pt-8 sm:pt-12 lg:pt-16">
       <Link className="inline-flex min-h-11 items-center gap-2 rounded-full font-extrabold text-ink" to="/">
         <ArrowLeft size={19} aria-hidden="true" /> Torna a Discover
       </Link>
@@ -109,6 +110,12 @@ export function EventDetailPage() {
               <h2 id="event-description-title" className="text-sm font-extrabold uppercase tracking-[0.13em] text-muted">Informazioni sull’evento</h2>
               <p className="mt-3 whitespace-pre-line text-base leading-7 text-ink">{eventState.event.description}</p>
             </section>
+
+            <EventParticipationPanel
+              eventId={eventState.event.id}
+              startsAt={eventState.event.startsAt}
+              endsAt={eventState.event.endsAt}
+            />
           </div>
         </article>
       )}

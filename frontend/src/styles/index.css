@@ -205,6 +205,81 @@ a {
   background: var(--color-linkr-soft);
 }
 
+.participation-choice {
+  display: flex;
+  width: 100%;
+  min-height: 3.25rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-surface);
+  padding: 0.75rem 1rem;
+  color: var(--color-ink);
+  font-size: 0.875rem;
+  font-weight: 800;
+  transition: border-color 180ms ease, background-color 180ms ease, color 180ms ease, transform 180ms ease;
+}
+
+.participation-choice__icon {
+  flex: 0 0 auto;
+  opacity: 0;
+  transform: scale(0.72);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.participation-choice[data-selected="true"] {
+  border-color: var(--color-ink);
+  background: var(--color-ink);
+  color: white;
+}
+
+.participation-choice[data-selected="true"] .participation-choice__icon {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.participation-choice:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.participation-choice:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.privacy-control {
+  cursor: pointer;
+  transition: background-color 180ms ease, opacity 180ms ease, transform 180ms ease;
+}
+
+.privacy-control:active:not([data-disabled="true"]) {
+  transform: scale(0.99);
+  background: var(--color-linkr-soft);
+}
+
+.privacy-control[data-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.68;
+}
+
+.content-reveal {
+  animation: content-reveal 200ms ease-out both;
+}
+
+@keyframes content-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(0.25rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .auth-panel {
   border: 1px solid var(--color-line);
   border-radius: 1.75rem;
@@ -403,6 +478,10 @@ a {
   color: white;
 }
 
+.page-with-mobile-nav {
+  padding-bottom: calc(7.25rem + env(safe-area-inset-bottom));
+}
+
 .map-preview-band {
   display: grid;
   gap: 2rem;
@@ -482,6 +561,10 @@ a {
 @media (min-width: 48rem) {
   .mobile-nav {
     display: none;
+  }
+
+  .page-with-mobile-nav {
+    padding-bottom: 5rem;
   }
 }
 

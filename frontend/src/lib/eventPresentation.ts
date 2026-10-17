@@ -1,6 +1,7 @@
 import type { EventCategory, EventCategoryOption } from "../types/event";
 
 const ROME_TIME_ZONE = "Europe/Rome";
+const DEFAULT_EVENT_DURATION_MS = 3 * 60 * 60 * 1_000;
 
 export const categoryLabels: Record<EventCategory, string> = {
   MUSIC: "Musica",
@@ -56,4 +57,10 @@ export function formatEventTimeRange(startsAt: string, endsAt?: string | null): 
   if (sameDay) return `${startTime}–${formatEventTime(endsAt)}`;
 
   return `${startTime} – ${formatEventDate(endsAt)} ${formatEventTime(endsAt)}`;
+}
+
+export function isEventEnded(startsAt: string, endsAt?: string | null, now = Date.now()): boolean {
+  const startsAtTime = Date.parse(startsAt);
+  const endsAtTime = endsAt ? Date.parse(endsAt) : startsAtTime + DEFAULT_EVENT_DURATION_MS;
+  return Number.isFinite(endsAtTime) && now >= endsAtTime;
 }

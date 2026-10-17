@@ -48,6 +48,15 @@ public class EventService {
 		this.clock = clock;
 	}
 
+	/**
+	 * Un evento e' terminato quando now >= fine, dove fine = endsAt oppure startsAt + DEFAULT_DURATION.
+	 * E' LA regola usata da Discover (lista), dalle partecipazioni e dalla discovery persone.
+	 */
+	public static boolean hasEnded(Event event, Instant now) {
+		Instant end = event.getEndsAt() != null ? event.getEndsAt() : event.getStartsAt().plus(DEFAULT_DURATION);
+		return !now.isBefore(end);
+	}
+
 	public List<EventSummaryResponse> findEvents(EventCategory category, LocalDate from, LocalDate to) {
 		if (from != null && to != null && from.isAfter(to)) {
 			throw new InvalidEventFilterException("'from' must not be after 'to'");

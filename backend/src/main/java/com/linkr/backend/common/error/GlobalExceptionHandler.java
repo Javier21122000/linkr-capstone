@@ -25,6 +25,7 @@ import com.linkr.backend.event.InvalidEventFilterException;
 import com.linkr.backend.interest.InvalidInterestSelectionException;
 import com.linkr.backend.participation.EventEndedException;
 import com.linkr.backend.participation.ParticipationNotFoundException;
+import com.linkr.backend.people.ParticipationRequiredException;
 import com.linkr.backend.user.UserNotFoundException;
 
 /**
@@ -48,6 +49,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 	public ProblemDetail handleParticipationNotFound(ParticipationNotFoundException ex) {
 		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
 		problem.setTitle("Participation not found");
+		return problem;
+	}
+
+	@ExceptionHandler(ParticipationRequiredException.class)
+	public ProblemDetail handleParticipationRequired(ParticipationRequiredException ex) {
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
+		problem.setTitle("Participation required");
 		return problem;
 	}
 

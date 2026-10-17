@@ -51,7 +51,7 @@ public class EventParticipationService {
 	public ParticipationResponse declare(UUID userId, UUID eventId, ParticipationStatus status, boolean visibleToOthers) {
 		requireUser(userId);
 		Event event = requirePublishedEvent(eventId);
-		if (hasEnded(event)) {
+		if (EventService.hasEnded(event, clock.instant())) {
 			throw new EventEndedException();
 		}
 		participationRepository.upsert(userId, eventId, status.name(), visibleToOthers);
@@ -98,16 +98,6 @@ public class EventParticipationService {
 				.orElseThrow(() -> new EventNotFoundException(eventId));
 	}
 
-	/**
-	 * Terminato quando l'ora attuale ha raggiunto la fine: ora >= fine. Orologio iniettato, quindi testabile.
-	 * Senza endsAt vale la durata presunta di Discover (EventService.DEFAULT_DURATION, un solo valore per tutti).
-	 */
-	private boolean hasEnded(Event event) {
-		Instant end = event.getEndsAt() != null
-				? event.getEndsAt()
-				: event.getStartsAt().plus(EventService.DEFAULT_DURATION);
-		return !clock.instant().isBefore(end);
-	}
 
 	private ParticipationResponse toResponse(EventParticipation p) {
 		return new ParticipationResponse(p.getEventId(), p.getStatus(), p.isVisibleToOthers(),

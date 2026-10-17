@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
@@ -15,6 +16,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.linkr.backend.health.HealthController;
 
 // Origini fissate qui, cosi' il test non dipende dalla variabile d'ambiente CORS_ALLOWED_ORIGINS.
+// Questi test provano solo il controller/CORS: la sicurezza e' provata in AuthIntegrationTest.
+@AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(value = HealthController.class,
 		properties = "app.cors.allowed-origins=http://localhost:5173,http://127.0.0.1:5173")
 @Import(CorsConfig.class)

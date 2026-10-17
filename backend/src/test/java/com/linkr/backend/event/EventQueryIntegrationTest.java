@@ -12,17 +12,17 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.linkr.backend.IntegrationTest;
 import com.linkr.backend.event.dto.EventSummaryResponse;
 
 /**
- * Prova le regole di ricerca con SQL vero sul database configurato (linkr_db) (cosi' si verificano anche la migrazione Flyway
+ * Prova le regole di ricerca con SQL vero sul database di test (linkr_test_db) (cosi' si verificano anche la migrazione Flyway
  * e la validazione di Hibernate). Ogni test e' @Transactional: a fine test tutto viene annullato (rollback),
  * quindi nessun dato di prova resta nel database. I controlli guardano solo gli eventi creati dal test.
  */
-@SpringBootTest
+@IntegrationTest
 @Transactional
 class EventQueryIntegrationTest {
 

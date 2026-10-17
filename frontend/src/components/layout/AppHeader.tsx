@@ -2,11 +2,17 @@ import { MapPin, UserRound } from "lucide-react";
 import { NavLink } from "react-router";
 
 import { useAuth } from "../../context/AuthContext";
+import { useLinkRequestCount } from "../../context/LinkRequestCountContext";
+import { IncomingLinkCountBadge } from "../links/IncomingLinkCountBadge";
 import { BrandMark } from "../ui/BrandMark";
 
 export function AppHeader() {
   const { status, user } = useAuth();
+  const { incomingCount } = useLinkRequestCount();
   const profileLabel = user ? `@${user.username}` : "Profilo";
+  const profileAccessibleLabel = incomingCount
+    ? `Apri il profilo di ${profileLabel}, ${incomingCount} richieste Link ricevute in attesa`
+    : `Apri il profilo di ${profileLabel}`;
 
   return (
     <header className="sticky top-0 z-40 border-b border-line/80 bg-canvas/96">
@@ -35,11 +41,12 @@ export function AppHeader() {
             <NavLink
               to="/profile"
               className="desktop-nav-link hidden min-w-0 gap-2 md:inline-flex"
-              aria-label={`Apri il profilo di ${profileLabel}`}
+              aria-label={profileAccessibleLabel}
               title={profileLabel}
             >
               <UserRound size={18} className="shrink-0" aria-hidden="true" />
               <span className="account-nav-label">{profileLabel}</span>
+              <IncomingLinkCountBadge />
             </NavLink>
           )}
         </div>

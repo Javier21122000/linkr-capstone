@@ -1,10 +1,17 @@
 import axios from "axios";
-import { RotateCcw, UsersRound } from "lucide-react";
+import { Check, Clock3, Link2, RotateCcw, UserPlus, UsersRound, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
 
 import { useAuth } from "../../context/AuthContext";
+import { useLinkRequestCount } from "../../context/LinkRequestCountContext";
 import { isEventEnded } from "../../lib/eventPresentation";
+import {
+  acceptLinkRequest,
+  declineLinkRequest,
+  getLinkRequestErrorMessage,
+  sendLinkRequest,
+} from "../../lib/linkRequests";
 import {
   getEventPeople,
   getPeopleErrorMessage,
@@ -12,6 +19,8 @@ import {
   isPeopleParticipationRequired,
 } from "../../lib/people";
 import type { PageResponse, PeopleSort, PersonResponse } from "../../types/people";
+import type { LinkStatus } from "../../types/people";
+import type { LinkRequestResponse } from "../../types/linkRequest";
 import type { ParticipationResponse } from "../../types/participation";
 import { UserAvatar } from "../auth/UserAvatar";
 
@@ -21,6 +30,8 @@ type PeopleState =
   | { readonly status: "success"; readonly page: PageResponse<PersonResponse> }
   | { readonly status: "participation-required" }
   | { readonly status: "error"; readonly message: string };
+
+type LinkAction = "send" | "accept" | "decline";
 
 interface EventPeopleSectionProps {
   readonly eventId: string;
@@ -41,8 +52,16 @@ function sharedInterestsLabel(count: number): string {
   return `${count} interessi in comune`;
 }
 
+function linkStatusFromResponse(response: LinkRequestResponse): LinkStatus {
+  if (response.status === "ACCEPTED") return "ACCEPTED";
+  if (response.direction === "OUTGOING") return "OUTGOING_PENDING";
+  if (response.status === "DECLINED") return "INCOMING_DECLINED";
+  return "INCOMING_PENDING";
+}
+
 export function EventPeopleSection({ eventId, startsAt, endsAt, participation, participationRevision }: EventPeopleSectionProps) {
   const { status, authorizedRequest } = useAuth();
+  const { refreshIncomingCount } = useLinkRequestCount();
   const location = useLocation();
   const [sort, setSort] = useState<PeopleSort>("shared");
   const [pageNumber, setPageNumber] = useState(0);
@@ -54,6 +73,9 @@ export function EventPeopleSection({ eventId, startsAt, endsAt, participation, p
   const requestIdRef = useRef(0);
   const requestPendingRef = useRef(false);
   const loadedParticipationRevisionRef = useRef(participationRevision);
+  const linkActionLocksRef = useRef(new Set<string>());
+  const [pendingLinkActions, setPendingLinkActions] = useState<Readonly<Record<string, LinkAction>>>({});
+  const [linkActionErrors, setLinkActionErrors] = useState<Readonly<Record<string, string>>>({});
   const ended = endedFromServer || isEventEnded(startsAt, endsAt);
   const hasParticipation = participation !== undefined && participation !== null;
   const canLoadPeople = status === "authenticated" && hasParticipation && !ended;
@@ -150,6 +172,51 @@ export function EventPeopleSection({ eventId, startsAt, endsAt, participation, p
     setPageNumber(state.page.page + 1);
   }
 
+  async function handleLinkAction(person: PersonResponse, action: LinkAction) {
+    if (linkActionLocksRef.current.has(person.userId)) return;
+    if (action !== "send" && !person.linkRequestId) return;
+
+    linkActionLocksRef.current.add(person.userId);
+    setPendingLinkActions((current) => ({ ...current, [person.userId]: action }));
+    setLinkActionErrors((current) => {
+      const next = { ...current };
+      delete next[person.userId];
+      return next;
+    });
+
+    try {
+      const response = await authorizedRequest((accessToken) => {
+        if (action === "send") {
+          return sendLinkRequest(accessToken, { eventId, recipientId: person.userId });
+        }
+        if (action === "accept") return acceptLinkRequest(accessToken, person.linkRequestId!);
+        return declineLinkRequest(accessToken, person.linkRequestId!);
+      });
+      if (action !== "send") void refreshIncomingCount(true);
+      const nextLinkStatus = linkStatusFromResponse(response);
+      setState((current) => current.status === "success" ? {
+        status: "success",
+        page: {
+          ...current.page,
+          items: current.page.items.map((item) => item.userId === person.userId ? {
+            ...item,
+            linkStatus: nextLinkStatus,
+            linkRequestId: response.requestId,
+          } : item),
+        },
+      } : current);
+    } catch (error) {
+      setLinkActionErrors((current) => ({ ...current, [person.userId]: getLinkRequestErrorMessage(error) }));
+    } finally {
+      linkActionLocksRef.current.delete(person.userId);
+      setPendingLinkActions((current) => {
+        const next = { ...current };
+        delete next[person.userId];
+        return next;
+      });
+    }
+  }
+
   const loadedPage = state.status === "success" ? state.page : null;
   const hasMore = loadedPage !== null && loadedPage.page + 1 < loadedPage.totalPages;
 
@@ -231,6 +298,9 @@ export function EventPeopleSection({ eventId, startsAt, endsAt, participation, p
                 {loadedPage.items.map((person) => {
                   const visibleInterests = person.sharedInterests.slice(0, 3);
                   const remainingInterests = Math.max(0, person.sharedInterestsCount - visibleInterests.length);
+                  const pendingLinkAction = pendingLinkActions[person.userId];
+                  const linkActionPending = pendingLinkAction !== undefined;
+                  const linkActionError = linkActionErrors[person.userId];
                   return (
                     <li className="flex gap-3 py-5" key={person.userId}>
                       <UserAvatar displayName={person.displayName} avatarUrl={person.avatarUrl} className="size-12 text-sm" />
@@ -253,6 +323,63 @@ export function EventPeopleSection({ eventId, startsAt, endsAt, participation, p
                             {remainingInterests > 0 ? <span className="rounded-full bg-line/70 px-2.5 py-1 text-xs font-extrabold text-muted">+{remainingInterests}</span> : null}
                           </div>
                         ) : null}
+                        <div className="mt-4" aria-busy={linkActionPending}>
+                          {person.linkStatus === "NONE" ? (
+                            <button
+                              className="button-primary inline-flex min-w-36 items-center gap-2"
+                              type="button"
+                              disabled={linkActionPending}
+                              aria-label={`Invia una richiesta Link a ${person.displayName}`}
+                              onClick={() => void handleLinkAction(person, "send")}
+                            >
+                              <UserPlus size={17} aria-hidden="true" />
+                              {pendingLinkAction === "send" ? "Invio…" : "Invia Link"}
+                            </button>
+                          ) : null}
+
+                          {person.linkStatus === "OUTGOING_PENDING" ? (
+                            <span className="inline-flex min-h-11 items-center gap-2 rounded-full bg-line/70 px-4 py-2 text-xs font-extrabold text-muted">
+                              <Clock3 size={16} aria-hidden="true" /> Richiesta inviata
+                            </span>
+                          ) : null}
+
+                          {person.linkStatus === "INCOMING_PENDING" && person.linkRequestId ? (
+                            <div className="flex flex-wrap gap-2" aria-label={`Rispondi alla richiesta Link di ${person.displayName}`}>
+                              <button
+                                className="button-primary inline-flex min-w-28 items-center gap-2"
+                                type="button"
+                                disabled={linkActionPending}
+                                onClick={() => void handleLinkAction(person, "accept")}
+                              >
+                                <Check size={17} aria-hidden="true" /> {pendingLinkAction === "accept" ? "Accetto…" : "Accetta"}
+                              </button>
+                              <button
+                                className="button-secondary inline-flex min-w-28 items-center gap-2"
+                                type="button"
+                                disabled={linkActionPending}
+                                onClick={() => void handleLinkAction(person, "decline")}
+                              >
+                                <X size={17} aria-hidden="true" /> {pendingLinkAction === "decline" ? "Rifiuto…" : "Rifiuta"}
+                              </button>
+                            </div>
+                          ) : null}
+
+                          {person.linkStatus === "INCOMING_PENDING" && !person.linkRequestId ? (
+                            <span className="inline-flex min-h-11 items-center rounded-full bg-line/70 px-4 py-2 text-xs font-extrabold text-muted">Richiesta ricevuta</span>
+                          ) : null}
+
+                          {person.linkStatus === "INCOMING_DECLINED" ? (
+                            <span className="inline-flex min-h-11 items-center rounded-full bg-line/70 px-4 py-2 text-xs font-extrabold text-muted">Richiesta archiviata</span>
+                          ) : null}
+
+                          {person.linkStatus === "ACCEPTED" ? (
+                            <span className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[#edf8f3] px-4 py-2 text-xs font-extrabold text-success">
+                              <Link2 size={16} aria-hidden="true" /> Collegati
+                            </span>
+                          ) : null}
+
+                          {linkActionError ? <p className="mt-2 text-sm font-bold leading-5 text-danger" role="alert">{linkActionError}</p> : null}
+                        </div>
                       </div>
                     </li>
                   );

@@ -1,12 +1,14 @@
 import axios from "axios";
-import { CalendarDays, LogOut, Mail, RotateCcw } from "lucide-react";
+import { ArrowRight, CalendarDays, LogOut, Mail, RotateCcw, UsersRound } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 
 import { UserAvatar } from "../components/auth/UserAvatar";
 import { ProfileParticipations } from "../components/events/ProfileParticipations";
 import { ProfileInterests } from "../components/interests/ProfileInterests";
+import { IncomingLinkCountBadge } from "../components/links/IncomingLinkCountBadge";
 import { useAuth } from "../context/AuthContext";
+import { useLinkRequestCount } from "../context/LinkRequestCountContext";
 import { getAuthRequestErrorMessage } from "../lib/auth";
 import type { UserInterest } from "../types/interest";
 
@@ -34,6 +36,7 @@ function getSavedInterests(state: unknown): readonly UserInterest[] | undefined 
 
 export function ProfilePage() {
   const { user, logout, validateSession } = useAuth();
+  const { incomingCount } = useLinkRequestCount();
   const location = useLocation();
   const navigate = useNavigate();
   const [requestKey, setRequestKey] = useState(0);
@@ -102,6 +105,23 @@ export function ProfilePage() {
             </div>
           </div>
         </div>
+
+        <Link
+          className="mt-8 flex min-h-16 items-center gap-4 rounded-2xl border border-line bg-surface p-4 text-ink transition-transform active:scale-[0.99] motion-reduce:transition-none"
+          to="/profile/links"
+          aria-label={incomingCount
+            ? `I miei Link, ${incomingCount} richieste ricevute in attesa`
+            : undefined}
+        >
+          <span className="grid size-11 shrink-0 place-items-center rounded-full bg-linkr-soft text-linkr-strong">
+            <UsersRound size={20} aria-hidden="true" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-2 font-extrabold">I miei Link <IncomingLinkCountBadge /></span>
+            <span className="mt-1 block text-sm font-semibold text-muted">Richieste ricevute, inviate e collegamenti</span>
+          </span>
+          <ArrowRight className="shrink-0 text-muted" size={19} aria-hidden="true" />
+        </Link>
 
         <ProfileParticipations />
 

@@ -9,6 +9,7 @@ import { HealthPage } from "./pages/HealthPage";
 import { LoginPage } from "./pages/LoginPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { ProfilePage } from "./pages/ProfilePage";
+import { ProfileLinksPage } from "./pages/ProfileLinksPage";
 import { RegisterPage } from "./pages/RegisterPage";
 
 const router = createBrowserRouter(
@@ -22,6 +23,7 @@ const router = createBrowserRouter(
         <Route element={<ProtectedRoute />}>
           <Route path="profile" element={<ProfilePage />} />
           <Route path="profile/interests" element={<EditInterestsPage />} />
+          <Route path="profile/links" element={<ProfileLinksPage />} />
         </Route>
       </Route>
       <Route path="technical/health" element={<HealthPage />} />

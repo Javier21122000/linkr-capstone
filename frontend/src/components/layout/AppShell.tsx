@@ -1,9 +1,18 @@
 import { Outlet, useLocation } from "react-router";
 
+import { LinkRequestCountProvider } from "../../context/LinkRequestCountContext";
 import { AppHeader } from "./AppHeader";
 import { MobileNav } from "./MobileNav";
 
 export function AppShell() {
+  return (
+    <LinkRequestCountProvider>
+      <AppShellContent />
+    </LinkRequestCountProvider>
+  );
+}
+
+function AppShellContent() {
   const { pathname } = useLocation();
   const showMobileNav = pathname !== "/login" && pathname !== "/register" && pathname !== "/profile/interests";
 

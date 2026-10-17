@@ -2,6 +2,13 @@ import type { ParticipationStatus } from "./participation";
 
 export type PeopleSort = "shared" | "recent";
 
+export type LinkStatus =
+  | "NONE"
+  | "OUTGOING_PENDING"
+  | "INCOMING_PENDING"
+  | "INCOMING_DECLINED"
+  | "ACCEPTED";
+
 export interface SharedInterestResponse {
   readonly id: string;
   readonly slug: string;
@@ -17,6 +24,8 @@ export interface PersonResponse {
   readonly status: ParticipationStatus;
   readonly sharedInterestsCount: number;
   readonly sharedInterests: readonly SharedInterestResponse[];
+  readonly linkStatus: LinkStatus;
+  readonly linkRequestId: string | null;
 }
 
 export interface PageResponse<T> {

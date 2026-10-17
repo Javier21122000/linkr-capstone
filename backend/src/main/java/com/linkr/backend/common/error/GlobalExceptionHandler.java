@@ -23,6 +23,7 @@ import com.linkr.backend.auth.InvalidCredentialsException;
 import com.linkr.backend.event.EventNotFoundException;
 import com.linkr.backend.event.InvalidEventFilterException;
 import com.linkr.backend.interest.InvalidInterestSelectionException;
+import com.linkr.backend.linkrequest.LinkRequestException;
 import com.linkr.backend.participation.EventEndedException;
 import com.linkr.backend.participation.ParticipationNotFoundException;
 import com.linkr.backend.people.ParticipationRequiredException;
@@ -49,6 +50,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 	public ProblemDetail handleParticipationNotFound(ParticipationNotFoundException ex) {
 		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
 		problem.setTitle("Participation not found");
+		return problem;
+	}
+
+	/** Errori delle richieste Link: codice e titolo li decide l'eccezione, con messaggi volutamente generici. */
+	@ExceptionHandler(LinkRequestException.class)
+	public ProblemDetail handleLinkRequest(LinkRequestException ex) {
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(ex.getStatus(), ex.getMessage());
+		problem.setTitle(ex.getTitle());
 		return problem;
 	}
 

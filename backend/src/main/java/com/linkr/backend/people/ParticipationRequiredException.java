@@ -4,7 +4,11 @@ package com.linkr.backend.people;
 public class ParticipationRequiredException extends RuntimeException {
 
 	public ParticipationRequiredException() {
-		super("Declare your own participation in this event to see who else is going.");
+		this("Declare your own participation in this event to see who else is going.");
+	}
+
+	public ParticipationRequiredException(String message) {
+		super(message);
 	}
 
 }

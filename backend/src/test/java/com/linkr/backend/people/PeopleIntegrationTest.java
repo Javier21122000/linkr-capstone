@@ -204,7 +204,7 @@ class PeopleIntegrationTest {
 
 		Map<String, Object> item = JsonPath.read(body, "$.items[0]");
 		assertThat(item.keySet()).containsExactlyInAnyOrder("userId", "username", "displayName", "avatarUrl", "status",
-				"sharedInterestsCount", "sharedInterests");
+				"sharedInterestsCount", "sharedInterests", "linkStatus", "linkRequestId");
 		assertThat(item.get("avatarUrl")).isEqualTo("https://example.com/a.png");
 		assertThat(body).doesNotContain("email").doesNotContain("@example.com").doesNotContain("secret bio")
 				.doesNotContain("bio").doesNotContain("role").doesNotContain("password").doesNotContain("Hash")

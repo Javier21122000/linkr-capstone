@@ -13,7 +13,7 @@ import com.linkr.backend.people.dto.SharedInterestResponse;
 
 /**
  * Query SQL della discovery persone (JdbcClient: servono aggregazione e intersezione di interessi).
- * Per ogni pagina si eseguono SEMPRE 3 query, qualunque sia il numero di persone: nessun N+1.
+ * Per ogni pagina si eseguono SEMPRE 4 query (3 qui, lo stato dei Link in LinkRequestRepository), qualunque sia il numero di persone: nessun N+1.
  *
  * Filtro comune: stesso evento, visible_to_others = true, utente diverso da "me".
  * Tutti i valori arrivano come parametri (:nome), mai concatenati nell'SQL.

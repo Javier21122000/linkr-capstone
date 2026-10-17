@@ -15,6 +15,9 @@ import com.linkr.backend.event.EventRepository;
 import com.linkr.backend.event.EventService;
 import com.linkr.backend.event.EventStatus;
 import com.linkr.backend.event.InvalidEventFilterException;
+import com.linkr.backend.linkrequest.LinkRequestRepository;
+import com.linkr.backend.linkrequest.LinkState;
+import com.linkr.backend.linkrequest.LinkStatus;
 import com.linkr.backend.participation.EventEndedException;
 import com.linkr.backend.participation.EventParticipationRepository;
 import com.linkr.backend.people.PeopleRepository.PersonRow;
@@ -30,24 +33,26 @@ import com.linkr.backend.people.dto.SharedInterestResponse;
 @Service
 public class PeopleService {
 
-	public static final int DEFAULT_SIZE = 20;
-	public static final int MAX_SIZE = 50;
+	public static final int DEFAULT_SIZE = PageResponse.DEFAULT_SIZE;
+	public static final int MAX_SIZE = PageResponse.MAX_SIZE;
 
 	private final EventRepository eventRepository;
 	private final EventParticipationRepository participationRepository;
 	private final PeopleRepository peopleRepository;
+	private final LinkRequestRepository linkRequestRepository;
 	private final Clock clock;
 
 	public PeopleService(EventRepository eventRepository, EventParticipationRepository participationRepository,
-			PeopleRepository peopleRepository, Clock clock) {
+			PeopleRepository peopleRepository, LinkRequestRepository linkRequestRepository, Clock clock) {
 		this.eventRepository = eventRepository;
 		this.participationRepository = participationRepository;
 		this.peopleRepository = peopleRepository;
+		this.linkRequestRepository = linkRequestRepository;
 		this.clock = clock;
 	}
 
 	/**
-	 * REPEATABLE_READ: le 3 query della pagina (totale, persone, interessi) vedono lo stesso istantanea dei dati,
+	 * REPEATABLE_READ: le 4 query della pagina (totale, persone, interessi, stato dei Link) vedono lo stesso istantanea dei dati,
 	 * quindi il risultato e' coerente anche se qualcuno cambia visibilita' o interessi nel frattempo.
 	 */
 	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
@@ -70,12 +75,16 @@ public class PeopleService {
 
 		long total = peopleRepository.countVisible(eventId, me);
 		List<PersonRow> rows = peopleRepository.findPage(eventId, me, sort, size, (long) page * size);
-		var shared = peopleRepository.findSharedInterests(me, rows.stream().map(PersonRow::userId).toList());
+		List<UUID> userIds = rows.stream().map(PersonRow::userId).toList();
+		var shared = peopleRepository.findSharedInterests(me, userIds);
+		var links = linkRequestRepository.findStates(me, userIds); // 4a query della pagina: stato del Link con tutti
 
 		List<PersonResponse> items = rows.stream().map(row -> {
 			List<SharedInterestResponse> interests = shared.getOrDefault(row.userId(), List.of());
+			LinkState link = links.get(row.userId());
 			return new PersonResponse(row.userId(), row.username(), row.displayName(), row.avatarUrl(), row.status(),
-					interests.size(), interests);
+					interests.size(), interests, link == null ? LinkStatus.NONE : link.status(),
+					link == null ? null : link.requestId());
 		}).toList();
 		return PageResponse.of(items, page, size, total);
 	}

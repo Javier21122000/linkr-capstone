@@ -21,6 +21,7 @@ import com.linkr.backend.auth.DuplicateUserException;
 import com.linkr.backend.auth.InvalidCredentialsException;
 import com.linkr.backend.event.EventNotFoundException;
 import com.linkr.backend.event.InvalidEventFilterException;
+import com.linkr.backend.interest.InvalidInterestSelectionException;
 import com.linkr.backend.user.UserNotFoundException;
 
 /**
@@ -44,6 +45,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 	public ProblemDetail handleInvalidFilter(InvalidEventFilterException ex) {
 		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
 		problem.setTitle("Invalid filters");
+		return problem;
+	}
+
+	@ExceptionHandler(InvalidInterestSelectionException.class)
+	public ProblemDetail handleInvalidInterests(InvalidInterestSelectionException ex) {
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+		problem.setTitle("Invalid interests");
+		if (!ex.getUnknownIds().isEmpty()) {
+			problem.setProperty("unknownIds", ex.getUnknownIds());
+		}
 		return problem;
 	}
 

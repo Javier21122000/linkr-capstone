@@ -11,6 +11,7 @@
   --color-linkr-strong: #b9301d;
   --color-linkr-soft: #ffe4dc;
   --color-success: #197a55;
+  --color-danger: #a1261c;
   --color-focus: #2f67f6;
 }
 
@@ -179,6 +180,87 @@ a {
   background: #982917;
 }
 
+.button-primary:disabled,
+.button-secondary:disabled,
+.form-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.button-secondary {
+  min-height: 3rem;
+  justify-content: center;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-surface);
+  padding: 0.75rem 1.25rem;
+  color: var(--color-ink);
+  font-size: 0.875rem;
+  font-weight: 800;
+  transition: background-color 160ms ease, transform 160ms ease;
+}
+
+.button-secondary:active:not(:disabled) {
+  transform: scale(0.98);
+  background: var(--color-linkr-soft);
+}
+
+.auth-panel {
+  border: 1px solid var(--color-line);
+  border-radius: 1.75rem;
+  background: var(--color-surface);
+  padding: 1.5rem;
+}
+
+.form-label {
+  display: block;
+  color: var(--color-ink);
+  font-size: 0.875rem;
+  font-weight: 800;
+}
+
+.form-input {
+  width: 100%;
+  min-height: 3rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.75rem;
+  background: var(--color-surface);
+  padding: 0.75rem 0.875rem;
+  color: var(--color-ink);
+  font: inherit;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.form-input:hover:not(:disabled) {
+  border-color: var(--color-muted);
+}
+
+.form-input[aria-invalid="true"] {
+  border-color: var(--color-danger);
+}
+
+.field-error {
+  color: var(--color-danger);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.25rem;
+}
+
+.form-message {
+  border: 1px solid var(--color-line);
+  border-radius: 0.75rem;
+  padding: 0.875rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 650;
+  line-height: 1.4rem;
+}
+
+.form-message--error {
+  border-color: rgb(161 38 28 / 0.35);
+  background: #fff1ed;
+  color: var(--color-danger);
+}
+
 .desktop-nav-link {
   display: inline-flex;
   min-height: 2.75rem;
@@ -193,22 +275,6 @@ a {
 .desktop-nav-link[aria-current="page"] {
   background: var(--color-ink);
   color: white;
-}
-
-.desktop-nav-link:disabled {
-  cursor: not-allowed;
-  opacity: 0.62;
-}
-
-.nav-soon {
-  border-radius: 999px;
-  background: var(--color-linkr-soft);
-  padding: 0.2rem 0.4rem;
-  color: var(--color-linkr-strong);
-  font-size: 0.6rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
 .mobile-nav {
@@ -241,11 +307,6 @@ a {
 .mobile-nav__item[aria-current="page"] {
   background: var(--color-ink);
   color: white;
-}
-
-.mobile-nav__item:disabled {
-  cursor: not-allowed;
-  opacity: 0.66;
 }
 
 .map-preview-band {
@@ -289,6 +350,10 @@ a {
 
   .map-preview-band {
     padding: 3rem;
+  }
+
+  .auth-panel {
+    padding: 2.5rem;
   }
 }
 

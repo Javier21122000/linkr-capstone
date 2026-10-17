@@ -1,9 +1,12 @@
-import { Outlet } from "react-router";
+import { Outlet, useLocation } from "react-router";
 
 import { AppHeader } from "./AppHeader";
 import { MobileNav } from "./MobileNav";
 
 export function AppShell() {
+  const { pathname } = useLocation();
+  const showMobileNav = pathname !== "/login" && pathname !== "/register";
+
   return (
     <div className="min-h-dvh bg-canvas text-ink">
       <a className="skip-link" href="#main-content">
@@ -13,7 +16,7 @@ export function AppShell() {
       <main id="main-content">
         <Outlet />
       </main>
-      <MobileNav />
+      {showMobileNav ? <MobileNav /> : null}
     </div>
   );
 }

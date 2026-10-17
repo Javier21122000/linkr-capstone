@@ -1,10 +1,14 @@
 import { Route, Routes } from "react-router";
 
+import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { AppShell } from "./components/layout/AppShell";
 import { DiscoverPage } from "./pages/DiscoverPage";
 import { EventDetailPage } from "./pages/EventDetailPage";
 import { HealthPage } from "./pages/HealthPage";
+import { LoginPage } from "./pages/LoginPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
+import { ProfilePage } from "./pages/ProfilePage";
+import { RegisterPage } from "./pages/RegisterPage";
 
 export function App() {
   return (
@@ -12,6 +16,11 @@ export function App() {
       <Route element={<AppShell />}>
         <Route index element={<DiscoverPage />} />
         <Route path="events/:eventId" element={<EventDetailPage />} />
+        <Route path="login" element={<LoginPage />} />
+        <Route path="register" element={<RegisterPage />} />
+        <Route element={<ProtectedRoute />}>
+          <Route path="profile" element={<ProfilePage />} />
+        </Route>
       </Route>
       <Route path="technical/health" element={<HealthPage />} />
       <Route path="*" element={<NotFoundPage />} />

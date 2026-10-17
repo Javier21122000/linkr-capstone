@@ -5,7 +5,7 @@ import { MobileNav } from "./MobileNav";
 
 export function AppShell() {
   const { pathname } = useLocation();
-  const showMobileNav = pathname !== "/login" && pathname !== "/register";
+  const showMobileNav = pathname !== "/login" && pathname !== "/register" && pathname !== "/profile/interests";
 
   return (
     <div className="min-h-dvh bg-canvas text-ink">

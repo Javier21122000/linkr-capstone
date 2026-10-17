@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router";
 
@@ -59,12 +59,15 @@ export function RegisterPage() {
   const { status, authenticate } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const registrationSucceededRef = useRef(false);
   const [values, setValues] = useState<RegistrationValues>({ displayName: "", username: "", email: "", password: "", confirmPassword: "" });
   const [errors, setErrors] = useState<RegistrationErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  if (status === "authenticated") return <Navigate to={getSafeReturnPath(location.state)} replace />;
+  if (status === "authenticated" && !registrationSucceededRef.current) {
+    return <Navigate to={getSafeReturnPath(location.state)} replace />;
+  }
 
   function updateValue(field: keyof RegistrationValues, value: string) {
     setValues((current) => ({ ...current, [field]: value }));
@@ -85,8 +88,9 @@ export function RegisterPage() {
         email: values.email.trim(),
         password: values.password,
       });
+      registrationSucceededRef.current = true;
       authenticate(response);
-      navigate(getSafeReturnPath(location.state), { replace: true });
+      navigate("/profile/interests", { replace: true, state: { onboarding: true } });
     } catch (error) {
       const problem = getProblemDetail(error);
       if (problem?.status === 409) {

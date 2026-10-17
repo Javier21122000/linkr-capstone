@@ -34,4 +34,5 @@ export interface ProblemDetail {
   readonly instance?: string;
   readonly field?: string;
   readonly errors?: Readonly<Record<string, string>>;
+  readonly unknownIds?: readonly string[];
 }

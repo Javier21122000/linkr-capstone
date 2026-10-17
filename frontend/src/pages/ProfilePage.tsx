@@ -1,11 +1,13 @@
 import axios from "axios";
 import { CalendarDays, LogOut, Mail, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 
 import { UserAvatar } from "../components/auth/UserAvatar";
+import { ProfileInterests } from "../components/interests/ProfileInterests";
 import { useAuth } from "../context/AuthContext";
 import { getAuthRequestErrorMessage } from "../lib/auth";
+import type { UserInterest } from "../types/interest";
 
 function formatMemberSince(createdAt: string): string {
   const date = new Date(createdAt);
@@ -13,11 +15,34 @@ function formatMemberSince(createdAt: string): string {
   return new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "long", year: "numeric" }).format(date);
 }
 
+function getSavedInterests(state: unknown): readonly UserInterest[] | undefined {
+  if (typeof state !== "object" || state === null || !("interestsSaved" in state) || state.interestsSaved !== true) return undefined;
+  if (!("savedInterests" in state) || !Array.isArray(state.savedInterests)) return undefined;
+
+  const valid = state.savedInterests.every((interest: unknown) => (
+    typeof interest === "object"
+    && interest !== null
+    && "id" in interest && typeof interest.id === "string"
+    && "slug" in interest && typeof interest.slug === "string"
+    && "name" in interest && typeof interest.name === "string"
+    && "categoryId" in interest && typeof interest.categoryId === "string"
+    && "categorySlug" in interest && typeof interest.categorySlug === "string"
+  ));
+  return valid ? state.savedInterests as readonly UserInterest[] : undefined;
+}
+
 export function ProfilePage() {
   const { user, logout, validateSession } = useAuth();
+  const location = useLocation();
   const navigate = useNavigate();
   const [requestKey, setRequestKey] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [savedInterests] = useState(() => getSavedInterests(location.state));
+  const interestsSaved = savedInterests !== undefined;
+
+  useEffect(() => {
+    if (interestsSaved) navigate(location.pathname, { replace: true, state: null });
+  }, [interestsSaved, location.pathname, navigate]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -76,6 +101,8 @@ export function ProfilePage() {
             </div>
           </div>
         </div>
+
+        <ProfileInterests saved={interestsSaved} initialInterests={savedInterests} />
 
         <button className="button-secondary mt-8 flex w-full items-center gap-2 sm:w-auto" type="button" onClick={handleLogout}>
           <LogOut size={18} aria-hidden="true" /> Esci

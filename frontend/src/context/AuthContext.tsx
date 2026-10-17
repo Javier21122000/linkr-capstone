@@ -15,6 +15,7 @@ interface AuthContextValue {
   readonly user: UserResponse | null;
   authenticate(response: AuthResponse): void;
   logout(): void;
+  authorizedRequest<T>(request: (accessToken: string) => Promise<T>): Promise<T>;
   validateSession(signal?: AbortSignal): Promise<void>;
 }
 
@@ -35,24 +36,26 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
     setSession({ accessToken: response.accessToken, expiresAt, user: response.user });
   }, []);
 
-  const validateSession = useCallback(async (signal?: AbortSignal) => {
-    if (!session) return;
-
+  const authorizedRequest = useCallback(async <T,>(request: (accessToken: string) => Promise<T>): Promise<T> => {
+    if (!session) throw new Error("Authentication is required");
     if (session.expiresAt <= Date.now()) {
       setSession(null);
-      return;
+      throw new Error("Authentication has expired");
     }
 
     try {
-      await getCurrentUser(session.accessToken, signal);
+      return await request(session.accessToken);
     } catch (error) {
       if (isUnauthorized(error)) {
         setSession((current) => current?.accessToken === session.accessToken ? null : current);
-        return;
       }
       throw error;
     }
   }, [session]);
+
+  const validateSession = useCallback(async (signal?: AbortSignal) => {
+    await authorizedRequest((accessToken) => getCurrentUser(accessToken, signal));
+  }, [authorizedRequest]);
 
   useEffect(() => {
     if (!session) return undefined;
@@ -72,8 +75,9 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
     user: session?.user ?? null,
     authenticate,
     logout,
+    authorizedRequest,
     validateSession,
-  }), [authenticate, logout, session, validateSession]);
+  }), [authenticate, authorizedRequest, logout, session, validateSession]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -22,6 +23,8 @@ import com.linkr.backend.auth.InvalidCredentialsException;
 import com.linkr.backend.event.EventNotFoundException;
 import com.linkr.backend.event.InvalidEventFilterException;
 import com.linkr.backend.interest.InvalidInterestSelectionException;
+import com.linkr.backend.participation.EventEndedException;
+import com.linkr.backend.participation.ParticipationNotFoundException;
 import com.linkr.backend.user.UserNotFoundException;
 
 /**
@@ -38,6 +41,30 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 	public ProblemDetail handleEventNotFound(EventNotFoundException ex) {
 		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
 		problem.setTitle("Event not found");
+		return problem;
+	}
+
+	@ExceptionHandler(ParticipationNotFoundException.class)
+	public ProblemDetail handleParticipationNotFound(ParticipationNotFoundException ex) {
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+		problem.setTitle("Participation not found");
+		return problem;
+	}
+
+	@ExceptionHandler(EventEndedException.class)
+	public ProblemDetail handleEventEnded(EventEndedException ex) {
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+		problem.setTitle("Event has ended");
+		return problem;
+	}
+
+	/** Violazione di un vincolo del database (es. dati cancellati nel frattempo): 409 senza dettagli SQL. */
+	@ExceptionHandler(DataIntegrityViolationException.class)
+	public ProblemDetail handleDataIntegrity(DataIntegrityViolationException ex) {
+		log.warn("Data integrity violation", ex);
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
+				"The request conflicts with the current state of the data.");
+		problem.setTitle("Conflict");
 		return problem;
 	}
 

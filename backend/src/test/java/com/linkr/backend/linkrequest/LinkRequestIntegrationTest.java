@@ -182,7 +182,8 @@ class LinkRequestIntegrationTest {
 	@Test
 	void invalidPayloadsReturn400AndSenderIdInBodyIsIgnored() throws Exception {
 		Scenario s = scenario();
-		for (String payload : List.of("{}", "{\"eventId\":\"" + s.event + "\"}", "{\"recipientId\":\"" + s.bob.id() + "\"}",
+		// eventId e' facoltativo (richiesta da Discover People): manca solo recipientId, oppure e' invalido
+		for (String payload : List.of("{}", "{\"eventId\":\"" + s.event + "\"}", "{\"eventId\":null}",
 				"{\"eventId\":\"nope\",\"recipientId\":\"" + s.bob.id() + "\"}", "{not json", "")) {
 			mockMvc.perform(post("/api/link-requests").header(HttpHeaders.AUTHORIZATION, bearer(s.alice))
 					.contentType(MediaType.APPLICATION_JSON).content(payload)).andExpect(status().isBadRequest());

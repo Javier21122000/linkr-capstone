@@ -2,6 +2,7 @@ package com.linkr.backend.people;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -23,6 +24,10 @@ public class PeopleRepository {
 
 	/** Riga di una persona: solo i campi che possono uscire dalle API. */
 	record PersonRow(UUID userId, String username, String displayName, String avatarUrl, ParticipationStatus status) {
+	}
+
+	/** Persona di Discover People: solo i campi che possono uscire dalle API. */
+	record DiscoverRow(UUID userId, String username, String displayName, String avatarUrl) {
 	}
 
 	private final JdbcClient jdbc;
@@ -93,6 +98,50 @@ public class PeopleRepository {
 								rs.getString("name"), rs.getString("category_slug"))))
 				.list().stream()
 				.collect(Collectors.groupingBy(Row::userId, Collectors.mapping(Row::interest, Collectors.toList())));
+	}
+
+	// ---------- Discover People (opt-in, interessi condivisi) ----------
+
+	/** Stato di visibilita' di un utente. Vuoto = utente inesistente. */
+	Optional<Boolean> isDiscoverable(UUID userId) {
+		return jdbc.sql("SELECT discoverable FROM app_user WHERE id = :id")
+				.param("id", userId).query(Boolean.class).optional();
+	}
+
+	/**
+	 * Quante persone VISIBILI hanno almeno un interesse in comune con "me" (mai "me" stesso).
+	 * Parte dagli interessi di "me" (PK di user_interest) e arriva agli altri con idx_user_interest_interest.
+	 */
+	long countDiscoverable(UUID me) {
+		return jdbc.sql("""
+				SELECT count(DISTINCT theirs.user_id)
+				  FROM user_interest mine
+				  JOIN user_interest theirs ON theirs.interest_id = mine.interest_id AND theirs.user_id <> :me
+				  JOIN app_user u ON u.id = theirs.user_id AND u.discoverable
+				 WHERE mine.user_id = :me
+				""")
+				.param("me", me).query(Long.class).single();
+	}
+
+	/**
+	 * Una pagina di persone visibili con interessi in comune, per numero di interessi condivisi (decrescente), poi nome e id
+	 * (ordine stabile tra una pagina e l'altra). Nessuna persona senza interessi in comune: non si inventano abbinamenti.
+	 */
+	List<DiscoverRow> findDiscoverablePage(UUID me, int size, long offset) {
+		return jdbc.sql("""
+				SELECT u.id, u.username, u.display_name, u.avatar_url
+				  FROM user_interest mine
+				  JOIN user_interest theirs ON theirs.interest_id = mine.interest_id AND theirs.user_id <> :me
+				  JOIN app_user u ON u.id = theirs.user_id AND u.discoverable
+				 WHERE mine.user_id = :me
+				 GROUP BY u.id, u.username, u.display_name, u.avatar_url
+				 ORDER BY count(*) DESC, lower(u.display_name), u.id
+				 LIMIT :size OFFSET :offset
+				""")
+				.param("me", me).param("size", size).param("offset", offset)
+				.query((rs, rowNum) -> new DiscoverRow(rs.getObject("id", UUID.class), rs.getString("username"),
+						rs.getString("display_name"), rs.getString("avatar_url")))
+				.list();
 	}
 
 }

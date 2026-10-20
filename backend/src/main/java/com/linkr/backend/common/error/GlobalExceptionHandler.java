@@ -20,12 +20,18 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 
 import com.linkr.backend.auth.DuplicateUserException;
 import com.linkr.backend.auth.InvalidCredentialsException;
+import com.linkr.backend.chat.ConversationNotFoundException;
+import com.linkr.backend.event.EventForbiddenException;
+import com.linkr.backend.event.EventLimitExceededException;
+import com.linkr.backend.event.EventNotEditableException;
 import com.linkr.backend.event.EventNotFoundException;
+import com.linkr.backend.event.InvalidEventException;
 import com.linkr.backend.event.InvalidEventFilterException;
 import com.linkr.backend.interest.InvalidInterestSelectionException;
 import com.linkr.backend.linkrequest.LinkRequestException;
 import com.linkr.backend.participation.EventEndedException;
 import com.linkr.backend.participation.ParticipationNotFoundException;
+import com.linkr.backend.people.DiscoveryRequiredException;
 import com.linkr.backend.people.ParticipationRequiredException;
 import com.linkr.backend.user.UserNotFoundException;
 
@@ -43,6 +49,36 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 	public ProblemDetail handleEventNotFound(EventNotFoundException ex) {
 		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
 		problem.setTitle("Event not found");
+		return problem;
+	}
+
+	@ExceptionHandler(EventForbiddenException.class)
+	public ProblemDetail handleEventForbidden(EventForbiddenException ex) {
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
+		problem.setTitle("Forbidden");
+		return problem;
+	}
+
+	@ExceptionHandler(EventNotEditableException.class)
+	public ProblemDetail handleEventNotEditable(EventNotEditableException ex) {
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+		problem.setTitle("Event cannot be changed");
+		return problem;
+	}
+
+	@ExceptionHandler(EventLimitExceededException.class)
+	public ProblemDetail handleEventLimit(EventLimitExceededException ex) {
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage());
+		problem.setTitle("Too many events");
+		return problem;
+	}
+
+	/** Regole tra piu' campi: stesso formato della validazione dei DTO (title "Validation failed" e mappa "errors"). */
+	@ExceptionHandler(InvalidEventException.class)
+	public ProblemDetail handleInvalidEvent(InvalidEventException ex) {
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Invalid request content.");
+		problem.setTitle("Validation failed");
+		problem.setProperty("errors", ex.getErrors());
 		return problem;
 	}
 
@@ -65,6 +101,20 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 	public ProblemDetail handleParticipationRequired(ParticipationRequiredException ex) {
 		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
 		problem.setTitle("Participation required");
+		return problem;
+	}
+
+	@ExceptionHandler(ConversationNotFoundException.class)
+	public ProblemDetail handleConversationNotFound(ConversationNotFoundException ex) {
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+		problem.setTitle("Conversation not found");
+		return problem;
+	}
+
+	@ExceptionHandler(DiscoveryRequiredException.class)
+	public ProblemDetail handleDiscoveryRequired(DiscoveryRequiredException ex) {
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
+		problem.setTitle("Discovery required");
 		return problem;
 	}
 

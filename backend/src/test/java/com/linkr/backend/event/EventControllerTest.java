@@ -39,6 +39,9 @@ class EventControllerTest {
 	@MockitoBean
 	private EventService eventService;
 
+	@MockitoBean
+	private EventManagementService managementService;
+
 	@Test
 	void listReturnsSummariesWithIsoDatesAndOffset() throws Exception {
 		when(eventService.findEvents(null, null, null)).thenReturn(List.of(summary()));
@@ -98,14 +101,18 @@ class EventControllerTest {
 	void detailReturnsFullEvent() throws Exception {
 		when(eventService.getEvent(ID)).thenReturn(new EventDetailResponse(ID, "Courtyard Sessions", "Long text",
 				EventCategory.MUSIC, START, START.plusHours(3), "Cortile 68 (demo venue)", "Demo address",
-				"Isola", 45.4878, 9.189, "https://example.com/i.jpg", "alt", "Unsplash demo image", true));
+				"Isola", 45.4878, 9.189, "https://example.com/i.jpg", "alt", "Unsplash demo image", true,
+				EventStatus.PUBLISHED, EventType.OFFICIAL, null, false));
 
 		mockMvc.perform(get("/api/events/{id}", ID))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.description").value("Long text"))
 				.andExpect(jsonPath("$.address").value("Demo address"))
 				.andExpect(jsonPath("$.endsAt").value("2026-10-15T22:30:00+02:00"))
-				.andExpect(jsonPath("$.imageCredit").value("Unsplash demo image"));
+				.andExpect(jsonPath("$.imageCredit").value("Unsplash demo image"))
+				.andExpect(jsonPath("$.status").value("PUBLISHED"))
+				.andExpect(jsonPath("$.type").value("OFFICIAL"))
+				.andExpect(jsonPath("$.canEdit").value(false));
 	}
 
 	@Test
@@ -140,7 +147,7 @@ class EventControllerTest {
 
 	private EventSummaryResponse summary() {
 		return new EventSummaryResponse(ID, "Courtyard Sessions", EventCategory.MUSIC, START, null,
-				"Cortile 68 (demo venue)", "Isola", 45.4878, 9.189, null, null, true);
+				"Cortile 68 (demo venue)", "Isola", 45.4878, 9.189, null, null, true, EventStatus.PUBLISHED, EventType.OFFICIAL);
 	}
 
 }

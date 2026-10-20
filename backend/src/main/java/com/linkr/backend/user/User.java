@@ -54,6 +54,10 @@ public class User {
 	@Column(nullable = false, length = 20)
 	private UserRole role;
 
+	/** Opt-in a Discover People (V7). Falso di default: nessuno compare finche' non lo decide lui. */
+	@Column(nullable = false)
+	private boolean discoverable;
+
 	@CreationTimestamp
 	@Column(nullable = false, updatable = false)
 	private Instant createdAt;
@@ -70,7 +74,12 @@ public class User {
 		user.passwordHash = passwordHash;
 		user.displayName = displayName;
 		user.role = UserRole.USER;
+		user.discoverable = false;
 		return user;
+	}
+
+	public void changeDiscoverable(boolean discoverable) {
+		this.discoverable = discoverable;
 	}
 
 }

@@ -5,6 +5,7 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -22,6 +23,7 @@ import com.linkr.backend.linkrequest.LinkRequestRepository.Row;
 import com.linkr.backend.linkrequest.dto.LinkRequestResponse;
 import com.linkr.backend.linkrequest.dto.LinkRequestUserResponse;
 import com.linkr.backend.participation.EventEndedException;
+import com.linkr.backend.people.DiscoveryRequiredException;
 import com.linkr.backend.people.ParticipationRequiredException;
 import com.linkr.backend.user.UserNotFoundException;
 
@@ -29,7 +31,12 @@ import com.linkr.backend.user.UserNotFoundException;
  * Richieste Link. Un Link e' una richiesta tra due persone, nata da un evento a cui partecipano entrambe;
  * NON e' un'amicizia automatica ne' una chat.
  *
- * Regole d'invio (in quest'ordine): destinatario diverso da se stessi (400), evento PUBLISHED (404) e non terminato (409),
+ * Due modi di inviare. CON eventId: la richiesta nasce da un evento a cui partecipano entrambe le persone. SENZA eventId:
+ * nasce da Discover People e valgono la reciprocita' (mittente visibile, altrimenti 403), il destinatario visibile e almeno un
+ * interesse in comune (404 uniforme per ogni altro caso). Anti-spam, vincolo "una richiesta per coppia" e privacy del rifiuto
+ * sono gli STESSI per entrambi i modi.
+ *
+ * Regole d'invio da evento (in quest'ordine): destinatario diverso da se stessi (400), evento PUBLISHED (404) e non terminato (409),
  * mittente partecipante (403), destinatario partecipante VISIBILE (404 uniforme, uguale per inesistente / non
  * partecipante / privato: non si puo' sondare chi esiste), limiti anti-spam (429), una sola richiesta per coppia (409).
  *
@@ -61,6 +68,9 @@ public class LinkRequestService {
 		if (me.equals(recipientId)) {
 			throw LinkRequestException.self();
 		}
+		if (eventId == null) {
+			return sendFromDiscovery(me, recipientId);
+		}
 		// Blocca il mittente: i suoi invii simultanei vengono serializzati (vedi lockSender).
 		if (!repository.lockSender(me)) {
 			throw new UserNotFoundException();
@@ -78,6 +88,27 @@ public class LinkRequestService {
 			throw LinkRequestException.recipientNotAvailable();
 		}
 
+		return insertAndView(me, recipientId, eventId);
+	}
+
+	/** Richiesta senza evento, da Discover People. Ordine: mittente visibile (403), destinatario idoneo (404), anti-spam (429), duplicato (409). */
+	private LinkRequestResponse sendFromDiscovery(UUID me, UUID recipientId) {
+		Set<UUID> locked = repository.lockUsers(me, recipientId);
+		if (!locked.contains(me)) {
+			throw new UserNotFoundException();
+		}
+		if (!repository.isDiscoverable(me)) {
+			throw new DiscoveryRequiredException();
+		}
+		if (!locked.contains(recipientId) || !repository.isDiscoverable(recipientId)
+				|| !repository.sharesInterest(me, recipientId)) {
+			throw LinkRequestException.recipientNotAvailable();
+		}
+		return insertAndView(me, recipientId, null);
+	}
+
+	/** Anti-spam e inserimento atomico, comuni ai due modi d'invio. */
+	private LinkRequestResponse insertAndView(UUID me, UUID recipientId, UUID eventId) {
 		if (repository.countAwaitingAnswer(me) >= MAX_AWAITING_ANSWER
 				|| repository.countCreatedSince(me, clock.instant().minus(Duration.ofHours(24)).atOffset(ZoneOffset.UTC)) >= MAX_PER_DAY) {
 			throw LinkRequestException.tooMany();

@@ -17,6 +17,7 @@ import org.springframework.security.web.SecurityFilterChain;
 /**
  * Regole di accesso dell'API.
  *  - Pubblici: GET /api/health, GET /api/events e /api/events/{id}, GET /api/interests, POST /api/auth/register e /api/auth/login.
+ *  - /ws (solo l'handshake HTTP): pubblico, il JWT si verifica nel frame STOMP CONNECT.
  *  - /api/admin/** solo ADMIN (nessun endpoint admin esiste ancora: la regola e' pronta per il futuro).
  *  - Tutto il resto richiede un JWT valido nell'header "Authorization: Bearer ...".
  * Sessioni disattivate (stateless) e CSRF non necessario: non usiamo cookie.
@@ -37,6 +38,9 @@ public class SecurityConfig {
 						.requestMatchers(HttpMethod.GET, "/api/health", "/api/events", "/api/events/*", "/api/interests").permitAll()
 						.requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login").permitAll()
 						.requestMatchers("/error").permitAll()
+						// Handshake del WebSocket: il browser non puo' inviare header, quindi l'autenticazione avviene nel frame
+						// STOMP CONNECT (vedi StompAuthChannelInterceptor). Senza un JWT valido li' non si riceve nulla.
+						.requestMatchers("/ws", "/ws/**").permitAll()
 						.requestMatchers("/api/admin/**").hasRole("ADMIN")
 						.anyRequest().authenticated())
 				.exceptionHandling(ex -> ex

@@ -32,6 +32,8 @@ import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.persistence.EntityManager;
+
 import com.jayway.jsonpath.JsonPath;
 import com.linkr.backend.IntegrationTest;
 
@@ -49,6 +51,9 @@ class ParticipationIntegrationTest {
 
 	@Autowired
 	private JdbcClient jdbc;
+
+	@Autowired
+	private EntityManager entityManager;
 
 	@Autowired
 	private JwtEncoder jwtEncoder;
@@ -340,7 +345,7 @@ class ParticipationIntegrationTest {
 	}
 
 	@Test
-	void listIsEmptyForNewUserAndHidesNonPublishedEvents() throws Exception {
+	void listIsEmptyForNewUserKeepsCancelledEventsRecognizableAndHidesDrafts() throws Exception {
 		String token = register("emptylist");
 		mockMvc.perform(get("/api/users/me/participations").header(HttpHeaders.AUTHORIZATION, bearer(token)))
 				.andExpect(status().isOk())
@@ -348,8 +353,20 @@ class ParticipationIntegrationTest {
 
 		UUID event = createEvent("PUBLISHED", 2);
 		declare(token, event, "GOING", false);
-		jdbc.sql("UPDATE event SET status = 'CANCELLED' WHERE id = :id").param("id", event).update();
+		mockMvc.perform(get("/api/users/me/participations").header(HttpHeaders.AUTHORIZATION, bearer(token)))
+				.andExpect(jsonPath("$.participations[0].event.status").value("PUBLISHED"));
 
+		// un evento ANNULLATO resta nell'elenco di chi vi partecipava, ma segnalato come CANCELLED
+		jdbc.sql("UPDATE event SET status = 'CANCELLED' WHERE id = :id").param("id", event).update();
+		entityManager.clear();   // il test condivide la cache di Hibernate con il backend: in produzione ogni richiesta ha la sua
+		mockMvc.perform(get("/api/users/me/participations").header(HttpHeaders.AUTHORIZATION, bearer(token)))
+				.andExpect(jsonPath("$.participations.length()").value(1))
+				.andExpect(jsonPath("$.participations[0].event.id").value(event.toString()))
+				.andExpect(jsonPath("$.participations[0].event.status").value("CANCELLED"));
+
+		// una bozza non compare mai
+		jdbc.sql("UPDATE event SET status = 'DRAFT' WHERE id = :id").param("id", event).update();
+		entityManager.clear();
 		mockMvc.perform(get("/api/users/me/participations").header(HttpHeaders.AUTHORIZATION, bearer(token)))
 				.andExpect(jsonPath("$.participations.length()").value(0));
 	}

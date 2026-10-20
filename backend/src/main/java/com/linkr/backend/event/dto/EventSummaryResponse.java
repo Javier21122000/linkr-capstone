@@ -4,6 +4,8 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 import com.linkr.backend.event.EventCategory;
+import com.linkr.backend.event.EventStatus;
+import com.linkr.backend.event.EventType;
 
 /** Dati di un evento per la lista (Discover) e per la mappa. */
 public record EventSummaryResponse(
@@ -18,5 +20,7 @@ public record EventSummaryResponse(
 		double longitude,
 		String imageUrl,
 		String imageAlt,
-		boolean demo) {
+		boolean demo,
+		EventStatus status,
+		EventType type) {
 }

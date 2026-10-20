@@ -31,10 +31,10 @@ public class LinkRequestException extends RuntimeException {
 				"You cannot send a link request to yourself.");
 	}
 
-	/** Destinatario inesistente, non partecipante o non visibile: STESSA risposta per tutti i casi (404). */
+	/** Destinatario inesistente, non partecipante, non visibile o senza interessi in comune: STESSA risposta per tutti i casi (404). */
 	static LinkRequestException recipientNotAvailable() {
 		return new LinkRequestException(HttpStatus.NOT_FOUND, "Person not available",
-				"The selected person is not available for this event.");
+				"The selected person is not available.");
 	}
 
 	/** Esiste gia' una richiesta tra le due persone, in qualunque direzione e per qualunque evento (409). */

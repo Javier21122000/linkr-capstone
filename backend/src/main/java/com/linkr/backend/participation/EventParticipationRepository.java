@@ -1,5 +1,6 @@
 package com.linkr.backend.participation;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -15,14 +16,16 @@ public interface EventParticipationRepository extends JpaRepository<EventPartici
 
 	Optional<EventParticipation> findByUserIdAndEventId(UUID userId, UUID eventId);
 
-	/** Partecipazioni di un utente a eventi con lo stato richiesto, con l'evento caricato nella stessa query. */
+	boolean existsByUserIdAndEventId(UUID userId, UUID eventId);
+
+	/** Partecipazioni di un utente a eventi con uno degli stati richiesti, con l'evento caricato nella stessa query. */
 	@Query("""
 			select p from EventParticipation p join fetch p.event e
-			where p.userId = :userId and e.status = :eventStatus
+			where p.userId = :userId and e.status in (:eventStatuses)
 			order by e.startsAt, e.title
 			""")
 	List<EventParticipation> findByUserWithEvent(@Param("userId") UUID userId,
-			@Param("eventStatus") EventStatus eventStatus);
+			@Param("eventStatuses") Collection<EventStatus> eventStatuses);
 
 	/**
 	 * Crea o aggiorna la partecipazione in UN solo comando SQL atomico (INSERT ... ON CONFLICT DO UPDATE):

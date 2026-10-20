@@ -3,6 +3,7 @@ package com.linkr.backend.participation;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -77,11 +78,14 @@ public class EventParticipationService {
 		participationRepository.deleteByUserAndEvent(userId, eventId);
 	}
 
-	/** Eventi salvati dell'utente: una sola query con JOIN FETCH, solo eventi PUBLISHED. */
+	/**
+	 * Eventi salvati dell'utente: una sola query con JOIN FETCH. Sono inclusi gli eventi ANNULLATI (CANCELLED), che il
+	 * DTO segnala con status: chi vi partecipava li riconosce ancora. Le bozze non compaiono mai.
+	 */
 	@Transactional(readOnly = true)
 	public UserParticipationsResponse list(UUID userId) {
 		return new UserParticipationsResponse(
-				participationRepository.findByUserWithEvent(userId, EventStatus.PUBLISHED).stream()
+				participationRepository.findByUserWithEvent(userId, List.of(EventStatus.PUBLISHED, EventStatus.CANCELLED)).stream()
 						.map(p -> new UserParticipationResponse(p.getStatus(), p.isVisibleToOthers(),
 								toLocal(p.getUpdatedAt()), eventMapper.toSummary(p.getEvent())))
 						.toList());

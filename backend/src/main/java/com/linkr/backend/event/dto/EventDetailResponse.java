@@ -4,8 +4,17 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 import com.linkr.backend.event.EventCategory;
+import com.linkr.backend.event.EventStatus;
+import com.linkr.backend.event.EventType;
 
-/** Dati completi di un evento per la pagina di dettaglio. */
+/**
+ * Dati completi di un evento per la pagina di dettaglio.
+ *  - status: PUBLISHED oppure CANCELLED (un evento annullato e' visibile solo a creatore, amministratori e partecipanti);
+ *  - type: OFFICIAL o COMMUNITY;
+ *  - creator: chi l'ha creato, null per gli eventi ufficiali/demo senza creatore;
+ *  - canEdit: true solo se chi guarda puo' modificarlo ORA (creatore o admin, evento pubblicato e non terminato).
+ *    Per chi non e' autenticato e' sempre false.
+ */
 public record EventDetailResponse(
 		UUID id,
 		String title,
@@ -21,5 +30,9 @@ public record EventDetailResponse(
 		String imageUrl,
 		String imageAlt,
 		String imageCredit,
-		boolean demo) {
+		boolean demo,
+		EventStatus status,
+		EventType type,
+		EventCreatorResponse creator,
+		boolean canEdit) {
 }

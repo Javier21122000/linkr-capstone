@@ -5,7 +5,7 @@ import java.util.UUID;
 
 import com.linkr.backend.user.UserRole;
 
-/** Profilo restituito dalle API. Non contiene mai l'hash della password. */
+/** Profilo restituito dalle API. Non contiene mai l'hash della password. discoverable: visibile in Discover People (opt-in). */
 public record UserResponse(
 		UUID id,
 		String username,
@@ -14,5 +14,6 @@ public record UserResponse(
 		String bio,
 		String avatarUrl,
 		UserRole role,
-		OffsetDateTime createdAt) {
+		OffsetDateTime createdAt,
+		boolean discoverable) {
 }

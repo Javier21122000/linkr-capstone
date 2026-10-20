@@ -3,9 +3,11 @@ package com.linkr.backend.linkrequest;
 import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -71,6 +73,31 @@ public class LinkRequestRepository {
 	boolean lockSender(UUID userId) {
 		return jdbc.sql("SELECT id FROM app_user WHERE id = :id FOR NO KEY UPDATE")
 				.param("id", userId).query(UUID.class).optional().isPresent();
+	}
+
+	/**
+	 * Blocca le righe dei DUE utenti (mittente e destinatario) fino a fine transazione, sempre in ordine di id: due invii
+	 * incrociati (A->B e B->A) non possono andare in deadlock. Serve alla discovery: il destinatario non puo' nascondersi
+	 * "a meta'" dell'invio e i conteggi anti-spam del mittente restano serializzati. Restituisce gli id trovati.
+	 */
+	Set<UUID> lockUsers(UUID a, UUID b) {
+		return new HashSet<>(jdbc.sql("SELECT id FROM app_user WHERE id IN (:a, :b) ORDER BY id FOR NO KEY UPDATE")
+				.param("a", a).param("b", b).query(UUID.class).list());
+	}
+
+	/** Visibilita' in Discover People (opt-in). Da chiamare dopo lockUsers. */
+	boolean isDiscoverable(UUID userId) {
+		return jdbc.sql("SELECT discoverable FROM app_user WHERE id = :id")
+				.param("id", userId).query(Boolean.class).optional().orElse(false);
+	}
+
+	/** Le due persone hanno almeno un interesse in comune (intersezione reale di user_interest). */
+	boolean sharesInterest(UUID a, UUID b) {
+		return jdbc.sql("""
+				SELECT 1 FROM user_interest x JOIN user_interest y ON y.interest_id = x.interest_id
+				 WHERE x.user_id = :a AND y.user_id = :b LIMIT 1
+				""")
+				.param("a", a).param("b", b).query(Integer.class).optional().isPresent();
 	}
 
 	boolean hasParticipation(UUID userId, UUID eventId) {

@@ -12,11 +12,12 @@ interface AuthSession {
 
 interface AuthContextValue {
   readonly status: "anonymous" | "authenticated";
+  readonly accessToken: string | null;
   readonly user: UserResponse | null;
   authenticate(response: AuthResponse): void;
   logout(): void;
   authorizedRequest<T>(request: (accessToken: string) => Promise<T>): Promise<T>;
-  validateSession(signal?: AbortSignal): Promise<void>;
+  validateSession(signal?: AbortSignal): Promise<UserResponse>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -54,7 +55,7 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
   }, [session]);
 
   const validateSession = useCallback(async (signal?: AbortSignal) => {
-    await authorizedRequest((accessToken) => getCurrentUser(accessToken, signal));
+    return authorizedRequest((accessToken) => getCurrentUser(accessToken, signal));
   }, [authorizedRequest]);
 
   useEffect(() => {
@@ -72,6 +73,7 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
 
   const value = useMemo<AuthContextValue>(() => ({
     status: session ? "authenticated" : "anonymous",
+    accessToken: session?.accessToken ?? null,
     user: session?.user ?? null,
     authenticate,
     logout,

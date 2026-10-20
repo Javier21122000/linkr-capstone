@@ -1,5 +1,5 @@
 import axios from "axios";
-import { ArrowRight, CalendarDays, LogOut, Mail, RotateCcw, UsersRound } from "lucide-react";
+import { ArrowRight, CalendarDays, LogOut, Mail, RotateCcw, Ticket, UsersRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 
@@ -9,7 +9,7 @@ import { ProfileInterests } from "../components/interests/ProfileInterests";
 import { IncomingLinkCountBadge } from "../components/links/IncomingLinkCountBadge";
 import { useAuth } from "../context/AuthContext";
 import { useLinkRequestCount } from "../context/LinkRequestCountContext";
-import { getAuthRequestErrorMessage } from "../lib/auth";
+import { getAuthRequestErrorMessage, updateDiscovery } from "../lib/auth";
 import type { UserInterest } from "../types/interest";
 
 function formatMemberSince(createdAt: string): string {
@@ -35,12 +35,15 @@ function getSavedInterests(state: unknown): readonly UserInterest[] | undefined 
 }
 
 export function ProfilePage() {
-  const { user, logout, validateSession } = useAuth();
+  const { user, logout, authorizedRequest, validateSession } = useAuth();
   const { incomingCount } = useLinkRequestCount();
   const location = useLocation();
   const navigate = useNavigate();
   const [requestKey, setRequestKey] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [discoverable, setDiscoverable] = useState(user?.discoverable ?? false);
+  const [discoverySaving, setDiscoverySaving] = useState(false);
+  const [discoveryError, setDiscoveryError] = useState<string | null>(null);
   const [savedInterests] = useState(() => getSavedInterests(location.state));
   const interestsSaved = savedInterests !== undefined;
 
@@ -51,9 +54,11 @@ export function ProfilePage() {
   useEffect(() => {
     const controller = new AbortController();
     setLoadError(null);
-    void validateSession(controller.signal).catch((error: unknown) => {
-      if (!axios.isCancel(error)) setLoadError(getAuthRequestErrorMessage(error));
-    });
+    void validateSession(controller.signal)
+      .then((currentUser) => setDiscoverable(currentUser.discoverable))
+      .catch((error: unknown) => {
+        if (!axios.isCancel(error)) setLoadError(getAuthRequestErrorMessage(error));
+      });
     return () => controller.abort();
   }, [requestKey, validateSession]);
 
@@ -62,6 +67,21 @@ export function ProfilePage() {
   function handleLogout() {
     logout();
     navigate("/", { replace: true });
+  }
+
+  async function handleDiscoveryChange() {
+    if (discoverySaving) return;
+    const nextValue = !discoverable;
+    setDiscoverySaving(true);
+    setDiscoveryError(null);
+    try {
+      const response = await authorizedRequest((accessToken) => updateDiscovery(accessToken, nextValue));
+      setDiscoverable(response.discoverable);
+    } catch (error) {
+      setDiscoveryError(getAuthRequestErrorMessage(error));
+    } finally {
+      setDiscoverySaving(false);
+    }
   }
 
   return (
@@ -106,6 +126,36 @@ export function ProfilePage() {
           </div>
         </div>
 
+        <section className="mt-8 rounded-2xl border border-line bg-surface p-5" aria-labelledby="discovery-setting-title">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h2 id="discovery-setting-title" className="font-extrabold text-ink">Compari in Scopri persone</h2>
+              <p className="mt-1 text-sm leading-6 text-muted">
+                {discoverable
+                  ? "Le persone con interessi in comune possono trovarti. Anche tu puoi scoprire loro."
+                  : "Il tuo profilo non compare e non puoi vedere altre persone. L’attivazione è sempre una tua scelta."}
+              </p>
+            </div>
+            <button
+              className="relative mt-0.5 h-7 w-12 shrink-0 rounded-full border border-line transition-colors disabled:cursor-wait disabled:opacity-60 motion-reduce:transition-none"
+              data-enabled={discoverable}
+              style={{ backgroundColor: discoverable ? "var(--color-linkr-strong)" : "var(--color-line)" }}
+              type="button"
+              role="switch"
+              aria-checked={discoverable}
+              aria-label="Compari in Scopri persone"
+              disabled={discoverySaving}
+              onClick={() => void handleDiscoveryChange()}
+            >
+              <span className={`block size-5 rounded-full bg-white shadow-sm transition-transform motion-reduce:transition-none ${discoverable ? "translate-x-6" : "translate-x-1"}`} />
+            </button>
+          </div>
+          <p className="mt-3 text-xs font-bold text-muted" aria-live="polite">
+            {discoverySaving ? "Salvataggio in corso…" : discoverable ? "Visibilità attiva" : "Visibilità disattivata"}
+          </p>
+          {discoveryError ? <p className="mt-2 text-sm font-bold leading-5 text-danger" role="alert">{discoveryError}</p> : null}
+        </section>
+
         <Link
           className="mt-8 flex min-h-16 items-center gap-4 rounded-2xl border border-line bg-surface p-4 text-ink transition-transform active:scale-[0.99] motion-reduce:transition-none"
           to="/profile/links"
@@ -119,6 +169,20 @@ export function ProfilePage() {
           <span className="min-w-0 flex-1">
             <span className="flex items-center gap-2 font-extrabold">I miei Link <IncomingLinkCountBadge /></span>
             <span className="mt-1 block text-sm font-semibold text-muted">Richieste ricevute, inviate e collegamenti</span>
+          </span>
+          <ArrowRight className="shrink-0 text-muted" size={19} aria-hidden="true" />
+        </Link>
+
+        <Link
+          className="mt-4 flex min-h-16 items-center gap-4 rounded-2xl border border-line bg-surface p-4 text-ink transition-transform active:scale-[0.99] motion-reduce:transition-none"
+          to="/profile/events"
+        >
+          <span className="grid size-11 shrink-0 place-items-center rounded-full bg-linkr-soft text-linkr-strong">
+            <Ticket size={20} aria-hidden="true" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="font-extrabold">I miei eventi</span>
+            <span className="mt-1 block text-sm font-semibold text-muted">Pubblicati, annullati e strumenti di gestione</span>
           </span>
           <ArrowRight className="shrink-0 text-muted" size={19} aria-hidden="true" />
         </Link>

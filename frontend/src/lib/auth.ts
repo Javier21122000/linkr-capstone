@@ -3,6 +3,10 @@ import axios from "axios";
 import type { AuthResponse, LoginRequest, ProblemDetail, RegisterRequest, UserResponse } from "../types/auth";
 import { apiClient } from "./api";
 
+export interface DiscoveryResponse {
+  readonly discoverable: boolean;
+}
+
 export async function login(request: LoginRequest): Promise<AuthResponse> {
   const { data } = await apiClient.post<AuthResponse>("/api/auth/login", request);
   return data;
@@ -18,6 +22,18 @@ export async function getCurrentUser(accessToken: string, signal?: AbortSignal):
     headers: { Authorization: `Bearer ${accessToken}` },
     signal,
   });
+  return data;
+}
+
+export async function updateDiscovery(
+  accessToken: string,
+  discoverable: boolean,
+): Promise<DiscoveryResponse> {
+  const { data } = await apiClient.put<DiscoveryResponse>(
+    "/api/users/me/discovery",
+    { discoverable },
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  );
   return data;
 }
 

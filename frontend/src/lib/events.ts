@@ -11,8 +11,11 @@ export async function getEvents(category?: EventCategory, signal?: AbortSignal):
   return data;
 }
 
-export async function getEvent(id: string, signal?: AbortSignal): Promise<EventDetail> {
-  const { data } = await apiClient.get<EventDetail>(`/api/events/${encodeURIComponent(id)}`, { signal });
+export async function getEvent(id: string, accessToken?: string, signal?: AbortSignal): Promise<EventDetail> {
+  const { data } = await apiClient.get<EventDetail>(`/api/events/${encodeURIComponent(id)}`, {
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+    signal,
+  });
   return data;
 }
 

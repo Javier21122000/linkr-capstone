@@ -7,6 +7,7 @@ export interface UserResponse {
   readonly avatarUrl: string | null;
   readonly role: "USER" | "ADMIN";
   readonly createdAt: string;
+  readonly discoverable: boolean;
 }
 
 export interface AuthResponse {

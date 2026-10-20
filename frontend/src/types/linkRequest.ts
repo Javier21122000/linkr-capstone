@@ -3,7 +3,7 @@ export type LinkRequestDirection = "INCOMING" | "OUTGOING";
 export type LinkRequestDirectionFilter = "incoming" | "outgoing" | "all";
 
 export interface CreateLinkRequest {
-  readonly eventId: string;
+  readonly eventId?: string;
   readonly recipientId: string;
 }
 

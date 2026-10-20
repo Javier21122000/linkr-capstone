@@ -1,4 +1,4 @@
-import { MapPin, UserRound } from "lucide-react";
+import { MapPin, MessageCircle, Plus, UserRound, UsersRound } from "lucide-react";
 import { NavLink } from "react-router";
 
 import { useAuth } from "../../context/AuthContext";
@@ -25,6 +25,16 @@ export function AppHeader() {
           <NavLink to="/" end className="desktop-nav-link">
             Discover
           </NavLink>
+          {status === "authenticated" ? (
+            <>
+              <NavLink to="/people" className="desktop-nav-link" aria-label="Persone">
+                <UsersRound size={17} aria-hidden="true" /> <span className="hidden lg:inline">Persone</span>
+              </NavLink>
+              <NavLink to="/chats" className="desktop-nav-link" aria-label="Chat">
+                <MessageCircle size={17} aria-hidden="true" /> <span className="hidden lg:inline">Chat</span>
+              </NavLink>
+            </>
+          ) : null}
         </nav>
 
         <div className="flex min-w-0 items-center gap-2">
@@ -38,16 +48,23 @@ export function AppHeader() {
               <NavLink to="/register" className="button-primary hidden items-center lg:inline-flex">Registrati</NavLink>
             </>
           ) : (
-            <NavLink
-              to="/profile"
-              className="desktop-nav-link hidden min-w-0 gap-2 md:inline-flex"
-              aria-label={profileAccessibleLabel}
-              title={profileLabel}
-            >
-              <UserRound size={18} className="shrink-0" aria-hidden="true" />
-              <span className="account-nav-label">{profileLabel}</span>
-              <IncomingLinkCountBadge />
-            </NavLink>
+            <>
+              <NavLink to="/events/new" className="button-primary inline-flex shrink-0 items-center gap-1.5 px-3 sm:px-4">
+                <Plus size={18} strokeWidth={2.6} aria-hidden="true" />
+                <span className="sm:hidden">Crea</span>
+                <span className="hidden sm:inline">Crea evento</span>
+              </NavLink>
+              <NavLink
+                to="/profile"
+                className="desktop-nav-link hidden min-w-0 gap-2 md:inline-flex"
+                aria-label={profileAccessibleLabel}
+                title={profileLabel}
+              >
+                <UserRound size={18} className="shrink-0" aria-hidden="true" />
+                <span className="account-nav-label">{profileLabel}</span>
+                <IncomingLinkCountBadge />
+              </NavLink>
+            </>
           )}
         </div>
       </div>

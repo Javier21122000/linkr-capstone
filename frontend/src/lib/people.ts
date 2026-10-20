@@ -1,6 +1,6 @@
 import axios from "axios";
 
-import type { PageResponse, PeopleSort, PersonResponse } from "../types/people";
+import type { DiscoverPersonResponse, PageResponse, PeopleSort, PersonResponse } from "../types/people";
 import { apiClient } from "./api";
 import { getProblemDetail } from "./auth";
 
@@ -25,6 +25,34 @@ export async function getEventPeople(
     },
   );
   return data;
+}
+
+export async function getDiscoverPeople(
+  accessToken: string,
+  page: number,
+  size = 20,
+  signal?: AbortSignal,
+): Promise<PageResponse<DiscoverPersonResponse>> {
+  const { data } = await apiClient.get<PageResponse<DiscoverPersonResponse>>("/api/people", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    params: { page, size },
+    signal,
+  });
+  return data;
+}
+
+export function isDiscoveryRequired(error: unknown): boolean {
+  const problem = getProblemDetail(error);
+  return problem?.status === 403 && problem.title === "Discovery required";
+}
+
+export function getDiscoverPeopleErrorMessage(error: unknown): string {
+  if (axios.isAxiosError(error)) {
+    if (!error.response) return "Non riusciamo a contattare il servizio. Controlla la connessione e riprova.";
+    if (error.response.status >= 500) return "Il servizio non è disponibile in questo momento. Riprova tra poco.";
+  }
+
+  return "Non è stato possibile caricare le persone. Riprova.";
 }
 
 export function isPeopleParticipationRequired(error: unknown): boolean {

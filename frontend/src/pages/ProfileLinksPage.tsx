@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 
 import { UserAvatar } from "../components/auth/UserAvatar";
+import { WriteMessageLink } from "../components/chat/WriteMessageLink";
 import { useAuth } from "../context/AuthContext";
 import { useLinkRequestCount } from "../context/LinkRequestCountContext";
 import {
@@ -273,6 +274,10 @@ export function ProfileLinksPage() {
                           </Link>
                         ) : null}
                         <p className="mt-1 text-xs font-bold text-muted">Richiesta del {formatRequestDate(request.createdAt)}</p>
+
+                        {request.status === "ACCEPTED" ? (
+                          <WriteMessageLink conversationId={request.requestId} className="button-primary mt-4" />
+                        ) : null}
 
                         {view === "incoming" && request.direction === "INCOMING" && request.status === "PENDING" ? (
                           <div className="mt-4 flex flex-wrap gap-2" aria-label={`Rispondi alla richiesta Link di ${request.otherUser.displayName}`}>

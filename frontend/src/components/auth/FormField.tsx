@@ -1,4 +1,4 @@
-import type { ChangeEventHandler, HTMLInputAutoCompleteAttribute, HTMLInputTypeAttribute } from "react";
+import type { ChangeEventHandler, HTMLInputAutoCompleteAttribute, HTMLInputTypeAttribute, HTMLAttributes } from "react";
 
 interface FormFieldProps {
   readonly id: string;
@@ -10,6 +10,11 @@ interface FormFieldProps {
   readonly error?: string;
   readonly hint?: string;
   readonly maxLength?: number;
+  readonly min?: number | string;
+  readonly max?: number | string;
+  readonly step?: number | string;
+  readonly inputMode?: HTMLAttributes<HTMLInputElement>["inputMode"];
+  readonly placeholder?: string;
   readonly disabled?: boolean;
 }
 
@@ -23,6 +28,11 @@ export function FormField({
   error,
   hint,
   maxLength,
+  min,
+  max,
+  step,
+  inputMode,
+  placeholder,
   disabled = false,
 }: FormFieldProps) {
   const descriptionId = error ? `${id}-error` : hint ? `${id}-hint` : undefined;
@@ -41,6 +51,11 @@ export function FormField({
         aria-invalid={error ? true : undefined}
         aria-describedby={descriptionId}
         maxLength={maxLength}
+        min={min}
+        max={max}
+        step={step}
+        inputMode={inputMode}
+        placeholder={placeholder}
         disabled={disabled}
       />
       {error ? <p id={`${id}-error`} className="field-error mt-2">{error}</p> : null}

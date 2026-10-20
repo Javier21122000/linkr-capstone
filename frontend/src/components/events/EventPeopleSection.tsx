@@ -23,6 +23,7 @@ import type { LinkStatus } from "../../types/people";
 import type { LinkRequestResponse } from "../../types/linkRequest";
 import type { ParticipationResponse } from "../../types/participation";
 import { UserAvatar } from "../auth/UserAvatar";
+import { WriteMessageLink } from "../chat/WriteMessageLink";
 
 type PeopleState =
   | { readonly status: "idle" }
@@ -373,9 +374,12 @@ export function EventPeopleSection({ eventId, startsAt, endsAt, participation, p
                           ) : null}
 
                           {person.linkStatus === "ACCEPTED" ? (
-                            <span className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[#edf8f3] px-4 py-2 text-xs font-extrabold text-success">
-                              <Link2 size={16} aria-hidden="true" /> Collegati
-                            </span>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[#edf8f3] px-4 py-2 text-xs font-extrabold text-success">
+                                <Link2 size={16} aria-hidden="true" /> Collegati
+                              </span>
+                              {person.linkRequestId ? <WriteMessageLink conversationId={person.linkRequestId} /> : null}
+                            </div>
                           ) : null}
 
                           {linkActionError ? <p className="mt-2 text-sm font-bold leading-5 text-danger" role="alert">{linkActionError}</p> : null}

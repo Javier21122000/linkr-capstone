@@ -28,7 +28,7 @@ CITY → EVENTS → PEOPLE → LINKS → REAL-LIFE EXPERIENCES
 - TypeScript
 - Vite
 - Tailwind CSS
-- Mapbox GL JS
+- MapLibre GL JS with MapTiler
 
 **Backend**
 - Java
@@ -44,6 +44,22 @@ CITY → EVENTS → PEOPLE → LINKS → REAL-LIFE EXPERIENCES
 - `frontend/` — React application
 - `backend/` — Spring Boot REST API
 - `docs/` — Technical documentation
+
+## Environment
+
+Use a single real `.env` file in the repository root. Vite reads it through
+`envDir: ".."`; configure `VITE_MAPTILER_KEY` there for the Discover basemap.
+Spring Boot does not load this file through Vite or `envDir`: export the
+`LINKR_DB_*` and `LINKR_JWT_SECRET` variables before starting the backend. From
+the repository root, load them in the current shell before running Spring Boot:
+
+```bash
+set -a
+source .env
+set +a
+```
+
+Real `.env` files are ignored by Git and must never be committed.
 
 ## 📌 Status
 

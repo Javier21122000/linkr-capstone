@@ -28,6 +28,17 @@ export interface PersonResponse {
   readonly linkRequestId: string | null;
 }
 
+export interface DiscoverPersonResponse {
+  readonly userId: string;
+  readonly username: string;
+  readonly displayName: string;
+  readonly avatarUrl: string | null;
+  readonly sharedInterestsCount: number;
+  readonly sharedInterests: readonly SharedInterestResponse[];
+  readonly linkStatus: LinkStatus;
+  readonly linkRequestId: string | null;
+}
+
 export interface PageResponse<T> {
   readonly items: readonly T[];
   readonly page: number;

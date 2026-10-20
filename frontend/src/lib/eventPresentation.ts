@@ -13,6 +13,18 @@ export const categoryLabels: Record<EventCategory, string> = {
   SOCIAL: "Socialità",
 };
 
+export const categoryColors: Record<EventCategory, string> = {
+  MUSIC: "#8657D8",
+  FOOD: "#E59A48",
+  CULTURE: "#CF709A",
+  OUTDOORS: "#579F76",
+  NIGHTLIFE: "#4355BD",
+  SPORT: "#428CB5",
+  SOCIAL: "#E76A56",
+};
+
+export const unknownCategoryColor = "#747872";
+
 export const categoryOptions: readonly EventCategoryOption[] = [
   { value: null, label: "Tutte" },
   ...Object.entries(categoryLabels).map(([value, label]) => ({

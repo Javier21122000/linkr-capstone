@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 
 import { App } from "./App";
 import { AuthProvider } from "./context/AuthContext";
+import { ChatRealtimeProvider } from "./context/ChatRealtimeContext";
 import "./styles/index.css";
 
 const rootElement = document.getElementById("root");
@@ -15,7 +16,9 @@ if (!rootElement) {
 createRoot(rootElement).render(
   <StrictMode>
     <AuthProvider>
-      <App />
+      <ChatRealtimeProvider>
+        <App />
+      </ChatRealtimeProvider>
     </AuthProvider>
   </StrictMode>,
 );

@@ -1,11 +1,14 @@
-import { ArrowLeft, CalendarDays, Clock3, MapPin, RotateCcw } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ArrowLeft, CalendarDays, Clock3, MapPin, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 
 import { EventImage } from "../components/events/EventImage";
+import { CancelEventDialog } from "../components/events/CancelEventDialog";
 import { EventPeopleSection } from "../components/events/EventPeopleSection";
 import { EventParticipationPanel } from "../components/events/EventParticipationPanel";
+import { useAuth } from "../context/AuthContext";
 import { categoryLabels, formatEventDate, formatEventTimeRange } from "../lib/eventPresentation";
+import { cancelEvent, getCancelEventFailure } from "../lib/eventCreation";
 import { getEvent, getEventsErrorMessage, isRequestCancelled } from "../lib/events";
 import type { EventDetail } from "../types/event";
 import type { ParticipationResponse } from "../types/participation";
@@ -17,14 +20,36 @@ type EventState =
 
 export function EventDetailPage() {
   const { eventId } = useParams<{ eventId: string }>();
+  const { authorizedRequest, status } = useAuth();
   const [requestKey, setRequestKey] = useState(0);
   const [eventState, setEventState] = useState<EventState>({ status: "loading" });
   const [participation, setParticipation] = useState<ParticipationResponse | null | undefined>(undefined);
   const [participationRevision, setParticipationRevision] = useState(0);
+  const cancellingRef = useRef(false);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   function handleParticipationSaved(nextParticipation: ParticipationResponse) {
     setParticipation(nextParticipation);
     setParticipationRevision((current) => current + 1);
+  }
+
+  async function handleCancel() {
+    if (!eventId || cancellingRef.current || eventState.status !== "success" || !eventState.event.canEdit) return;
+    cancellingRef.current = true;
+    setCancelling(true);
+    setCancelError(null);
+    try {
+      await authorizedRequest((accessToken) => cancelEvent(accessToken, eventId));
+      setEventState({ status: "success", event: { ...eventState.event, status: "CANCELLED", canEdit: false } });
+      setCancelDialogOpen(false);
+    } catch (error) {
+      setCancelError(getCancelEventFailure(error));
+    } finally {
+      cancellingRef.current = false;
+      setCancelling(false);
+    }
   }
 
   useEffect(() => {
@@ -38,7 +63,11 @@ export function EventDetailPage() {
     setEventState({ status: "loading" });
     setParticipation(undefined);
 
-    void getEvent(eventId, controller.signal)
+    const request = status === "authenticated"
+      ? authorizedRequest((accessToken) => getEvent(eventId, accessToken, controller.signal))
+      : getEvent(eventId, undefined, controller.signal);
+
+    void request
       .then((event) => setEventState({ status: "success", event }))
       .catch((error: unknown) => {
         if (!isRequestCancelled(error)) {
@@ -47,7 +76,7 @@ export function EventDetailPage() {
       });
 
     return () => controller.abort();
-  }, [eventId, requestKey]);
+  }, [authorizedRequest, eventId, requestKey, status]);
 
   return (
     <div className="page-shell page-with-mobile-nav pt-8 sm:pt-12 lg:pt-16">
@@ -96,13 +125,25 @@ export function EventDetailPage() {
           <div className="self-center">
             <div className="flex flex-wrap items-center gap-2">
               <span className="section-kicker">{categoryLabels[eventState.event.category]}</span>
+              <span className="rounded-full bg-ink px-2.5 py-1 text-[0.65rem] font-extrabold uppercase tracking-[0.12em] text-white">
+                {eventState.event.type === "COMMUNITY" ? "Community" : "Official"}
+              </span>
               {eventState.event.demo && (
                 <span className="rounded-full bg-linkr-soft px-2.5 py-1 text-[0.65rem] font-extrabold uppercase tracking-[0.12em] text-linkr-strong">Demo</span>
               )}
+              {eventState.event.status === "CANCELLED" ? (
+                <span className="rounded-full bg-line px-2.5 py-1 text-[0.65rem] font-extrabold uppercase tracking-[0.12em] text-muted">Annullato</span>
+              ) : null}
             </div>
             <h1 className="mt-4 text-[clamp(2.5rem,7vw,5.5rem)] font-extrabold leading-[0.94] tracking-[-0.06em] text-ink">
               {eventState.event.title}
             </h1>
+
+            {eventState.event.creator ? (
+              <p className="mt-4 text-sm font-bold text-muted">
+                Organizzato da <span className="text-ink">{eventState.event.creator.displayName}</span> · @{eventState.event.creator.username}
+              </p>
+            ) : null}
 
             <div className="mt-7 grid gap-3 border-y border-line py-5 text-sm font-bold text-ink sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
               <span className="inline-flex items-center gap-2">
@@ -122,24 +163,56 @@ export function EventDetailPage() {
               <p className="mt-3 whitespace-pre-line text-base leading-7 text-ink">{eventState.event.description}</p>
             </section>
 
-            <EventParticipationPanel
-              eventId={eventState.event.id}
-              startsAt={eventState.event.startsAt}
-              endsAt={eventState.event.endsAt}
-              onParticipationChange={setParticipation}
-              onParticipationSaved={handleParticipationSaved}
-            />
+            {eventState.event.status === "CANCELLED" ? (
+              <div className="form-message mt-7" role="status">
+                Questo evento è stato annullato. Rimane visibile come storico, ma non può più essere modificato.
+              </div>
+            ) : null}
 
-            <EventPeopleSection
-              eventId={eventState.event.id}
-              startsAt={eventState.event.startsAt}
-              endsAt={eventState.event.endsAt}
-              participation={participation}
-              participationRevision={participationRevision}
-            />
+            {eventState.event.canEdit ? (
+              <div className="mt-7 flex flex-col gap-3 border-t border-line pt-6 sm:flex-row">
+                <Link className="button-primary inline-flex items-center gap-2" to={`/events/${encodeURIComponent(eventState.event.id)}/edit`}>
+                  <Pencil size={17} aria-hidden="true" /> Modifica evento
+                </Link>
+                <button className="button-secondary inline-flex items-center gap-2" type="button" onClick={() => { setCancelError(null); setCancelDialogOpen(true); }}>
+                  <Trash2 size={17} aria-hidden="true" /> Annulla evento
+                </button>
+              </div>
+            ) : null}
+
+            {eventState.event.status === "PUBLISHED" ? (
+              <>
+                <EventParticipationPanel
+                  eventId={eventState.event.id}
+                  startsAt={eventState.event.startsAt}
+                  endsAt={eventState.event.endsAt}
+                  onParticipationChange={setParticipation}
+                  onParticipationSaved={handleParticipationSaved}
+                />
+
+                <EventPeopleSection
+                  eventId={eventState.event.id}
+                  startsAt={eventState.event.startsAt}
+                  endsAt={eventState.event.endsAt}
+                  participation={participation}
+                  participationRevision={participationRevision}
+                />
+              </>
+            ) : null}
           </div>
         </article>
       )}
+
+      {eventState.status === "success" ? (
+        <CancelEventDialog
+          open={cancelDialogOpen}
+          eventTitle={eventState.event.title}
+          submitting={cancelling}
+          error={cancelError}
+          onClose={() => { if (!cancelling) setCancelDialogOpen(false); }}
+          onConfirm={() => { void handleCancel(); }}
+        />
+      ) : null}
     </div>
   );
 }

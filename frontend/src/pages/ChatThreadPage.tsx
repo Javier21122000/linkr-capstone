@@ -15,6 +15,7 @@ import {
   markConversationRead,
   sendMessage,
 } from "../lib/chat";
+import { isNearChatBottom, shouldPinNewMessage } from "../lib/chatLayout";
 import { prefersReducedMotion } from "../lib/motion";
 import type { ConversationResponse, MessageResponse } from "../types/chat";
 
@@ -69,13 +70,69 @@ export function ChatThreadPage() {
   const [sendError, setSendError] = useState<string | null>(null);
   const [sendUncertain, setSendUncertain] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
+  const pageRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+  const sendingRef = useRef(false);
+  const restoreComposerFocusRef = useRef(false);
   const seenMessageIdsRef = useRef(new Set<string>());
   const pendingScrollRestoreRef = useRef<ScrollSnapshot | null>(null);
   const shouldScrollBottomRef = useRef(false);
   const pendingSendBodyRef = useRef<string | null>(null);
   const reconciliationRevisionRef = useRef(reconciliationRevision);
+  const atBottomRef = useRef(true);
+
+  // Su mobile `100dvh` non segue allo stesso modo tutte le tastiere virtuali. Il bordo inferiore realmente visibile
+  // viene dal Visual Viewport e alimenta soltanto il calcolo CSS della chat; durante il pinch zoom non si forza nulla.
+  useEffect(() => {
+    const page = pageRef.current;
+    const viewport = window.visualViewport;
+    if (!page || !viewport) return undefined;
+
+    const update = () => {
+      if (viewport.scale > 1.01) {
+        page.style.removeProperty("--chat-viewport-h");
+        return;
+      }
+      page.style.setProperty("--chat-viewport-h", `${Math.round(viewport.height + viewport.offsetTop)}px`);
+    };
+    update();
+    viewport.addEventListener("resize", update);
+    viewport.addEventListener("scroll", update);
+    return () => {
+      viewport.removeEventListener("resize", update);
+      viewport.removeEventListener("scroll", update);
+    };
+  }, [state.status]);
+
+  // La textarea cresce con il testo fino al limite CSS. Non serve trascinarla e il pulsante invio resta sempre allineato.
+  useLayoutEffect(() => {
+    const textarea = composerRef.current;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 144)}px`;
+  }, [draft, state.status]);
+
+  // Se il composer cambia altezza mentre l'utente è al fondo, conserva l'ultimo messaggio visibile sopra di esso.
+  useEffect(() => {
+    const composer = formRef.current;
+    if (!composer) return undefined;
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      if (!atBottomRef.current) return;
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        const scroll = scrollRef.current;
+        if (scroll) scroll.scrollTop = scroll.scrollHeight;
+      });
+    });
+    observer.observe(composer);
+    return () => {
+      observer.disconnect();
+      window.cancelAnimationFrame(frame);
+    };
+  }, [state.status]);
 
   const markRead = useCallback(async () => {
     await authorizedRequest((accessToken) => markConversationRead(accessToken, conversationId));
@@ -132,9 +189,9 @@ export function ChatThreadPage() {
   useEffect(() => subscribe((message) => {
     if (message.conversationId !== conversationId || seenMessageIdsRef.current.has(message.messageId)) return;
     const scroll = scrollRef.current;
-    const nearBottom = !scroll || scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 96;
+    const nearBottom = !scroll || isNearChatBottom(scroll);
     seenMessageIdsRef.current.add(message.messageId);
-    shouldScrollBottomRef.current = message.mine || nearBottom;
+    shouldScrollBottomRef.current = shouldPinNewMessage(message.mine, nearBottom);
     setMessages((current) => [...current, message]);
 
     if (message.mine && pendingSendBodyRef.current === message.body) {
@@ -188,7 +245,9 @@ export function ChatThreadPage() {
   async function submitMessage(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
     const body = draft.trim();
-    if (sending || body.length === 0 || body.length > 2_000 || state.status !== "success") return;
+    if (sendingRef.current || body.length === 0 || body.length > 2_000 || state.status !== "success") return;
+    restoreComposerFocusRef.current = document.activeElement === composerRef.current || !window.matchMedia("(pointer: coarse)").matches;
+    sendingRef.current = true;
     setSending(true);
     setSendError(null);
     setSendUncertain(false);
@@ -202,6 +261,7 @@ export function ChatThreadPage() {
       }
       pendingSendBodyRef.current = null;
       setDraft("");
+      if (restoreComposerFocusRef.current) window.requestAnimationFrame(() => composerRef.current?.focus({ preventScroll: true }));
     } catch (error) {
       if (pendingSendBodyRef.current === null) return;
       if (isConversationNotFound(error)) setState({ status: "not-found" });
@@ -211,6 +271,7 @@ export function ChatThreadPage() {
       }
     } finally {
       pendingSendBodyRef.current = null;
+      sendingRef.current = false;
       setSending(false);
     }
   }
@@ -222,7 +283,8 @@ export function ChatThreadPage() {
     }
 
     const body = draft.trim();
-    if (!body || sending) return;
+    if (!body || sendingRef.current) return;
+    sendingRef.current = true;
     setSending(true);
     setSendError(null);
     try {
@@ -239,12 +301,14 @@ export function ChatThreadPage() {
         shouldScrollBottomRef.current = true;
         setDraft("");
         setSendUncertain(false);
+        if (!window.matchMedia("(pointer: coarse)").matches) window.requestAnimationFrame(() => composerRef.current?.focus({ preventScroll: true }));
         return;
       }
     } catch (error) {
       setSendError(getChatErrorMessage(error));
       return;
     } finally {
+      sendingRef.current = false;
       setSending(false);
     }
     setSendUncertain(false);
@@ -254,7 +318,8 @@ export function ChatThreadPage() {
   function handleMessagesScroll() {
     const element = scrollRef.current;
     if (!element) return;
-    const nextAtBottom = element.scrollHeight - element.scrollTop - element.clientHeight < 160;
+    const nextAtBottom = isNearChatBottom(element, 160);
+    atBottomRef.current = nextAtBottom;
     setAtBottom((current) => (current === nextAtBottom ? current : nextAtBottom));
   }
 
@@ -262,6 +327,8 @@ export function ChatThreadPage() {
     const element = scrollRef.current;
     if (!element) return;
     element.scrollTo({ top: element.scrollHeight, behavior: prefersReducedMotion() ? "auto" : "smooth" });
+    atBottomRef.current = true;
+    setAtBottom(true);
   }
 
   function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -308,7 +375,7 @@ export function ChatThreadPage() {
   // Un messaggio mio già letto mostra "Letto" solo sull'ultimo: è l'unica informazione utile e non rumorosa.
   const lastMineId = [...messages].reverse().find((message) => message.mine)?.messageId;
   return (
-    <div className="page-shell page-with-mobile-nav chat-thread-page py-5 sm:py-8">
+    <div ref={pageRef} className="page-shell page-with-mobile-nav chat-thread-page py-5 sm:py-8">
       <section className="chat-thread surface-card mx-auto flex max-w-3xl flex-col overflow-hidden" aria-labelledby="chat-person-title">
         <header className="chat-thread__header flex items-center gap-3 p-3.5 sm:p-4">
           <Link className="icon-button shrink-0" to="/chats" aria-label="Torna alle chat"><ArrowLeft size={19} aria-hidden="true" /></Link>
@@ -321,8 +388,8 @@ export function ChatThreadPage() {
 
         {connectionStatus === "disconnected" ? <p className="chat-thread__notice px-4 py-2 text-center text-xs font-bold text-muted">Realtime non disponibile: invio e cronologia REST restano attivi.</p> : null}
 
-        <div className="relative min-h-0 flex-1">
-          <div ref={scrollRef} className="chat-thread__messages h-[min(60dvh,38rem)] overflow-y-auto overscroll-contain px-4 py-5" aria-live="polite" onScroll={handleMessagesScroll}>
+        <div className="chat-thread__viewport relative min-h-0 flex-1 overflow-hidden">
+          <div ref={scrollRef} className="chat-thread__messages h-[min(60dvh,38rem)] overflow-y-auto overscroll-contain px-4 py-5" role="log" aria-label="Messaggi della conversazione" aria-live="polite" tabIndex={0} onScroll={handleMessagesScroll}>
             <div className="mb-5 text-center">
               {olderError ? <p className="form-message form-message--error mb-3" role="alert">{olderError}</p> : null}
               {hasMore ? (
@@ -343,17 +410,19 @@ export function ChatThreadPage() {
               <ol className="space-y-1.5">
                 {messages.map((message, index) => {
                   const previous = messages[index - 1];
+                  const next = messages[index + 1];
                   const newDay = !previous || new Date(previous.createdAt).toDateString() !== new Date(message.createdAt).toDateString();
                   const startsGroup = !previous || previous.mine !== message.mine || newDay;
+                  const endsGroup = !next || next.mine !== message.mine || new Date(next.createdAt).toDateString() !== new Date(message.createdAt).toDateString();
                   return (
-                    <li key={message.messageId} className={startsGroup && index > 0 ? "pt-2" : undefined}>
+                    <li key={message.messageId} className={`chat-message${startsGroup && index > 0 ? " pt-2" : ""}`} data-group-start={startsGroup || undefined} data-group-end={endsGroup || undefined}>
                       {newDay ? (
                         <p className="chat-day-label" role="separator">{formatDayLabel(message.createdAt, now)}</p>
                       ) : null}
                       <div className={`flex ${message.mine ? "justify-end" : "justify-start"}`}>
                         <div className="chat-bubble" data-mine={message.mine || undefined}>
                           <p className="whitespace-pre-wrap break-words text-[0.9375rem] leading-6">{message.body}</p>
-                          <p className="chat-bubble__time">{formatClock(message.createdAt)}</p>
+                          {endsGroup ? <p className="chat-bubble__time">{formatClock(message.createdAt)}</p> : null}
                         </div>
                       </div>
                       {message.mine && message.messageId === lastMineId && message.readAt ? (
@@ -367,9 +436,11 @@ export function ChatThreadPage() {
           </div>
 
           {!atBottom && messages.length > 0 ? (
-            <button className="chat-thread__jump glass glass--strong content-reveal" type="button" onClick={jumpToLatest}>
-              <ArrowDown size={16} aria-hidden="true" /> Ultimi messaggi
-            </button>
+            <div className="chat-thread__jump-layer">
+              <button className="chat-thread__jump glass glass--strong content-reveal" type="button" onClick={jumpToLatest}>
+                <ArrowDown size={16} aria-hidden="true" /> Ultimi messaggi
+              </button>
+            </div>
           ) : null}
         </div>
 
@@ -377,13 +448,15 @@ export function ChatThreadPage() {
           <label className="sr-only" htmlFor="chat-message">Messaggio</label>
           <div className="flex items-end gap-2">
             <textarea
+              ref={composerRef}
               id="chat-message"
-              className="form-input min-h-12 max-h-36 flex-1 resize-y py-3"
+              className="form-input min-h-12 max-h-36 min-w-0 flex-1 resize-none overflow-y-auto py-3"
               placeholder="Scrivi un messaggio…"
               rows={1}
               maxLength={2_000}
               value={draft}
-              disabled={sending}
+              readOnly={sending}
+              aria-busy={sending}
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={handleComposerKeyDown}
             />

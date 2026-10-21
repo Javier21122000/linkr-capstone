@@ -237,19 +237,31 @@
 /* ——— Chat: su mobile il thread riempie lo spazio tra header e navigazione, con il campo messaggio sempre raggiungibile ——— */
 @media (max-width: 47.999rem) {
   .page-shell.chat-thread-page {
+    --chat-nav-clearance: calc(max(0.75rem, env(safe-area-inset-bottom, 0px)) + 4.65rem);
+
     padding-bottom: 0;
   }
 
   .chat-thread {
-    /* Finestra meno lo spazio delle pillole in alto, il margine della pagina e la Bottom Navigation: il campo messaggio resta sempre in vista. */
-    height: calc(100dvh - var(--page-top) - 1.25rem - max(0.75rem, env(safe-area-inset-bottom, 0px)) - 5.25rem);
-    min-height: 22rem;
+    /* Il viewport visivo segue anche la tastiera; la Bottom Navigation conserva uno slot separato e sempre utilizzabile. */
+    height: calc(var(--chat-viewport-h, 100dvh) - var(--page-top) - 1.25rem - var(--chat-nav-clearance));
+    min-height: 0;
+    max-height: calc(var(--chat-viewport-h, 100dvh) - var(--page-top) - 1.25rem - var(--chat-nav-clearance));
   }
 
   .chat-thread .chat-thread__messages {
-    height: auto;
+    height: 100%;
     min-height: 0;
-    flex: 1 1 0;
+    padding: 1rem 0.75rem 1.25rem;
+  }
+
+  .chat-thread__header {
+    flex: 0 0 auto;
+  }
+
+  .chat-thread__composer {
+    flex: 0 0 auto;
+    padding: 0.7rem 0.75rem 0.75rem;
   }
 }
 
@@ -483,7 +495,9 @@
 }
 
 .chat-thread__messages {
-  background: rgb(245 243 238 / 0.55);
+  background: rgb(245 243 238 / 0.72);
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
 }
 
 .chat-thread__composer {
@@ -491,15 +505,29 @@
   background: rgb(255 255 255 / 0.7);
 }
 
-.chat-thread__jump {
+/*
+ * Strato del pulsante "Ultimi messaggi". Ha lo stesso gutter della scrollbar dell'area messaggi, quindi il centro del suo contenuto coincide
+ * con quello dei messaggi anche con scrollbar classiche. Il pulsante si centra con flex e non con `transform`: `.content-reveal` anima
+ * proprio `transform` e, con `animation-fill-mode: both`, sovrascriverebbe il `translateX(-50%)` spostandolo a destra di metà larghezza.
+ */
+.chat-thread__jump-layer {
   position: absolute;
-  bottom: 0.75rem;
-  left: 50%;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 0.75rem;
+  overflow: hidden;
+  scrollbar-gutter: stable;
+  pointer-events: none;
+}
+
+.chat-thread__jump {
   display: inline-flex;
   min-height: 2.5rem;
   align-items: center;
   gap: 0.4rem;
-  transform: translateX(-50%);
+  pointer-events: auto;
   border-radius: 999px;
   padding-inline: 0.95rem;
   color: var(--color-ink);
@@ -525,8 +553,25 @@
   border-radius: 1.25rem 1.25rem 1.25rem 0.4rem;
   background: rgb(255 255 255 / 0.96);
   padding: 0.6rem 0.9rem 0.45rem;
-  box-shadow: 0 1px 2px rgb(24 24 22 / 0.04);
+  box-shadow: 0 2px 8px rgb(24 24 22 / 0.07);
   color: var(--color-ink);
+  overflow-wrap: anywhere;
+}
+
+.chat-message:not([data-group-start]) .chat-bubble:not([data-mine]) {
+  border-top-left-radius: 0.55rem;
+}
+
+.chat-message:not([data-group-end]) .chat-bubble:not([data-mine]) {
+  border-bottom-left-radius: 0.55rem;
+}
+
+.chat-message:not([data-group-start]) .chat-bubble[data-mine] {
+  border-top-right-radius: 0.55rem;
+}
+
+.chat-message:not([data-group-end]) .chat-bubble[data-mine] {
+  border-bottom-right-radius: 0.55rem;
 }
 
 .chat-bubble[data-mine] {

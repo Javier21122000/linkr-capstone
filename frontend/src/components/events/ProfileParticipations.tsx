@@ -34,11 +34,12 @@ export function ProfileParticipations() {
 
   return (
     <section className="content-reveal mt-10" aria-labelledby="profile-participations-title">
-      <p className="section-kicker">Agenda personale</p>
-      <h2 id="profile-participations-title" className="mt-2 text-2xl font-extrabold tracking-[-0.04em] text-ink">I miei eventi</h2>
+      <p className="section-kicker">Partecipazioni</p>
+      <h2 id="profile-participations-title" className="mt-2 text-2xl font-extrabold tracking-[-0.04em] text-ink">La mia agenda</h2>
+      <p className="mt-2 text-sm leading-6 text-muted">Gli eventi a cui parteciperai o che hai segnato con «Mi interessa».</p>
 
       {state.status === "loading" ? (
-        <div className="mt-5 space-y-3" aria-busy="true" aria-label="Caricamento eventi personali">
+        <div className="mt-5 space-y-3" aria-busy="true" aria-label="Caricamento della tua agenda">
           {Array.from({ length: 2 }, (_, index) => (
             <div className="h-32 animate-pulse rounded-[1.5rem] bg-white/70 ring-1 ring-black/5 motion-reduce:animate-none" key={index} />
           ))}
@@ -57,7 +58,7 @@ export function ProfileParticipations() {
       {state.status === "success" && state.participations.length === 0 ? (
         <div className="surface-card mt-5 p-5">
           <p className="font-extrabold text-ink">La tua agenda è ancora vuota.</p>
-          <p className="mt-2 text-sm leading-6 text-muted">Esplora Discover e salva gli eventi che ti interessano.</p>
+          <p className="mt-2 text-sm leading-6 text-muted">Quando scegli «Parteciperò» o «Mi interessa» su un evento, lo ritrovi qui.</p>
           <Link className="mt-4 inline-flex min-h-11 items-center gap-1 rounded-full font-extrabold text-ink" to="/">
             Vai a Discover <ArrowRight size={17} aria-hidden="true" />
           </Link>

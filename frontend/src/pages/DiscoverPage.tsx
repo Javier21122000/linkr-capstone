@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from "react-router";
 
 import { CategoryFilterBar } from "../components/events/CategoryFilterBar";
 import { EventList } from "../components/events/EventList";
-import type { MapSelection } from "../components/events/EventMap";
+import type { MapSelection, MapStatus } from "../components/events/EventMap";
 import { EventPreview } from "../components/events/EventPreview";
 import { MapNotice } from "../components/events/MapNotice";
 import { QuickCreate } from "../components/events/QuickCreate";
@@ -12,8 +12,11 @@ import { useLeaving } from "../hooks/useLeaving";
 import { EmptyEventsIllustration } from "../components/ui/EmptyEventsIllustration";
 import { EmptyState } from "../components/ui/EmptyState";
 import { GlassSurface } from "../components/ui/GlassSurface";
+import { useMyParticipations } from "../context/MyParticipationsContext";
+import { HelpButton, useProductGuidance } from "../context/ProductGuidanceContext";
 import { categoryOptions } from "../lib/eventPresentation";
 import { getEvents, getEventsErrorMessage, isRequestCancelled, toEventSummary } from "../lib/events";
+import { isDiscoverReady } from "../lib/guidance";
 import { hasValidCoordinates } from "../lib/map";
 import type { MapPickState } from "../lib/map";
 import { readMapFocusRequest } from "../lib/navigation";
@@ -84,6 +87,7 @@ export function DiscoverPage({ active }: DiscoverPageProps) {
   const [listOpen, setListOpen] = useState(false);
   const [mapPick, setMapPick] = useState<MapPickState | null>(null);
   const [notice, setNotice] = useState<DiscoverNotice | null>(null);
+  const [mapStatus, setMapStatus] = useState<MapStatus>("loading");
   const listTriggerRef = useRef<HTMLButtonElement>(null);
   const isDesktop = useDesktopDiscoveryLayout();
   const eventsStatusRef = useRef(eventsState.status);
@@ -96,6 +100,18 @@ export function DiscoverPage({ active }: DiscoverPageProps) {
   const focusRequest = readMapFocusRequest(location.state);
 
   eventsStatusRef.current = eventsState.status;
+
+  // Benvenuto e tour aspettano che Discover sia davvero pronto: visibile, eventi arrivati (o falliti) e mappa finita di caricare (o di fallire).
+  // Il tuo stato (Parteciperò / Mi interessa) sui marker e nella lista: dati reali dell'API, vuoti da anonimi.
+  const { byEventId: participations, refresh: refreshParticipations } = useMyParticipations();
+  const refreshParticipationsRef = useRef(refreshParticipations);
+  refreshParticipationsRef.current = refreshParticipations;
+  const { notifyDiscoverReady } = useProductGuidance();
+  const discoverReady = isDiscoverReady({ active, eventsLoading: eventsState.status === "loading", mapStatus });
+  useEffect(() => {
+    notifyDiscoverReady(discoverReady);
+    return () => notifyDiscoverReady(false);
+  }, [discoverReady, notifyDiscoverReady]);
 
   // Si carica l'elenco completo una sola volta: la categoria è un filtro locale. Cambiare filtro è quindi istantaneo e
   // sincrono, senza richieste in volo che possano arrivare fuori ordine e senza dati di una categoria sotto la chiave di un'altra.
@@ -120,6 +136,9 @@ export function DiscoverPage({ active }: DiscoverPageProps) {
     const becameActive = active && !wasActiveRef.current;
     wasActiveRef.current = active;
     if (!becameActive) return;
+
+    // Tornando su Discover si rilegge lo stato personale: potrebbe essere cambiato altrove (altra scheda, altro dispositivo).
+    void refreshParticipationsRef.current();
 
     if (eventsStatusRef.current === "error") {
       setRequestKey((current) => current + 1);
@@ -282,6 +301,7 @@ export function DiscoverPage({ active }: DiscoverPageProps) {
           variant="panel"
           events={events}
           selectedEventId={selectedEventId}
+          participations={participations}
           autoScrollToSelection
           loading={eventsState.status === "loading"}
           errorMessage={eventsState.status === "error" ? eventsState.message : undefined}
@@ -292,7 +312,7 @@ export function DiscoverPage({ active }: DiscoverPageProps) {
         />
       )}
 
-      <section className="discover-map-stage" aria-labelledby="discover-title">
+      <section className="discover-map-stage" aria-labelledby="discover-title" data-tour="map">
         <Suspense fallback={<MapPlaceholder />}>
           <EventMap
             events={events}
@@ -303,6 +323,8 @@ export function DiscoverPage({ active }: DiscoverPageProps) {
             onSelectEvent={selectFromMap}
             pick={mapPick}
             onPickPoint={(point) => setMapPick({ point })}
+            onStatusChange={setMapStatus}
+            participations={participations}
           />
         </Suspense>
 
@@ -352,6 +374,7 @@ export function DiscoverPage({ active }: DiscoverPageProps) {
             ref={listTriggerRef}
             className="map-list-trigger glass glass--strong"
             data-map-inset="bottom"
+            data-tour="list"
             type="button"
             onClick={() => setListOpen(true)}
             aria-haspopup="dialog"
@@ -361,7 +384,7 @@ export function DiscoverPage({ active }: DiscoverPageProps) {
         )}
 
         {preview.shown && (!listOpen || isDesktop) && (
-          <EventPreview event={preview.shown} leaving={preview.leaving} onClose={() => setSelection(null)} />
+          <EventPreview event={preview.shown} participation={participations.get(preview.shown.id)} leaving={preview.leaving} onClose={() => setSelection(null)} />
         )}
 
         <QuickCreate
@@ -372,6 +395,7 @@ export function DiscoverPage({ active }: DiscoverPageProps) {
           onCreated={addCreatedEvent}
           onShowOnMap={(eventId) => void focusEventOnMap(eventId)}
         />
+        <HelpButton hidden={listOpen && !isDesktop} />
 
         <div className="qc-notice-region" role="status" aria-live="polite">
           {notice ? (
@@ -388,6 +412,7 @@ export function DiscoverPage({ active }: DiscoverPageProps) {
             variant="sheet"
             events={events}
             selectedEventId={selectedEventId}
+            participations={participations}
             autoScrollToSelection={false}
             loading={eventsState.status === "loading"}
             errorMessage={eventsState.status === "error" ? eventsState.message : undefined}

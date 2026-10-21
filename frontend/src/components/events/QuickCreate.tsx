@@ -389,7 +389,7 @@ export function QuickCreate({ active, buttonHidden, mapPick, onMapPickChange, on
 
       // Un testo alternativo senza foto non ha senso: non si invia (la foto può essere stata rimossa dopo averlo scritto).
       const values = { ...toFormValues(draft, now), ...(imageUrl ? {} : { imageAlt: "" }) };
-      const payload = buildEventPayload(values, imageUrl, "COMMUNITY");
+      const payload = buildEventPayload(values, imageUrl, "COMMUNITY", cover.selectedImage?.name);
       const created = await authorizedRequest((accessToken) => createEvent(accessToken, payload));
       if (!created.id) throw new Error("Event response is missing the event id");
 
@@ -574,6 +574,7 @@ export function QuickCreate({ active, buttonHidden, mapPick, onMapPickChange, on
           label="Crea un’uscita o un evento"
           aria-haspopup="dialog"
           aria-expanded={dialogOpen}
+          data-tour="quick-create"
           data-map-inset="right"
           onPointerEnter={prefetchDialog}
           onFocus={prefetchDialog}

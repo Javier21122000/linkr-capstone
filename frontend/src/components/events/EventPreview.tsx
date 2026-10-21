@@ -1,22 +1,27 @@
 import { ArrowUpRight, MapPin, X } from "lucide-react";
 import { Link } from "react-router";
 
-import { categoryLabels, formatEventDate, formatEventTimeRange } from "../../lib/eventPresentation";
+import { categoryColors, categoryLabels, formatEventDate, formatEventTimeRange } from "../../lib/eventPresentation";
 import type { EventSummary } from "../../types/event";
+import type { ParticipationStatus } from "../../types/participation";
 import { CategoryDisc } from "./CategoryIcon";
 import { EventImage } from "./EventImage";
+import { ParticipationChip } from "./ParticipationIndicator";
 
 interface EventPreviewProps {
   readonly event: EventSummary;
+  /** Il tuo stato su questo evento, se hai risposto. */
+  readonly participation?: ParticipationStatus;
   /** L'anteprima sta uscendo: resta visibile per l'animazione ma non è più interattiva né letta come contenuto. */
   readonly leaving?: boolean;
   readonly onClose: () => void;
 }
 
-export function EventPreview({ event, leaving = false, onClose }: EventPreviewProps) {
+export function EventPreview({ event, participation, leaving = false, onClose }: EventPreviewProps) {
   return (
     <article
       className="event-preview glass glass--strong content-reveal"
+      style={{ "--event-category-color": categoryColors[event.category] } as React.CSSProperties}
       aria-labelledby="selected-event-title"
       aria-hidden={leaving || undefined}
       inert={leaving || undefined}
@@ -31,6 +36,7 @@ export function EventPreview({ event, leaving = false, onClose }: EventPreviewPr
         <p className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-[0.08em] text-muted">
           <CategoryDisc category={event.category} size={12} className="category-disc--sm" />
           {categoryLabels[event.category]}
+          {participation ? <ParticipationChip status={participation} /> : null}
         </p>
         <h2 id="selected-event-title" className="mt-1 truncate text-base font-extrabold tracking-[-0.03em] text-ink sm:text-lg">
           <Link className="event-preview__link" to={`/events/${event.id}`}>

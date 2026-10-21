@@ -84,6 +84,40 @@
   backdrop-filter: var(--glass-filter);
 }
 
+/* Variante con messaggio e pulsante: a capo su schermi stretti, sempre dentro l'area libera. */
+.event-map__notice,
+.event-map__loading:has(.event-map__retry) {
+  max-width: min(calc(100% - var(--discover-map-left) - var(--discover-map-right) - 1rem), 26rem);
+  flex-wrap: wrap;
+  justify-content: center;
+  border-radius: 1.25rem;
+  text-align: center;
+}
+
+.event-map__notice-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: normal;
+}
+
+.event-map__retry {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: 0.35rem;
+  margin-block: -0.4rem;
+  border-radius: 999px;
+  padding-inline: 0.6rem;
+  color: var(--color-linkr-strong);
+  font-weight: 850;
+}
+
+@media (hover: hover) {
+  .event-map__retry:hover {
+    background: var(--color-linkr-soft);
+  }
+}
+
 .event-map__loading-dot {
   width: 0.5rem;
   height: 0.5rem;
@@ -323,6 +357,8 @@
   margin-inline: auto;
   border-radius: 1.6rem;
   padding: 0.6rem 0.75rem 0.6rem 0.6rem;
+  border: 1px solid color-mix(in srgb, var(--event-category-color) 50%, rgb(24 24 22 / 0.16));
+  box-shadow: 0 14px 34px rgb(24 24 22 / 0.2), 0 0 0 2px color-mix(in srgb, var(--event-category-color) 22%, transparent);
 }
 
 /* Uscita: opacità e piccolo scivolamento verso il basso, nello stesso tempo con cui useLeaving la tiene montata. */
@@ -485,8 +521,8 @@
 }
 
 .event-list-item[data-selected="true"] {
-  background: var(--color-linkr-soft);
-  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--color-linkr) 60%, transparent);
+  background: color-mix(in srgb, var(--event-category-color) 13%, white);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--event-category-color) 68%, transparent);
 }
 
 .event-list-item:focus-visible {
@@ -523,7 +559,7 @@
   transition: opacity 260ms ease;
 }
 
-.event-map:not([data-status="ready"]) .event-marker {
+.event-map:is([data-status="loading"], [data-status="error"], [data-status="missing-key"]) .event-marker {
   opacity: 0;
   pointer-events: none;
 }
@@ -537,7 +573,7 @@
   height: 3.35rem;
   translate: -50% 0;
   transform-origin: center bottom;
-  filter: drop-shadow(0 4px 5px rgb(24 24 22 / 0.26));
+  filter: drop-shadow(0 5px 7px rgb(24 24 22 / 0.38));
   transition: scale 240ms var(--ease-spring);
   animation: event-marker-in 340ms var(--ease-spring) backwards;
 }
@@ -565,11 +601,11 @@
   height: 2.75rem;
   place-items: center;
   overflow: hidden;
-  border: 2.5px solid var(--marker-color);
+  border: 3px solid color-mix(in srgb, var(--marker-color) 86%, var(--color-ink));
   border-radius: 999px;
-  background: color-mix(in srgb, var(--marker-color) 14%, white);
-  box-shadow: 0 0 0 2px rgb(255 255 255 / 0.9);
-  color: color-mix(in srgb, var(--marker-color) 58%, var(--color-ink));
+  background: color-mix(in srgb, var(--marker-color) 18%, white);
+  box-shadow: 0 0 0 2px white, 0 2px 8px rgb(24 24 22 / 0.24);
+  color: color-mix(in srgb, var(--marker-color) 46%, var(--color-ink));
   transition: background-color 200ms ease, border-color 200ms ease, box-shadow 200ms ease, color 200ms ease;
 }
 
@@ -587,6 +623,24 @@
   opacity: 1;
 }
 
+/*
+ * Il tuo stato su un evento: un piccolo simbolo sull'angolo del marker. Il colore principale resta quello della categoria; il simbolo ha il suo
+ * anello bianco per leggersi su qualsiasi cartografia. I marker con uno stato salgono sopra i vicini senza stato: dove sono ammassati non si perdono.
+ */
+.event-marker__status {
+  position: absolute;
+  z-index: 3;
+  top: 0.05rem;
+  right: -0.2rem;
+  width: 1.2rem;
+  height: 1.2rem;
+  box-shadow: 0 1px 3px rgb(24 24 22 / 0.4);
+}
+
+.event-marker[data-participation] {
+  z-index: 2;
+}
+
 .event-marker__label {
   position: absolute;
   z-index: 5;
@@ -595,9 +649,9 @@
   display: none;
   max-width: clamp(6rem, calc(50vw - 3.25rem), 12rem);
   overflow: hidden;
-  border: 1px solid var(--glass-border);
+  border: 1px solid rgb(24 24 22 / 0.2);
   border-radius: 999px;
-  background: var(--glass-sheen-soft), var(--glass-bg-strong);
+  background: var(--glass-sheen-soft), rgb(255 255 255 / 0.94);
   padding: 0.35rem 0.7rem;
   box-shadow: var(--glass-shadow);
   color: var(--color-ink);
@@ -632,14 +686,14 @@
 }
 
 .event-marker[data-selected="true"] .event-marker__pin::after {
-  border-color: var(--color-linkr);
-  background: var(--color-linkr);
+  border-color: var(--event-category-color);
+  background: var(--event-category-color);
 }
 
 .event-marker[data-selected="true"] .event-marker__bubble {
   border-color: white;
-  background: var(--color-linkr);
-  box-shadow: 0 0 0 3px var(--color-linkr);
+  background: var(--event-category-color);
+  box-shadow: 0 0 0 3px var(--event-category-color), 0 6px 14px rgb(24 24 22 / 0.35);
   color: white;
 }
 

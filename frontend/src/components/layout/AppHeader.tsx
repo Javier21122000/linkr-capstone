@@ -1,5 +1,5 @@
-import { Compass, Link2, MapPin, MessageCircle, Plus, UserRound, UsersRound } from "lucide-react";
-import { useRef } from "react";
+import { Compass, Link2, MapPin, MessageCircle, Plus, UserRound, UsersRound, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
 
 import { useAuth } from "../../context/AuthContext";
@@ -22,6 +22,10 @@ export function AppHeader() {
   const { unreadCount } = useChatRealtime();
   const { incomingCount } = useLinkRequestCount();
   const navRef = useRef<HTMLElement>(null);
+  const cityRef = useRef<HTMLDivElement>(null);
+  const cityButtonRef = useRef<HTMLButtonElement>(null);
+  const cityContinueRef = useRef<HTMLButtonElement>(null);
+  const [cityOpen, setCityOpen] = useState(false);
   useSlidingIndicator({ trackRef: navRef, activeSelector: '[aria-current="page"]', activeKey: pathname });
   const profileLabel = user ? `@${user.username}` : "Profilo";
   const linksAccessibleLabel = incomingCount
@@ -30,6 +34,30 @@ export function AppHeader() {
   const chatAccessibleLabel = unreadCount
     ? `Chat, ${unreadCount} ${unreadCount === 1 ? "messaggio non letto" : "messaggi non letti"}`
     : "Chat";
+
+  useEffect(() => {
+    if (!cityOpen) return undefined;
+    cityContinueRef.current?.focus({ preventScroll: true });
+    const close = (restoreFocus: boolean) => {
+      setCityOpen(false);
+      if (restoreFocus) window.requestAnimationFrame(() => cityButtonRef.current?.focus());
+    };
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Node && !cityRef.current?.contains(event.target)) close(false);
+    };
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        close(true);
+      }
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [cityOpen]);
 
   return (
     <header className="app-header" data-view={pathname === "/" ? "discover" : "page"}>
@@ -45,7 +73,7 @@ export function AppHeader() {
           </Link>
         </div>
 
-        <nav ref={navRef} className="app-nav glass" aria-label="Primary navigation" data-map-inset="top">
+        <nav ref={navRef} className="app-nav glass" aria-label="Primary navigation" data-map-inset="top" data-tour="navigation">
           <span className="nav-thumb" aria-hidden="true" />
           <NavItem to="/" end className="desktop-nav-link">
             <Compass size={18} aria-hidden="true" /> <span>Discover</span>
@@ -74,9 +102,22 @@ export function AppHeader() {
         </nav>
 
         <div className="app-header__end" data-map-inset="top">
-          <div className="app-header__city app-pill glass">
-            <MapPin size={17} className="text-linkr-action" aria-hidden="true" />
-            <span>Milano</span>
+          <div ref={cityRef} className="app-header__city-wrap">
+            <button ref={cityButtonRef} className="app-header__city app-pill glass" type="button" aria-expanded={cityOpen} aria-haspopup="dialog" onClick={() => setCityOpen((current) => !current)}>
+              <MapPin size={17} className="text-linkr-action" aria-hidden="true" />
+              <span>Milano</span>
+            </button>
+            {cityOpen ? (
+              <section className="city-popover glass glass--sheet" role="dialog" aria-modal="false" aria-labelledby="city-popover-title">
+                <div className="flex items-start justify-between gap-3">
+                  <div><p className="section-kicker">La nostra città</p><h2 id="city-popover-title" className="mt-1 text-xl font-extrabold tracking-[-0.04em] text-ink">LINKR parte da Milano.</h2></div>
+                  <button className="icon-button city-popover__close" type="button" onClick={() => { setCityOpen(false); cityButtonRef.current?.focus(); }} aria-label="Chiudi"><X size={17} aria-hidden="true" /></button>
+                </div>
+                <p className="mt-3 text-sm font-semibold leading-6 text-muted">Stiamo costruendo nuovi modi per scoprire eventi, incontrare persone e vivere la città insieme.</p>
+                <p className="mt-2 text-sm font-semibold leading-6 text-muted">Per ora ci trovi qui. Presto vogliamo esplorare nuove città.</p>
+                <button ref={cityContinueRef} className="button-primary mt-5 inline-flex w-full items-center" type="button" onClick={() => { setCityOpen(false); cityButtonRef.current?.focus(); }}>Continua a esplorare</button>
+              </section>
+            ) : null}
           </div>
           {status === "anonymous" ? (
             <>

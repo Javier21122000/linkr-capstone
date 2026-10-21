@@ -24,17 +24,6 @@ export function isInsideMilan(latitude: number, longitude: number): boolean {
     && longitude <= MILAN_BOUNDS.maxLongitude;
 }
 
-/**
- * Un errore di MapLibre prima del primo caricamento è fatale solo se la mappa non può partire: lo stile non si scarica (rete, chiave,
- * rate limit) o manca WebGL. Un tassello, un glifo o uno sprite che falliscono non lo sono: la mappa si disegna lo stesso e li ritenta da sé.
- */
-export function isFatalMapError(event: { readonly error?: unknown; readonly sourceId?: string; readonly tile?: unknown }): boolean {
-  if (event.sourceId !== undefined || event.tile !== undefined) return false;
-  const url = typeof event.error === "object" && event.error !== null && "url" in event.error ? String((event.error as { url?: unknown }).url) : "";
-  // Con un URL, conta solo lo stile; senza URL (es. contesto WebGL) l'errore è fatale.
-  return url === "" || url.includes("/style.json");
-}
-
 export function getMapTilerKey(): string | null {
   const key = import.meta.env.VITE_MAPTILER_KEY?.trim();
   return key || null;

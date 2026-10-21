@@ -5,6 +5,7 @@
 @import "./discover.css";
 @import "./pages.css";
 @import "./quick-create.css";
+@import "./guidance.css";
 
 :root {
   color-scheme: light;
@@ -784,4 +785,55 @@ a {
   .content-reveal {
     animation: none !important;
   }
+}
+
+/* ——— Il tuo stato su un evento (simbolo e etichetta) ——— */
+.participation-mark {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 2px solid white;
+  border-radius: 999px;
+}
+
+/* "Mi interessa": cuore con il solo contorno, corallo scuro su bianco. */
+.participation-mark[data-status="INTERESTED"] {
+  background: white;
+  color: var(--color-linkr-strong);
+}
+
+/* "Parteciperò": cerchio pieno con la spunta. Verde di conferma (contrasto ≥ 4.5:1 con il bianco). */
+.participation-mark[data-status="GOING"] {
+  background: var(--color-success);
+  color: white;
+}
+
+.participation-mark--inline {
+  width: 1.1rem;
+  height: 1.1rem;
+  border-width: 1.5px;
+}
+
+.participation-chip {
+  display: inline-flex;
+  min-height: 1.4rem;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 999px;
+  padding: 0.1rem 0.55rem 0.1rem 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.participation-chip[data-status="GOING"] {
+  background: #e4f3ec;
+  color: var(--color-success);
+}
+
+.participation-chip[data-status="INTERESTED"] {
+  background: var(--color-linkr-soft);
+  color: var(--color-linkr-strong);
 }

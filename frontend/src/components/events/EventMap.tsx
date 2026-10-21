@@ -14,7 +14,6 @@ import { categoryColors, unknownCategoryColor } from "../../lib/eventPresentatio
 import {
   getMapTilerStyleUrl,
   hasValidCoordinates,
-  isFatalMapError,
   MAP_MAX_PIXEL_RATIO,
   MAP_MAX_ZOOM,
   MAP_MIN_ZOOM,
@@ -27,16 +26,30 @@ import {
   planEventsFraming,
   planSelectionFraming,
 } from "../../lib/mapCamera";
+import { nextRetryDelay } from "../../lib/mapHealth";
+import { attachMapRecovery, recoverableFrom } from "../../lib/mapRecovery";
+import type { MapHealthState, MapRecovery } from "../../lib/mapRecovery";
 import { getStyleSwapOptions } from "../../lib/mapStyle";
 import { prefersReducedMotion } from "../../lib/motion";
 import type { EventSummary } from "../../types/event";
+import type { ParticipationStatus } from "../../types/participation";
 import { LinkrSymbol } from "../ui/BrandMark";
 import { IconButton } from "../ui/IconButton";
 import { EventMarkerPin } from "./EventMarkerPin";
 
 setWorkerUrl(workerUrl);
 
-type MapStatus = "loading" | "ready" | "missing-key" | "error";
+/**
+ * Stato visibile della mappa (`data-status`): `loading` (anche se lenta), `ready`, `recovering` (tentativo di recupero in corso o in attesa),
+ * `degraded` (cartografia incompleta dopo i tentativi: marker e lista restano usabili), `error` (non può partire) e `missing-key`.
+ */
+export type MapStatus = "loading" | "ready" | "recovering" | "degraded" | "error" | "missing-key";
+
+/** Camera da conservare se la mappa va ricreata: né il viewport né il lavoro dell'utente si perdono per un errore temporaneo. */
+interface SavedCamera {
+  readonly center: [number, number];
+  readonly zoom: number;
+}
 
 interface MarkerEntry {
   readonly marker: Marker;
@@ -64,6 +77,10 @@ interface EventMapProps {
   /** Modalità "scegli un punto" (Quick Create): `null` = spenta. Il tocco sulla mappa propone un punto, non crea nulla. */
   readonly pick?: MapPickState | null;
   readonly onPickPoint?: (point: PickedPoint) => void;
+  /** Stato personale dell'utente autenticato per evento (vuoto da anonimi): decide il simbolo sul marker. */
+  readonly participations?: ReadonlyMap<string, ParticipationStatus>;
+  /** Stato della mappa a ogni cambio (`loading`, `ready`, `recovering`, `degraded`, `error`, `missing-key`): Discover lo usa per sapere quando è pronto. */
+  readonly onStatusChange?: (status: MapStatus) => void;
 }
 
 /** Richiesta di inquadratura in attesa di dati: si esegue una sola volta e poi si consuma. */
@@ -86,6 +103,13 @@ function createMarkerElement(event: EventSummary, onSelect: () => void): HTMLBut
   return button;
 }
 
+const NO_PARTICIPATIONS: ReadonlyMap<string, ParticipationStatus> = new Map();
+
+const participationSuffix: Record<ParticipationStatus, string> = {
+  GOING: "parteciperai",
+  INTERESTED: "ti interessa",
+};
+
 function isSameMarkerEvent(a: EventSummary, b: EventSummary): boolean {
   return a.id === b.id
     && a.title === b.title
@@ -95,7 +119,7 @@ function isSameMarkerEvent(a: EventSummary, b: EventSummary): boolean {
     && a.imageUrl === b.imageUrl;
 }
 
-export function EventMap({ events, eventsReady, viewKey, selection, active, onSelectEvent, pick = null, onPickPoint }: EventMapProps) {
+export function EventMap({ events, eventsReady, viewKey, selection, active, onSelectEvent, pick = null, onPickPoint, onStatusChange, participations = NO_PARTICIPATIONS }: EventMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markersRef = useRef<Map<string, MarkerEntry>>(new Map());
@@ -112,9 +136,16 @@ export function EventMap({ events, eventsReady, viewKey, selection, active, onSe
   /** `true` quando la camera non è più quella scelta dall'app (gesto dell'utente o selezione): niente inquadrature automatiche sopra. */
   const adjustedRef = useRef(false);
   const [cameraAdjusted, setCameraAdjusted] = useState(false);
-  const [status, setStatus] = useState<MapStatus>(() => getMapTilerStyleUrl() ? "loading" : "missing-key");
-  /** Cambia con "Riprova": ricrea la mappa dopo un errore di rete sullo stile. */
+  const [health, setHealth] = useState<MapHealthState>({ phase: "loading", message: null, failure: null });
+  /** Cambia quando la mappa va ricreata (errore sullo stile, contesto WebGL perso, "Riprova"). */
   const [attempt, setAttempt] = useState(0);
+  /** Una per ogni istanza di MapLibre creata: marker, selezione e punto proposto si rimettono sulla mappa nuova. */
+  const [generation, setGeneration] = useState(0);
+  /** Dopo i tentativi automatici sullo stile senza esito: solo allora compare la schermata "non disponibile". */
+  const [fatalExhausted, setFatalExhausted] = useState(false);
+  const recoveryRef = useRef<MapRecovery | null>(null);
+  const lastCameraRef = useRef<SavedCamera | null>(null);
+  const styleAttemptsRef = useRef(0);
   const styleUrl = getMapTilerStyleUrl();
   const hasMappableEvents = useMemo(() => events.some(hasValidCoordinates), [events]);
 
@@ -132,23 +163,22 @@ export function EventMap({ events, eventsReady, viewKey, selection, active, onSe
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || !styleUrl) {
-      setStatus("missing-key");
-      return;
-    }
+    if (!container || !styleUrl) return;
 
     let map: MapLibreMap | null = null;
-    let hasLoaded = false;
-    let disposed = false;
+    let recovery: MapRecovery | null = null;
+    const savedCamera = lastCameraRef.current;
 
-    setStatus("loading");
+    setHealth({ phase: "loading", message: null, failure: null });
+    setFatalExhausted(false);
 
     try {
       // Lo stile si applica dopo i listener (sotto): arriva già alleggerito, senza un primo frame con la cartografia completa.
       map = new MapLibreMap({
         container,
-        center: MILAN_CENTER,
-        zoom: MILAN_INITIAL_ZOOM,
+        // Una mappa ricreata riparte da dove l'utente l'aveva lasciata; una nuova parte da Milano.
+        center: savedCamera?.center ?? MILAN_CENTER,
+        zoom: savedCamera?.zoom ?? MILAN_INITIAL_ZOOM,
         minZoom: MAP_MIN_ZOOM,
         maxZoom: MAP_MAX_ZOOM,
         attributionControl: false,
@@ -158,21 +188,34 @@ export function EventMap({ events, eventsReady, viewKey, selection, active, onSe
         maxPitch: 0,
       });
       mapRef.current = map;
+      setGeneration((current) => current + 1);
       map.setPixelRatio(Math.min(window.devicePixelRatio || 1, MAP_MAX_PIXEL_RATIO));
       map.touchZoomRotate.disableRotation();
       map.addControl(new AttributionControl({ compact: false }), "top-left");
 
-      // Una mappa nuova parte da Milano: serve una prima inquadratura sugli eventi.
-      framingRef.current = { reason: "initial" };
-      adjustedRef.current = false;
-      setCameraAdjusted(false);
+      if (savedCamera) {
+        // Mappa ricreata: la camera è quella di prima, niente inquadratura automatica sopra.
+        framingRef.current = null;
+      } else {
+        // Una mappa nuova parte da Milano: serve una prima inquadratura sugli eventi.
+        framingRef.current = { reason: "initial" };
+        adjustedRef.current = false;
+        setCameraAdjusted(false);
+      }
 
-      map.on("load", () => {
-        hasLoaded = true;
-        if (!disposed) setStatus("ready");
+      // Con tasselli falliti MapLibre dichiara comunque `load` e `idle` (verificato): lo stato "pronta" lo decide il controllore,
+      // che controlla che la mappa disegni davvero e riprova (sulla stessa istanza) se un errore temporaneo l'ha lasciata vuota.
+      const mapForRecovery = map;
+      recovery = attachMapRecovery(recoverableFrom(mapForRecovery), {
+        reload: () => mapForRecovery.setStyle(styleUrl, { ...getStyleSwapOptions(), diff: false }),
+        recreate: () => setAttempt((current) => current + 1),
+        onChange: setHealth,
+        isVisible: () => activeRef.current && container.clientWidth > 0 && container.clientHeight > 0,
       });
-      map.on("error", (event) => {
-        if (!disposed && !hasLoaded && isFatalMapError(event)) setStatus("error");
+      recoveryRef.current = recovery;
+      map.on("moveend", () => {
+        const center = mapForRecovery.getCenter();
+        lastCameraRef.current = { center: [center.lng, center.lat], zoom: mapForRecovery.getZoom() };
       });
       // Solo i gesti reali portano un `originalEvent` (trascinamento, pinch, doppio click, tastiera): le transizioni
       // avviate dall'app (inquadrature, selezioni) no, quindi non si scambiano per navigazione manuale.
@@ -190,7 +233,8 @@ export function EventMap({ events, eventsReady, viewKey, selection, active, onSe
       });
       map.setStyle(styleUrl, getStyleSwapOptions());
     } catch {
-      setStatus("error");
+      // Il costruttore fallisce senza WebGL: non è un errore temporaneo, quindi nessun tentativo automatico.
+      setHealth({ phase: "error", message: "Il browser non permette di mostrare la mappa.", failure: { kind: "unknown", permanent: true } });
     }
 
     // Con Discover nascosto il container misura 0×0: si ridimensiona solo quando torna visibile.
@@ -200,7 +244,8 @@ export function EventMap({ events, eventsReady, viewKey, selection, active, onSe
     resizeObserver.observe(container);
 
     return () => {
-      disposed = true;
+      recovery?.dispose();
+      if (recoveryRef.current === recovery) recoveryRef.current = null;
       resizeObserver.disconnect();
       markersRef.current.forEach(({ marker }) => marker.remove());
       markersRef.current.clear();
@@ -211,6 +256,20 @@ export function EventMap({ events, eventsReady, viewKey, selection, active, onSe
       if (mapRef.current === map) mapRef.current = null;
     };
   }, [styleUrl, markAdjusted, attempt]);
+
+  // Stile non scaricabile: due tentativi automatici (con attesa), poi la schermata "non disponibile". Mai per errori permanenti.
+  useEffect(() => {
+    if (health.phase === "ready") styleAttemptsRef.current = 0;
+    if (health.phase !== "error" || !health.failure) return undefined;
+    const delay = nextRetryDelay(styleAttemptsRef.current, health.failure);
+    if (delay === null) {
+      setFatalExhausted(true);
+      return undefined;
+    }
+    styleAttemptsRef.current += 1;
+    const timeoutId = window.setTimeout(() => setAttempt((current) => current + 1), delay);
+    return () => window.clearTimeout(timeoutId);
+  }, [health]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -236,7 +295,7 @@ export function EventMap({ events, eventsReady, viewKey, selection, active, onSe
     });
     markersRef.current = next;
     setMarkerEntries([...next.values()]);
-  }, [events]);
+  }, [events, generation]);
 
   // Segnaposto del punto proposto: trascinabile, stesso aspetto di quello del form completo. Segue sempre `pick.point`.
   const pickLatitude = pick?.point?.latitude ?? null;
@@ -261,7 +320,7 @@ export function EventMap({ events, eventsReady, viewKey, selection, active, onSe
       onPickPointRef.current?.({ latitude: point.lat, longitude: point.lng });
     });
     pickMarkerRef.current = marker;
-  }, [pickLatitude, pickLongitude]);
+  }, [pickLatitude, pickLongitude, generation]);
 
   const selectedEventId = selection?.id ?? null;
 
@@ -273,6 +332,19 @@ export function EventMap({ events, eventsReady, viewKey, selection, active, onSe
     });
     // Anche quando i marker cambiano: un marker ricreato da un refresh deve ereditare la selezione corrente.
   }, [selectedEventId, markerEntries]);
+
+  // Lo stato personale arriva dopo la creazione dei marker (e cambia quando si risponde a un evento): si aggiornano gli attributi
+  // sullo stesso elemento, senza ricrearlo, e il nome accessibile dice la stessa cosa del simbolo.
+  useEffect(() => {
+    markersRef.current.forEach(({ element, event }, eventId) => {
+      const status = participations.get(eventId);
+      if (status) element.dataset.participation = status;
+      else delete element.dataset.participation;
+      const suffix = status ? ` (${participationSuffix[status]})` : "";
+      element.setAttribute("aria-label", `Seleziona l’evento ${event.title}${suffix}`);
+      element.title = `${event.title}${suffix}`;
+    });
+  }, [participations, markerEntries]);
 
   // Selezione: porta l'evento in vista nell'area libera dagli overlay. Non dipende dai dati, così un refresh non sposta la mappa.
   useEffect(() => {
@@ -347,7 +419,24 @@ export function EventMap({ events, eventsReady, viewKey, selection, active, onSe
     else map.zoomOut(options);
   }, [markAdjusted]);
 
+  const retry = useCallback(() => {
+    styleAttemptsRef.current = 0;
+    if (recoveryRef.current) recoveryRef.current.retry();
+    else setAttempt((current) => current + 1);
+  }, []);
+
+  const status: MapStatus = !styleUrl
+    ? "missing-key"
+    : fatalExhausted
+      ? "error"
+      : health.phase === "slow" ? "loading" : health.phase === "error" ? "recovering" : health.phase;
   const unavailable = status === "missing-key" || status === "error";
+
+  const onStatusChangeRef = useRef(onStatusChange);
+  onStatusChangeRef.current = onStatusChange;
+  useEffect(() => {
+    onStatusChangeRef.current?.(status);
+  }, [status]);
 
   return (
     <div className="event-map" data-status={status} data-picking={pick !== null ? "true" : undefined}>
@@ -360,7 +449,7 @@ export function EventMap({ events, eventsReady, viewKey, selection, active, onSe
       />
 
       {markerEntries.map(({ element, event }) =>
-        createPortal(<EventMarkerPin event={event} selected={event.id === selectedEventId} />, element, event.id),
+        createPortal(<EventMarkerPin event={event} selected={event.id === selectedEventId} participation={participations.get(event.id)} />, element, event.id),
       )}
 
       {!unavailable && (
@@ -389,10 +478,21 @@ export function EventMap({ events, eventsReady, viewKey, selection, active, onSe
         </div>
       )}
 
-      {status === "loading" && (
+      {(status === "loading" || status === "recovering") && (
         <div className="event-map__loading" role="status">
           <span className="event-map__loading-dot" aria-hidden="true" />
-          Caricamento mappa
+          {status === "recovering" ? "Ricarico la mappa…" : health.phase === "slow" ? "La mappa sta impiegando più del previsto…" : "Caricamento mappa"}
+          {health.phase === "slow" ? <button className="event-map__retry" type="button" onClick={retry}>Riprova</button> : null}
+        </div>
+      )}
+
+      {/* Cartografia incompleta dopo i tentativi: marker e lista restano usabili, e l'utente decide se riprovare. Non è un errore mascherato. */}
+      {status === "degraded" && (
+        <div className="event-map__loading event-map__notice" role="status">
+          <span className="event-map__notice-text">{health.message}</span>
+          <button className="event-map__retry" type="button" onClick={retry}>
+            <RotateCcw size={14} aria-hidden="true" /> Riprova
+          </button>
         </div>
       )}
 
@@ -403,10 +503,10 @@ export function EventMap({ events, eventsReady, viewKey, selection, active, onSe
           <p className="mt-2 max-w-sm text-sm leading-6 text-muted">
             {status === "missing-key"
               ? "La basemap non è configurata in questo ambiente. Puoi continuare dalla lista eventi."
-              : "Il provider cartografico non risponde. Gli eventi restano disponibili dalla lista."}
+              : `${health.message ?? "Il provider cartografico non risponde."} Gli eventi restano disponibili dalla lista.`}
           </p>
           {status === "error" ? (
-            <button className="button-secondary mt-4 inline-flex items-center gap-2" type="button" onClick={() => setAttempt((current) => current + 1)}>
+            <button className="button-secondary mt-4 inline-flex items-center gap-2" type="button" onClick={retry}>
               <RotateCcw size={16} aria-hidden="true" /> Riprova
             </button>
           ) : null}

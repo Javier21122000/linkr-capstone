@@ -1,9 +1,10 @@
 import axios from "axios";
-import { Bookmark, CheckCircle2, RotateCcw } from "lucide-react";
+import { CheckCircle2, Heart, RotateCcw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 
 import { useAuth } from "../../context/AuthContext";
+import { useMyParticipations } from "../../context/MyParticipationsContext";
 import { isEventEnded } from "../../lib/eventPresentation";
 import {
   deleteEventParticipation,
@@ -30,6 +31,7 @@ interface EventParticipationPanelProps {
 
 export function EventParticipationPanel({ eventId, startsAt, endsAt, onParticipationChange, onParticipationSaved }: EventParticipationPanelProps) {
   const { status, authorizedRequest } = useAuth();
+  const { apply: applyParticipation } = useMyParticipations();
   const location = useLocation();
   const navigate = useNavigate();
   const [requestKey, setRequestKey] = useState(0);
@@ -60,12 +62,14 @@ export function EventParticipationPanel({ eventId, startsAt, endsAt, onParticipa
     void authorizedRequest((accessToken) => getEventParticipation(accessToken, eventId, controller.signal))
       .then((participation) => {
         setState({ status: "ready", participation });
+        applyParticipation(eventId, participation.status);
         onParticipationChange(participation);
       })
       .catch((error: unknown) => {
         if (axios.isCancel(error)) return;
         if (isParticipationNotFound(error)) {
           setState({ status: "ready", participation: null });
+          applyParticipation(eventId, null);
           onParticipationChange(null);
         } else {
           setState({ status: "error", message: getParticipationErrorMessage(error) });
@@ -74,7 +78,7 @@ export function EventParticipationPanel({ eventId, startsAt, endsAt, onParticipa
       });
 
     return () => controller.abort();
-  }, [authorizedRequest, eventId, onParticipationChange, requestKey, status]);
+  }, [applyParticipation, authorizedRequest, eventId, onParticipationChange, requestKey, status]);
 
   function goToLogin() {
     navigate("/login", { state: { from: location } });
@@ -98,6 +102,8 @@ export function EventParticipationPanel({ eventId, startsAt, endsAt, onParticipa
         { status: nextStatus, visibleToOthers },
       ));
       setState({ status: "ready", participation });
+      // Discover mostra lo stato personale sui marker: si aggiorna appena il servizio conferma, senza aspettare un nuovo caricamento.
+      applyParticipation(eventId, participation.status);
       onParticipationSaved(participation);
     } catch (error) {
       if (isEventEndedConflict(error)) setEndedFromServer(true);
@@ -118,6 +124,7 @@ export function EventParticipationPanel({ eventId, startsAt, endsAt, onParticipa
     try {
       await authorizedRequest((accessToken) => deleteEventParticipation(accessToken, eventId));
       setState({ status: "ready", participation: null });
+      applyParticipation(eventId, null);
       onParticipationChange(null);
     } catch (error) {
       setActionError(getParticipationErrorMessage(error));
@@ -187,7 +194,7 @@ export function EventParticipationPanel({ eventId, startsAt, endsAt, onParticipa
                   }}
                 >
                   {participationStatus === "INTERESTED"
-                    ? <Bookmark className="participation-choice__icon" size={18} fill={selected ? "currentColor" : "none"} aria-hidden="true" />
+                    ? <Heart className="participation-choice__icon" size={18} fill={selected ? "currentColor" : "none"} aria-hidden="true" />
                     : <CheckCircle2 className="participation-choice__icon" size={18} aria-hidden="true" />}
                   <span>{participationStatus === "INTERESTED" ? "Mi interessa" : "Parteciperò"}</span>
                 </button>

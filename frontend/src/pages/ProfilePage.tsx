@@ -182,8 +182,8 @@ export function ProfilePage() {
             <Ticket size={20} aria-hidden="true" />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="font-extrabold">I miei eventi</span>
-            <span className="mt-1 block text-sm font-semibold text-muted">Pubblicati, annullati e strumenti di gestione</span>
+            <span className="font-extrabold">Le mie uscite</span>
+            <span className="mt-1 block text-sm font-semibold text-muted">Gli eventi che organizzi: pubblicati, annullati e gestione</span>
           </span>
           <ArrowRight className="shrink-0 text-muted" size={19} aria-hidden="true" />
         </Link>

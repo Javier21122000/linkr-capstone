@@ -61,6 +61,37 @@
   gap: 0.5rem;
 }
 
+.app-header__city-wrap {
+  position: relative;
+}
+
+.app-header__city {
+  border: 0;
+}
+
+.app-header__city[aria-expanded="true"] {
+  background: var(--lens-accent-bg);
+  box-shadow: var(--lens-accent-shadow), 0 0 0 1px var(--glass-ring);
+  color: var(--color-linkr-strong);
+}
+
+.city-popover {
+  position: absolute;
+  top: calc(100% + 0.65rem);
+  right: 0;
+  width: min(22rem, calc(100vw - 1.5rem));
+  border-radius: var(--radius-card);
+  padding: 1.15rem;
+  color: var(--color-ink);
+  white-space: normal;
+  animation: qc-popover-in 200ms var(--ease-out-soft) backwards;
+}
+
+.city-popover__close {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
 .app-header__brand {
   display: inline-flex;
   min-height: var(--float-pill-h);

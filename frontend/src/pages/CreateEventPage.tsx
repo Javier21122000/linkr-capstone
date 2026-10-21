@@ -254,7 +254,7 @@ function EventFormPage({ mode }: { readonly mode: "create" | "edit" }) {
         imageUrl = uploadedUrl;
       }
 
-      const payload = buildEventPayload(values, imageUrl, isAdmin ? values.eventType : "COMMUNITY");
+      const payload = buildEventPayload(values, imageUrl, isAdmin ? values.eventType : "COMMUNITY", selectedImage?.name);
 
       const savedEvent = await authorizedRequest((accessToken) => (
         isEdit && eventId
@@ -482,11 +482,11 @@ function EventFormPage({ mode }: { readonly mode: "create" | "edit" }) {
                 />
                 <FormField
                   id="imageAlt"
-                  label={`Testo alternativo${values.imageUrl.trim() || selectedImage ? "" : " (opzionale)"}`}
+                  label="Testo alternativo (opzionale)"
                   value={values.imageAlt}
                   onChange={(event) => updateValue("imageAlt", event.target.value)}
                   error={errors.imageAlt}
-                  hint="Obbligatorio quando aggiungi un’immagine. Descrivila in modo conciso."
+                  hint="Lo generiamo da titolo e luogo. Apri questo campo solo se vuoi una descrizione più precisa."
                   maxLength={200}
                   placeholder="Es. Persone sedute a un tavolo all’aperto"
                   disabled={submitting}

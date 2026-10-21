@@ -1,19 +1,23 @@
 import { LocateFixed, MapPin, RotateCcw, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 
-import { categoryLabels, formatEventDate, formatEventTimeRange } from "../../lib/eventPresentation";
+import { categoryColors, categoryLabels, formatEventDate, formatEventTimeRange } from "../../lib/eventPresentation";
 import { hasValidCoordinates } from "../../lib/map";
 import { staggerStyle } from "../../lib/motion";
 import type { EventSummary } from "../../types/event";
+import type { ParticipationStatus } from "../../types/participation";
 import { EmptyEventsIllustration } from "../ui/EmptyEventsIllustration";
 import { EmptyState } from "../ui/EmptyState";
 import { IconButton } from "../ui/IconButton";
 import { CategoryDisc } from "./CategoryIcon";
 import { EventImage } from "./EventImage";
+import { ParticipationChip } from "./ParticipationIndicator";
 
 interface EventListProps {
   readonly events: readonly EventSummary[];
   readonly selectedEventId: string | null;
+  /** Stato personale per evento (vuoto da anonimi): le righe in cui hai risposto lo dicono. */
+  readonly participations?: ReadonlyMap<string, ParticipationStatus>;
   /** `sheet`: pannello apribile (dialog) su mobile/tablet. `panel`: colonna fissa su desktop. */
   readonly variant: "sheet" | "panel";
   readonly autoScrollToSelection: boolean;
@@ -31,6 +35,7 @@ interface EventListProps {
 export function EventList({
   events,
   selectedEventId,
+  participations,
   variant,
   autoScrollToSelection,
   loading,
@@ -89,6 +94,7 @@ export function EventList({
       role={isSheet ? "dialog" : "region"}
       // Il pannello fisso (desktop) occupa il lato sinistro della mappa: la camera ne tiene conto. Lo sheet è transitorio.
       data-map-inset={isSheet ? undefined : "left"}
+      data-tour={isSheet ? undefined : "list"}
       tabIndex={isSheet ? -1 : undefined}
       aria-labelledby="event-list-title"
     >
@@ -148,11 +154,12 @@ export function EventList({
         {!loading && !errorMessage && events.map((event, index) => {
           const locationAvailable = hasValidCoordinates(event);
           const selected = selectedEventId === event.id;
+          const participation = participations?.get(event.id);
           return (
             <button
               key={event.id}
               className="event-list-item stagger-in"
-              style={staggerStyle(index)}
+              style={{ ...staggerStyle(index), "--event-category-color": categoryColors[event.category] } as React.CSSProperties}
               type="button"
               data-selected={selected}
               aria-pressed={selected}
@@ -170,9 +177,12 @@ export function EventList({
                   <MapPin size={13} className="shrink-0" aria-hidden="true" />
                   <span className="truncate">{locationAvailable ? `${event.venueName} · ${event.neighbourhood}` : "Posizione non disponibile"}</span>
                 </span>
-                <span className="mt-2 flex items-center gap-1.5 text-xs font-extrabold text-muted">
-                  <CategoryDisc category={event.category} size={12} className="category-disc--sm" />
-                  {categoryLabels[event.category]}
+                <span className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs font-extrabold text-muted">
+                  <span className="inline-flex items-center gap-1.5">
+                    <CategoryDisc category={event.category} size={12} className="category-disc--sm" />
+                    {categoryLabels[event.category]}
+                  </span>
+                  {participation ? <ParticipationChip status={participation} /> : null}
                 </span>
               </span>
               <LocateFixed className="shrink-0 text-muted" size={18} aria-hidden="true" />

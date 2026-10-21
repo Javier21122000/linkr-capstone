@@ -80,21 +80,21 @@ export function MyEventsPage() {
       <header className="mt-5 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="section-kicker">Organizza</p>
-          <h1 className="mt-3 text-[clamp(2.6rem,8vw,5rem)] font-extrabold leading-[0.94] tracking-[-0.06em] text-ink">I miei eventi</h1>
-          <p className="mt-4 max-w-2xl text-base leading-7 text-muted">Ritrova gli eventi pubblicati e quelli annullati dal tuo account.</p>
+          <h1 className="mt-3 text-[clamp(2.6rem,8vw,5rem)] font-extrabold leading-[0.94] tracking-[-0.06em] text-ink">Le mie uscite</h1>
+          <p className="mt-4 max-w-2xl text-base leading-7 text-muted">Le uscite che hai creato e organizzi: quelle pubblicate e quelle annullate. Gli eventi a cui partecipi sono nella tua agenda, nel profilo.</p>
         </div>
         <Link className="button-primary inline-flex shrink-0 items-center gap-2" to="/events/new"><Plus size={18} aria-hidden="true" /> Crea evento</Link>
       </header>
 
       {state.status === "loading" ? (
-        <div className="mt-10 grid gap-4" aria-busy="true" aria-label="Caricamento eventi">
+        <div className="mt-10 grid gap-4" aria-busy="true" aria-label="Caricamento delle tue uscite">
           {[0, 1].map((item) => <div key={item} className="h-52 animate-pulse rounded-[1.5rem] bg-white/70 ring-1 ring-black/5 motion-reduce:animate-none" />)}
         </div>
       ) : null}
 
       {state.status === "error" ? (
         <div className="surface-card mt-10 px-6 py-12 text-center" role="alert">
-          <h2 className="text-2xl font-extrabold tracking-[-0.04em] text-ink">Non riusciamo a caricare i tuoi eventi</h2>
+          <h2 className="text-2xl font-extrabold tracking-[-0.04em] text-ink">Non riusciamo a caricare le tue uscite</h2>
           <p className="mt-3 text-sm leading-6 text-muted">{state.message}</p>
           <button className="button-primary mt-6 inline-flex items-center gap-2" type="button" onClick={() => setRequestKey((current) => current + 1)}><RotateCcw size={17} aria-hidden="true" /> Riprova</button>
         </div>
@@ -102,22 +102,22 @@ export function MyEventsPage() {
 
       {state.status === "success" && state.events.length === 0 ? (
         <div className="surface-card mt-10 px-6 py-14 text-center">
-          <h2 className="text-2xl font-extrabold tracking-[-0.04em] text-ink">Il prossimo evento parte da te</h2>
-          <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-muted">Non hai ancora creato eventi. Pubblica un’uscita community e scegli il punto sulla mappa.</p>
-          <Link className="button-primary mt-6 inline-flex items-center gap-2" to="/events/new"><Plus size={17} aria-hidden="true" /> Crea il primo evento</Link>
+          <h2 className="text-2xl font-extrabold tracking-[-0.04em] text-ink">La prossima uscita parte da te</h2>
+          <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-muted">Non hai ancora organizzato uscite. Pubblicane una e scegli il punto sulla mappa.</p>
+          <Link className="button-primary mt-6 inline-flex items-center gap-2" to="/events/new"><Plus size={17} aria-hidden="true" /> Organizza la prima uscita</Link>
         </div>
       ) : null}
 
       {state.status === "success" && published.length > 0 ? (
         <section className="mt-10" aria-labelledby="published-events-title">
-          <h2 id="published-events-title" className="text-xl font-extrabold tracking-[-0.035em] text-ink">Eventi pubblicati <span className="text-muted">({published.length})</span></h2>
+          <h2 id="published-events-title" className="text-xl font-extrabold tracking-[-0.035em] text-ink">Uscite pubblicate <span className="text-muted">({published.length})</span></h2>
           <div className="mt-4 grid gap-4">{published.map((event) => <EventCard key={event.id} event={event} />)}</div>
         </section>
       ) : null}
 
       {state.status === "success" && cancelled.length > 0 ? (
         <section className="mt-12" aria-labelledby="cancelled-events-title">
-          <h2 id="cancelled-events-title" className="text-xl font-extrabold tracking-[-0.035em] text-ink">Eventi annullati <span className="text-muted">({cancelled.length})</span></h2>
+          <h2 id="cancelled-events-title" className="text-xl font-extrabold tracking-[-0.035em] text-ink">Uscite annullate <span className="text-muted">({cancelled.length})</span></h2>
           <p className="mt-2 text-sm leading-6 text-muted">Restano visibili qui come storico e non possono essere modificati.</p>
           <div className="mt-4 grid gap-4">{cancelled.map((event) => <EventCard key={event.id} event={event} />)}</div>
         </section>

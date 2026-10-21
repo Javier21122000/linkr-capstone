@@ -71,6 +71,7 @@ export function CategoryFilterBar({ activeCategory, onSelect }: CategoryFilterBa
       role="group"
       aria-label="Filtra gli eventi per categoria"
       data-map-inset="top"
+      data-tour="categories"
     >
       <div ref={scrollerRef} className="discover-filter-bar__scroller scrollbar-none" onScroll={updateScrollHints}>
         <div ref={trackRef} className="discover-filter-bar__track">

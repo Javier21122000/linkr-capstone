@@ -400,18 +400,23 @@ export function QuickCreateStepDetails({
       />
 
       {hasCover ? (
-        <FormField
-          id="qc-imageAlt"
-          label="Descrivi la foto"
-          value={values.imageAlt}
-          onChange={(event) => onAltChange(event.target.value)}
-          error={errors.imageAlt}
-          hint="Serve a chi non può vederla. Una frase breve basta."
-          maxLength={200}
-          autoComplete="off"
-          placeholder="Es. Tavolo all’aperto con amici"
-          disabled={disabled}
-        />
+        <details className="qc-advanced">
+          <summary>Testo alternativo personalizzato</summary>
+          <div className="mt-3">
+            <FormField
+              id="qc-imageAlt"
+              label="Descrizione immagine (opzionale)"
+              value={values.imageAlt}
+              onChange={(event) => onAltChange(event.target.value)}
+              error={errors.imageAlt}
+              hint="Se lo lasci vuoto, lo generiamo dal titolo e dal luogo."
+              maxLength={200}
+              autoComplete="off"
+              placeholder="Es. Tavolo all’aperto con amici"
+              disabled={disabled}
+            />
+          </div>
+        </details>
       ) : null}
     </div>
   );

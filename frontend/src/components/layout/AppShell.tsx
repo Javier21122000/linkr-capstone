@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Outlet, useLocation, useNavigation } from "react-router";
 
 import { LinkRequestCountProvider } from "../../context/LinkRequestCountContext";
+import { MyParticipationsProvider } from "../../context/MyParticipationsContext";
+import { ProductGuidanceProvider } from "../../context/ProductGuidanceContext";
 import { DiscoverPage } from "../../pages/DiscoverPage";
 import { AppErrorBoundary } from "../ui/AppErrorBoundary";
 import { AppHeader } from "./AppHeader";
@@ -18,7 +20,11 @@ function ambientKind(pathname: string): "page" | "chat" | "form" {
 export function AppShell() {
   return (
     <LinkRequestCountProvider>
-      <AppShellContent />
+      <MyParticipationsProvider>
+        <ProductGuidanceProvider>
+          <AppShellContent />
+        </ProductGuidanceProvider>
+      </MyParticipationsProvider>
     </LinkRequestCountProvider>
   );
 }

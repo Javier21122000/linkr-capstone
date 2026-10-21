@@ -1,4 +1,5 @@
 import { isAllowedEventImageUrl } from "./eventImages";
+import { resolveEventImageAlt } from "./imageAlt";
 import type { CreateEventPayload } from "./eventCreation";
 import { MILAN_BOUNDS } from "./map";
 import type { CompletedPlace } from "./placeDetails";
@@ -89,7 +90,7 @@ export function parseCoordinate(value: string): number | null {
 export function validateEventForm(
   values: EventFormValues,
   originalStartsAt?: string,
-  hasSelectedImage = false,
+  _hasSelectedImage = false,
 ): EventFormErrors {
   const errors: EventFormErrors = {};
   const title = values.title.trim();
@@ -151,7 +152,6 @@ export function validateEventForm(
 
   const imageAlt = values.imageAlt.trim();
   if (imageAlt.length > 200) errors.imageAlt = "Il testo alternativo non può superare 200 caratteri.";
-  else if ((imageUrl || hasSelectedImage) && !imageAlt) errors.imageAlt = "Descrivi l’immagine per chi non può vederla.";
 
   if (values.imageCredit.trim().length > 120) errors.imageCredit = "I crediti non possono superare 120 caratteri.";
 
@@ -159,7 +159,8 @@ export function validateEventForm(
 }
 
 /** `imageUrl` è l'URL finale (esterno oppure restituito dall'upload): il chiamante lo risolve prima di pubblicare. */
-export function buildEventPayload(values: EventFormValues, imageUrl: string, type: EventType): CreateEventPayload {
+export function buildEventPayload(values: EventFormValues, imageUrl: string, type: EventType, fileName?: string): CreateEventPayload {
+  const imageAlt = resolveEventImageAlt(values, imageUrl, fileName);
   return {
     title: values.title.trim(),
     description: values.description.trim(),
@@ -172,7 +173,7 @@ export function buildEventPayload(values: EventFormValues, imageUrl: string, typ
     latitude: Number(values.latitude),
     longitude: Number(values.longitude),
     ...(imageUrl ? { imageUrl } : {}),
-    ...(values.imageAlt.trim() ? { imageAlt: values.imageAlt.trim() } : {}),
+    ...(imageAlt ? { imageAlt } : {}),
     ...(values.imageCredit.trim() ? { imageCredit: values.imageCredit.trim() } : {}),
     type,
   };

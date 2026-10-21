@@ -7,22 +7,24 @@ import {
 } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
-import { useEffect, useRef, useState } from "react";
+import { RotateCcw } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   getMapTilerStyleUrl,
-  isFatalMapError,
   MAP_MAX_PIXEL_RATIO,
   MAP_MAX_ZOOM,
   MAP_MIN_ZOOM,
   MILAN_CENTER,
   MILAN_INITIAL_ZOOM,
 } from "../../lib/map";
+import { attachMapRecovery, recoverableFrom } from "../../lib/mapRecovery";
+import type { MapHealthState, MapRecovery } from "../../lib/mapRecovery";
 import { getStyleSwapOptions } from "../../lib/mapStyle";
 
 setWorkerUrl(workerUrl);
 
-type MapStatus = "loading" | "ready" | "missing-key" | "error";
+type MapStatus = "loading" | "ready" | "recovering" | "degraded" | "error" | "missing-key";
 
 interface EventLocationPickerProps {
   readonly latitude: number | null;
@@ -40,23 +42,23 @@ export function EventLocationPicker({ latitude, longitude, focusRevision, disabl
   const onChangeRef = useRef(onChange);
   const disabledRef = useRef(disabled);
   const styleUrl = getMapTilerStyleUrl();
-  const [status, setStatus] = useState<MapStatus>(() => styleUrl ? "loading" : "missing-key");
+  const [health, setHealth] = useState<MapHealthState>({ phase: "loading", message: null, failure: null });
+  const [attempt, setAttempt] = useState(0);
+  /** Una per ogni istanza di MapLibre: il segnaposto si rimette sulla mappa ricreata. */
+  const [generation, setGeneration] = useState(0);
+  const recoveryRef = useRef<MapRecovery | null>(null);
 
   onChangeRef.current = onChange;
   disabledRef.current = disabled;
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || !styleUrl) {
-      setStatus("missing-key");
-      return;
-    }
+    if (!container || !styleUrl) return;
 
     let map: MapLibreMap | null = null;
-    let loaded = false;
-    let disposed = false;
+    let recovery: MapRecovery | null = null;
 
-    setStatus("loading");
+    setHealth({ phase: "loading", message: null, failure: null });
     try {
       map = new MapLibreMap({
         container,
@@ -70,37 +72,41 @@ export function EventLocationPicker({ latitude, longitude, focusRevision, disabl
         maxPitch: 0,
       });
       mapRef.current = map;
+      setGeneration((current) => current + 1);
       map.setPixelRatio(Math.min(window.devicePixelRatio || 1, MAP_MAX_PIXEL_RATIO));
       map.touchZoomRotate.disableRotation();
       map.addControl(new NavigationControl({ showCompass: false }), "top-right");
       map.addControl(new AttributionControl({ compact: true }), "bottom-right");
-      map.on("load", () => {
-        loaded = true;
-        if (!disposed) setStatus("ready");
+      // Stesso controllo della mappa di Discover: tasselli falliti non lasciano uno sfondo vuoto dichiarato "pronto".
+      const watched = map;
+      recovery = attachMapRecovery(recoverableFrom(watched), {
+        reload: () => watched.setStyle(styleUrl, { ...getStyleSwapOptions(), diff: false }),
+        recreate: () => setAttempt((current) => current + 1),
+        onChange: setHealth,
+        isVisible: () => container.clientWidth > 0 && container.clientHeight > 0,
       });
+      recoveryRef.current = recovery;
       map.on("click", ({ lngLat }) => {
         if (!disabledRef.current) onChangeRef.current(lngLat.lat, lngLat.lng);
       });
-      map.on("error", (event) => {
-        if (!disposed && !loaded && isFatalMapError(event)) setStatus("error");
-      });
       map.setStyle(styleUrl, getStyleSwapOptions());
     } catch {
-      setStatus("error");
+      setHealth({ phase: "error", message: "Il browser non permette di mostrare la mappa.", failure: { kind: "unknown", permanent: true } });
     }
 
     const resizeObserver = new ResizeObserver(() => map?.resize());
     resizeObserver.observe(container);
 
     return () => {
-      disposed = true;
+      recovery?.dispose();
+      if (recoveryRef.current === recovery) recoveryRef.current = null;
       resizeObserver.disconnect();
       markerRef.current?.remove();
       markerRef.current = null;
       map?.remove();
       if (mapRef.current === map) mapRef.current = null;
     };
-  }, [styleUrl]);
+  }, [styleUrl, attempt]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -125,7 +131,7 @@ export function EventLocationPicker({ latitude, longitude, focusRevision, disabl
 
     markerRef.current.setLngLat([longitude, latitude]);
     markerRef.current.setDraggable(!disabled);
-  }, [disabled, latitude, longitude]);
+  }, [disabled, latitude, longitude, generation]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -142,6 +148,12 @@ export function EventLocationPicker({ latitude, longitude, focusRevision, disabl
     });
   }, [focusRevision, latitude, longitude]);
 
+  const retry = useCallback(() => {
+    if (recoveryRef.current) recoveryRef.current.retry();
+    else setAttempt((current) => current + 1);
+  }, []);
+
+  const status: MapStatus = !styleUrl ? "missing-key" : health.phase === "slow" ? "loading" : health.phase;
   const unavailable = status === "missing-key" || status === "error";
 
   return (
@@ -154,8 +166,20 @@ export function EventLocationPicker({ latitude, longitude, focusRevision, disabl
         aria-hidden={unavailable}
       />
 
-      {status === "loading" ? (
-        <div className="event-location-picker__status" role="status">Caricamento mappa…</div>
+      {status === "loading" || status === "recovering" ? (
+        <div className="event-location-picker__status" role="status">
+          {status === "recovering" ? "Ricarico la mappa…" : health.phase === "slow" ? "La mappa sta impiegando più del previsto…" : "Caricamento mappa…"}
+          {health.phase === "slow" ? <button className="ml-2 font-extrabold text-ink underline" type="button" onClick={retry}>Riprova</button> : null}
+        </div>
+      ) : null}
+
+      {status === "degraded" ? (
+        <div className="event-location-picker__status" role="status">
+          {health.message}
+          <button className="ml-2 inline-flex items-center gap-1 font-extrabold text-ink" type="button" onClick={retry}>
+            <RotateCcw size={13} aria-hidden="true" /> Riprova
+          </button>
+        </div>
       ) : null}
 
       {unavailable ? (
@@ -164,6 +188,11 @@ export function EventLocationPicker({ latitude, longitude, focusRevision, disabl
           <p className="mt-2 text-sm leading-6 text-muted">
             Inserisci manualmente latitudine e longitudine nei campi qui sotto.
           </p>
+          {status === "error" && styleUrl ? (
+            <button className="button-secondary mx-auto mt-4 inline-flex items-center gap-2" type="button" onClick={retry}>
+              <RotateCcw size={16} aria-hidden="true" /> Riprova
+            </button>
+          ) : null}
         </div>
       ) : null}
     </div>

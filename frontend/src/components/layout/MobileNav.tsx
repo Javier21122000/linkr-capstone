@@ -28,7 +28,7 @@ export function MobileNav() {
     : "Chat";
 
   return (
-    <nav ref={navRef} className="mobile-nav glass" aria-label="Primary navigation" data-map-inset="bottom">
+    <nav ref={navRef} className="mobile-nav glass" aria-label="Primary navigation" data-map-inset="bottom" data-tour="navigation">
       <span className="nav-thumb" aria-hidden="true" />
       <NavItem to="/" end className="mobile-nav__item">
         <span className="mobile-nav__icon"><Compass size={ICON_SIZE} strokeWidth={2.2} aria-hidden="true" /></span>

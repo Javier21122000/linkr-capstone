@@ -4,9 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 
 import { UserAvatar } from "../components/auth/UserAvatar";
+import { EmptyState } from "../components/ui/EmptyState";
 import { useAuth } from "../context/AuthContext";
 import { useChatRealtime } from "../context/ChatRealtimeContext";
 import { getChatErrorMessage, getConversations } from "../lib/chat";
+import { staggerStyle } from "../lib/motion";
 import type { ConversationResponse } from "../types/chat";
 import type { PageResponse } from "../types/people";
 
@@ -177,7 +179,7 @@ export function ChatsPage() {
 
         {state.status === "loading" ? (
           <div className="mt-7 space-y-3" aria-busy="true" aria-label="Caricamento conversazioni">
-            {Array.from({ length: 4 }, (_, index) => <div className="h-24 animate-pulse rounded-2xl bg-line/70 motion-reduce:animate-none" key={index} />)}
+            {Array.from({ length: 4 }, (_, index) => <div className="h-20 animate-pulse rounded-[1.5rem] bg-white/70 ring-1 ring-black/5 motion-reduce:animate-none" key={index} />)}
           </div>
         ) : null}
 
@@ -191,26 +193,35 @@ export function ChatsPage() {
         ) : null}
 
         {loadedPage && loadedPage.items.length === 0 ? (
-          <div className="mt-7 rounded-2xl border border-line bg-surface p-6 text-center" role="status">
-            <MessageCircle className="mx-auto text-linkr-strong" size={30} aria-hidden="true" />
-            <h2 className="mt-3 font-extrabold text-ink">Nessuna conversazione</h2>
-            <p className="mt-2 text-sm leading-6 text-muted">Quando accetterai un Link, potrai scrivere da qui.</p>
+          <div className="surface-card content-reveal mt-7 px-6 py-10" role="status">
+            <EmptyState
+              className="mx-auto max-w-sm"
+              illustration={<span className="grid size-14 place-items-center rounded-full bg-linkr-soft text-linkr-strong"><MessageCircle size={26} aria-hidden="true" /></span>}
+              title="Nessuna conversazione"
+              description="Quando accetterai un Link, potrai scrivere da qui."
+              action={<Link className="button-secondary inline-flex items-center" to="/profile/links">Vedi i tuoi Link</Link>}
+            />
           </div>
         ) : null}
 
         {loadedPage && loadedPage.items.length > 0 ? (
           <>
-            <ul className="mt-7 divide-y divide-line border-y border-line">
-              {loadedPage.items.map((conversation) => {
+            <ul className="mt-7 space-y-2.5">
+              {loadedPage.items.map((conversation, index) => {
                 const activityAt = conversation.lastMessage?.createdAt ?? conversation.linkedAt;
                 return (
                   <li key={conversation.conversationId}>
-                    <Link className="flex min-h-24 items-center gap-3 py-4" to={`/chats/${conversation.conversationId}`}>
+                    <Link
+                      className="surface-card surface-card--pressable stagger-in flex min-h-20 items-center gap-3.5 p-3.5 pr-4"
+                      style={staggerStyle(index)}
+                      to={`/chats/${conversation.conversationId}`}
+                      data-unread={conversation.unreadCount > 0 || undefined}
+                    >
                       <UserAvatar displayName={conversation.otherUser.displayName} avatarUrl={conversation.otherUser.avatarUrl} className="size-13 text-sm" />
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center justify-between gap-3">
                           <span className="truncate font-extrabold text-ink">{conversation.otherUser.displayName}</span>
-                          <span className="shrink-0 text-xs font-bold text-muted">{formatConversationTime(activityAt)}</span>
+                          <span className={`shrink-0 text-xs font-bold ${conversation.unreadCount > 0 ? "text-linkr-strong" : "text-muted"}`}>{formatConversationTime(activityAt)}</span>
                         </span>
                         <span className="mt-1 flex items-center gap-3">
                           <span className={`min-w-0 flex-1 truncate text-sm ${conversation.unreadCount > 0 ? "font-extrabold text-ink" : "font-semibold text-muted"}`}>

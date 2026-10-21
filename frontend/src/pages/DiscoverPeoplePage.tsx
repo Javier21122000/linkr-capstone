@@ -1,9 +1,10 @@
 import axios from "axios";
-import { Check, Clock3, Link2, RotateCcw, UserPlus, UsersRound, X } from "lucide-react";
+import { Check, Clock3, Link2, RotateCcw, Sparkles, UserPlus, UsersRound, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { UserAvatar } from "../components/auth/UserAvatar";
 import { WriteMessageLink } from "../components/chat/WriteMessageLink";
+import { EmptyState } from "../components/ui/EmptyState";
 import { useAuth } from "../context/AuthContext";
 import { useLinkRequestCount } from "../context/LinkRequestCountContext";
 import { getAuthRequestErrorMessage, updateDiscovery } from "../lib/auth";
@@ -18,6 +19,7 @@ import {
   getDiscoverPeopleErrorMessage,
   isDiscoveryRequired,
 } from "../lib/people";
+import { staggerStyle } from "../lib/motion";
 import type { LinkRequestResponse } from "../types/linkRequest";
 import type { DiscoverPersonResponse, LinkStatus, PageResponse } from "../types/people";
 
@@ -187,19 +189,24 @@ export function DiscoverPeoplePage() {
 
         {state.status === "loading" ? (
           <div className="mt-8 grid gap-4 md:grid-cols-2" aria-busy="true" aria-label="Caricamento persone">
-            {Array.from({ length: 4 }, (_, index) => <div className="h-64 animate-pulse rounded-2xl bg-line/70 motion-reduce:animate-none" key={index} />)}
+            {Array.from({ length: 4 }, (_, index) => <div className="h-56 animate-pulse rounded-[1.5rem] bg-white/70 ring-1 ring-black/5 motion-reduce:animate-none" key={index} />)}
           </div>
         ) : null}
 
         {state.status === "discovery-required" ? (
-          <div className="mt-8 rounded-2xl border border-line bg-surface p-6 text-center" role="status">
-            <UsersRound className="mx-auto text-linkr-strong" size={32} aria-hidden="true" />
-            <h2 className="mt-3 text-xl font-extrabold text-ink">Scegli tu se comparire</h2>
-            <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-muted">Per tutelare la privacy, puoi vedere le altre persone solo se scegli esplicitamente di comparire anche tu in Scopri persone.</p>
-            <button className="button-primary mt-5 inline-flex items-center" type="button" disabled={activating} onClick={() => void activateDiscovery()}>
-              {activating ? "Attivazione…" : "Attiva Scopri persone"}
-            </button>
-            {activationError ? <p className="mt-3 text-sm font-bold text-danger" role="alert">{activationError}</p> : null}
+          <div className="surface-card content-reveal mt-8 px-6 py-10" role="status">
+            <EmptyState
+              className="mx-auto max-w-md"
+              illustration={<span className="grid size-14 place-items-center rounded-full bg-linkr-soft text-linkr-strong"><UsersRound size={28} aria-hidden="true" /></span>}
+              title="Scegli tu se comparire"
+              description="Per tutelare la privacy, puoi vedere le altre persone solo se scegli esplicitamente di comparire anche tu in Scopri persone."
+              action={(
+                <button className="button-primary inline-flex items-center" type="button" disabled={activating} onClick={() => void activateDiscovery()}>
+                  {activating ? "Attivazione…" : "Attiva Scopri persone"}
+                </button>
+              )}
+            />
+            {activationError ? <p className="mt-3 text-center text-sm font-bold text-danger" role="alert">{activationError}</p> : null}
           </div>
         ) : null}
 
@@ -213,10 +220,13 @@ export function DiscoverPeoplePage() {
         ) : null}
 
         {loadedPage && loadedPage.items.length === 0 ? (
-          <div className="mt-8 rounded-2xl border border-line bg-surface p-6 text-center" role="status">
-            <UsersRound className="mx-auto text-linkr-strong" size={30} aria-hidden="true" />
-            <h2 className="mt-3 font-extrabold text-ink">Nessuna persona da mostrarti</h2>
-            <p className="mt-2 text-sm leading-6 text-muted">Quando ci saranno persone visibili con interessi in comune, le troverai qui.</p>
+          <div className="surface-card content-reveal mt-8 px-6 py-10" role="status">
+            <EmptyState
+              className="mx-auto max-w-md"
+              illustration={<span className="grid size-14 place-items-center rounded-full bg-linkr-soft text-linkr-strong"><UsersRound size={28} aria-hidden="true" /></span>}
+              title="Nessuna persona da mostrarti"
+              description="Quando ci saranno persone visibili con interessi in comune, le troverai qui."
+            />
           </div>
         ) : null}
 
@@ -226,37 +236,39 @@ export function DiscoverPeoplePage() {
               {loadedPage.totalElements === 1 ? "1 persona disponibile" : `${loadedPage.totalElements} persone disponibili`}
             </p>
             <ul className="mt-3 grid gap-4 md:grid-cols-2">
-              {loadedPage.items.map((person) => {
+              {loadedPage.items.map((person, index) => {
                 const visibleInterests = person.sharedInterests.slice(0, 4);
                 const remainingInterests = Math.max(0, person.sharedInterestsCount - visibleInterests.length);
                 const pendingAction = pendingLinkActions[person.userId];
                 const pending = pendingAction !== undefined;
                 const actionError = linkActionErrors[person.userId];
                 return (
-                  <li className="rounded-2xl border border-line bg-surface p-5" key={person.userId} aria-busy={pending}>
-                    <div className="flex gap-3">
-                      <UserAvatar displayName={person.displayName} avatarUrl={person.avatarUrl} className="size-14 text-sm" />
+                  <li className="surface-card stagger-in flex flex-col p-5" style={staggerStyle(index)} key={person.userId} aria-busy={pending}>
+                    <div className="flex items-center gap-3.5">
+                      <UserAvatar displayName={person.displayName} avatarUrl={person.avatarUrl} className="size-14 text-base" />
                       <div className="min-w-0 flex-1">
-                        <p className="truncate font-extrabold text-ink">{person.displayName}</p>
+                        <p className="truncate text-lg font-extrabold tracking-[-0.02em] text-ink">{person.displayName}</p>
                         <p className="truncate text-sm font-semibold text-muted">@{person.username}</p>
                       </div>
                     </div>
-                    <p className="mt-4 text-xs font-bold text-muted">{sharedInterestsLabel(person.sharedInterestsCount)}</p>
-                    <div className="mt-2 flex min-h-8 flex-wrap gap-1.5" aria-label={`Interessi condivisi con ${person.displayName}`}>
+                    <p className="mt-5 inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-[0.08em] text-linkr-strong">
+                      <Sparkles size={14} aria-hidden="true" /> {sharedInterestsLabel(person.sharedInterestsCount)}
+                    </p>
+                    <div className="mt-2.5 flex min-h-8 flex-wrap gap-1.5" aria-label={`Interessi condivisi con ${person.displayName}`}>
                       {visibleInterests.map((interest) => (
-                        <span className="rounded-full border border-line px-2.5 py-1 text-xs font-bold text-ink" key={interest.id}>{interest.name}</span>
+                        <span className="shared-chip" key={interest.id}>{interest.name}</span>
                       ))}
-                      {remainingInterests > 0 ? <span className="rounded-full bg-line/70 px-2.5 py-1 text-xs font-extrabold text-muted">+{remainingInterests}</span> : null}
+                      {remainingInterests > 0 ? <span className="shared-chip shared-chip--more">+{remainingInterests}</span> : null}
                     </div>
 
-                    <div className="mt-5">
+                    <div className="mt-auto pt-5">
                       {person.linkStatus === "NONE" ? (
                         <button className="button-primary inline-flex items-center gap-2" type="button" disabled={pending} onClick={() => void handleLinkAction(person, "send")}>
                           <UserPlus size={17} aria-hidden="true" /> {pendingAction === "send" ? "Invio…" : "Invia Link"}
                         </button>
                       ) : null}
                       {person.linkStatus === "OUTGOING_PENDING" ? (
-                        <span className="inline-flex min-h-11 items-center gap-2 rounded-full bg-line/70 px-4 py-2 text-xs font-extrabold text-muted"><Clock3 size={16} aria-hidden="true" /> Richiesta inviata</span>
+                        <span className="status-pill"><Clock3 size={16} aria-hidden="true" /> Richiesta inviata</span>
                       ) : null}
                       {person.linkStatus === "INCOMING_PENDING" && person.linkRequestId ? (
                         <div className="flex flex-wrap gap-2" aria-label={`Rispondi alla richiesta Link di ${person.displayName}`}>
@@ -269,14 +281,14 @@ export function DiscoverPeoplePage() {
                         </div>
                       ) : null}
                       {person.linkStatus === "INCOMING_PENDING" && !person.linkRequestId ? (
-                        <span className="inline-flex min-h-11 items-center rounded-full bg-line/70 px-4 py-2 text-xs font-extrabold text-muted">Richiesta ricevuta</span>
+                        <span className="status-pill">Richiesta ricevuta</span>
                       ) : null}
                       {person.linkStatus === "INCOMING_DECLINED" ? (
-                        <span className="inline-flex min-h-11 items-center rounded-full bg-line/70 px-4 py-2 text-xs font-extrabold text-muted">Richiesta archiviata</span>
+                        <span className="status-pill">Richiesta archiviata</span>
                       ) : null}
                       {person.linkStatus === "ACCEPTED" ? (
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[#edf8f3] px-4 py-2 text-xs font-extrabold text-success"><Link2 size={16} aria-hidden="true" /> Collegati</span>
+                          <span className="status-pill status-pill--success"><Link2 size={16} aria-hidden="true" /> Collegati</span>
                           {person.linkRequestId ? <WriteMessageLink conversationId={person.linkRequestId} /> : null}
                         </div>
                       ) : null}

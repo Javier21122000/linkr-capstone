@@ -11,6 +11,8 @@
   --color-surface: #ffffff;
   --color-ink: #181816;
   --color-muted: #666760;
+  /* Voci inattive della navigazione in vetro: più scure di `muted` perché lo sfondo sotto la mappa varia (≥ 4.5:1 ovunque) */
+  --color-nav-muted: #4b4c46;
   --color-line: #dddcd4;
 
   /* Corallo: brand (marker, icone, grafica) → action (bottoni, 4.6:1 con il bianco) → strong (testo su chiaro) */
@@ -52,19 +54,72 @@
   --z-nav: 50;
   --z-dialog: 100;
 
-  /* Liquid Glass */
-  --glass-bg: rgb(255 255 255 / 0.62);
-  --glass-bg-strong: rgb(255 255 255 / 0.86);
+  /* Navigazione flottante sopra la mappa: altezza delle pillole e distanza dal bordo (condivise da header e Discover) */
+  --float-pill-h: 3rem;
+  --float-top: calc(env(safe-area-inset-top, 0px) + 0.625rem);
+  /* Spazio che i contenuti lasciano in alto per le pillole fluttuanti dell'header. */
+  --page-top: calc(var(--float-top) + var(--float-pill-h) + 0.75rem);
+
+  /*
+   * Liquid Glass — materiali condivisi da ogni superficie sovrapposta alla mappa.
+   * Un vetro credibile non è "bianco + blur": qui si somma (1) sfondo sfocato e più saturo, (2) velo chiaro quasi
+   * trasparente, (3) luce radente da in alto a sinistra, (4) bordo speculare e riflesso inferiore che danno spessore,
+   * (5) ombra morbida con filetto scuro per staccare il vetro dalle zone chiare della mappa. Niente SVG filter né WebGL.
+   */
+  --glass-filter: blur(14px) saturate(1.8);
+  /* Pannelli grandi (lista eventi, Quick Create): sfocatura più ampia di quella dei controlli, così la mappa sotto resta un'atmosfera e il testo si legge. */
+  --glass-filter-panel: blur(22px) saturate(1.7);
+  --glass-bg: rgb(255 255 255 / 0.26);
+  --glass-bg-strong: rgb(255 255 255 / 0.8);
+  --glass-bg-panel: rgb(252 251 248 / 0.78);
+  /* Dialoghi con campi da compilare: più densi del pannello lista, ma ancora vetro. */
+  --glass-bg-sheet: rgb(252 251 248 / 0.86);
+  /* Superfici dentro il vetro (righe, campi, riepiloghi): chiare e quasi piene, con filetto scuro, così testo e bordi restano nitidi. */
+  --glass-well: rgb(255 255 255 / 0.6);
+  --glass-well-strong: rgb(255 255 255 / 0.9);
+  --glass-well-ring: rgb(24 24 22 / 0.1);
+  --glass-divider: rgb(24 24 22 / 0.08);
   --glass-bg-dark: rgb(24 24 22 / 0.62);
   --glass-fallback: rgb(255 255 255 / 0.96);
   --glass-fallback-dark: rgb(24 24 22 / 0.94);
-  --glass-border: rgb(255 255 255 / 0.72);
-  --glass-ring: rgb(24 24 22 / 0.07);
-  --glass-blur: 18px;
-  --glass-filter: blur(var(--glass-blur)) saturate(1.7);
+  --glass-border: rgb(255 255 255 / 0.5);
+  --glass-ring: rgb(24 24 22 / 0.09);
+  /* Luce: striscia di riflesso diagonale + bagliore morbido in alto a sinistra + velo verticale. */
+  --glass-sheen:
+    linear-gradient(105deg, rgb(255 255 255 / 0) 30%, rgb(255 255 255 / 0.34) 38%, rgb(255 255 255 / 0) 47%),
+    radial-gradient(110% 160% at 0% 0%, rgb(255 255 255 / 0.5) 0%, rgb(255 255 255 / 0) 55%),
+    linear-gradient(180deg, rgb(255 255 255 / 0.12) 0%, rgb(255 255 255 / 0) 55%);
+  --glass-sheen-soft:
+    radial-gradient(110% 160% at 0% 0%, rgb(255 255 255 / 0.45) 0%, rgb(255 255 255 / 0) 60%);
+  /* Bordo come nelle lenti iOS: arco luminoso in alto a sinistra, controluce in basso a destra, filo uniforme, alone interno e spessore. */
+  --glass-edge:
+    inset 1.5px 1.5px 1px -1px rgb(255 255 255 / 1),
+    inset -1.5px -1.5px 1px -1px rgb(255 255 255 / 0.85),
+    inset 0 0 0 1px rgb(255 255 255 / 0.3),
+    inset 0 0 10px 1px rgb(255 255 255 / 0.5),
+    inset 0 -14px 18px -12px rgb(24 24 22 / 0.16);
   --glass-shadow:
-    var(--shadow-glass),
+    0 14px 32px rgb(24 24 22 / 0.16),
+    0 3px 8px rgb(24 24 22 / 0.08),
     0 0 0 1px var(--glass-ring),
-    inset 0 1px 0 rgb(255 255 255 / 0.8),
-    inset 0 -1px 0 rgb(24 24 22 / 0.04);
+    var(--glass-edge);
+
+  /* Lenti: lo stato attivo dentro un vetro (tab, filtri) è una "goccia" più densa con la sua luce e la sua ombra */
+  --lens-accent-bg: linear-gradient(180deg, rgb(255 255 255 / 0.9) 0%, rgb(247 201 184 / 0.82) 100%);
+  --lens-accent-shadow:
+    0 4px 12px rgb(210 65 31 / 0.2),
+    inset 0 1px 0 rgb(255 255 255 / 0.95),
+    inset 0 -1px 0 rgb(232 77 47 / 0.2);
+  --lens-ink-bg: linear-gradient(180deg, rgb(56 56 52 / 0.97) 0%, rgb(24 24 22 / 0.97) 100%);
+  --lens-ink-shadow:
+    0 6px 14px rgb(24 24 22 / 0.3),
+    inset 0 1px 0 rgb(255 255 255 / 0.3),
+    inset 0 -1px 0 rgb(0 0 0 / 0.35);
+}
+
+@media (min-width: 48rem) {
+  :root {
+    --float-pill-h: 3.25rem;
+    --float-top: 0.75rem;
+  }
 }

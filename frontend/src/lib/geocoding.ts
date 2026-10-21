@@ -1,17 +1,18 @@
 import { getMapTilerKey, MILAN_CENTER } from "./map";
+import { parsePlaceFeature, parseReverseResponse } from "./placeDetails";
+import type { ParsedPlace, ReverseAddress } from "./placeDetails";
 
 const MILAN_BBOX = "8.95,45.35,9.45,45.60";
+/** Quanti suggerimenti mostrare. Si chiedono un paio in più al servizio: i doppioni tra tipi diversi si scartano. */
 const RESULT_LIMIT = 6;
+const REQUEST_LIMIT = 8;
+/** Un solo indice per POI, luoghi e indirizzi: MapTiler li ordina insieme per rilevanza (prima servivano due richieste per ogni ricerca). */
+const SEARCH_TYPES = "poi,address,place";
+const CACHE_TTL_MS = 10 * 60_000;
+const CACHE_MAX_ENTRIES = 60;
 
-export interface PlaceSuggestion {
-  readonly id: string;
-  readonly venueName: string;
-  readonly label: string;
-  readonly address?: string;
-  readonly neighbourhood?: string;
-  readonly latitude: number;
-  readonly longitude: number;
-}
+/** Un luogo scelto dall'utente. Indirizzo e quartiere ci sono solo se il servizio li ha dichiarati (vedi `placeDetails.ts`). */
+export type PlaceSuggestion = ParsedPlace;
 
 export type PlaceSearchErrorCode = "missing-key" | "rate-limit" | "forbidden" | "network" | "invalid-response";
 
@@ -22,152 +23,49 @@ export class PlaceSearchError extends Error {
   }
 }
 
-interface MapTilerContextItem {
-  readonly id?: unknown;
-  readonly text?: unknown;
-  readonly place_designation?: unknown;
+/** Piccola cache in memoria per sessione: tornare indietro con il backspace o riaprire lo stesso luogo non rifà la richiesta. */
+class ResponseCache<Value> {
+  private readonly entries = new Map<string, { readonly value: Value; readonly storedAt: number }>();
+
+  get(key: string): Value | undefined {
+    const entry = this.entries.get(key);
+    if (!entry) return undefined;
+    if (Date.now() - entry.storedAt > CACHE_TTL_MS) {
+      this.entries.delete(key);
+      return undefined;
+    }
+    // Riscrive la voce per tenerla in fondo all'ordine di inserimento (le più vecchie escono per prime).
+    this.entries.delete(key);
+    this.entries.set(key, entry);
+    return entry.value;
+  }
+
+  set(key: string, value: Value) {
+    this.entries.set(key, { value, storedAt: Date.now() });
+    if (this.entries.size > CACHE_MAX_ENTRIES) {
+      const oldest = this.entries.keys().next().value;
+      if (oldest !== undefined) this.entries.delete(oldest);
+    }
+  }
 }
 
-interface MapTilerFeature {
-  readonly id?: unknown;
-  readonly text?: unknown;
-  readonly place_name?: unknown;
-  readonly place_type?: unknown;
-  readonly address?: unknown;
-  readonly relevance?: unknown;
-  readonly center?: unknown;
-  readonly geometry?: {
-    readonly type?: unknown;
-    readonly coordinates?: unknown;
-  };
-  readonly context?: unknown;
-  readonly properties?: {
-    readonly feature_tags?: unknown;
-    readonly place_designation?: unknown;
-  };
-}
+const searchCache = new ResponseCache<readonly PlaceSuggestion[]>();
+const reverseCache = new ResponseCache<ReverseAddress | null>();
 
-interface MapTilerFeatureCollection {
-  readonly features?: unknown;
-}
-
-interface RankedPlaceSuggestion extends PlaceSuggestion {
-  readonly relevance: number;
-}
-
-function nonEmptyString(value: unknown): string | undefined {
-  if (typeof value !== "string") return undefined;
-  const trimmed = value.trim();
-  return trimmed || undefined;
-}
-
-function coordinatePair(value: unknown): readonly [number, number] | null {
-  if (!Array.isArray(value) || value.length < 2) return null;
-  const [longitude, latitude] = value;
-  if (typeof latitude !== "number" || typeof longitude !== "number") return null;
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
-  return [longitude, latitude];
-}
-
-function featureTypes(feature: MapTilerFeature): readonly string[] {
-  return Array.isArray(feature.place_type)
-    ? feature.place_type.filter((value): value is string => typeof value === "string")
-    : [];
-}
-
-function contextItems(feature: MapTilerFeature): readonly MapTilerContextItem[] {
-  return Array.isArray(feature.context)
-    ? feature.context.filter((item): item is MapTilerContextItem => typeof item === "object" && item !== null)
-    : [];
-}
-
-function contextText(feature: MapTilerFeature, prefix: string): string | undefined {
-  const item = contextItems(feature).find((candidate) => (
-    typeof candidate.id === "string" && candidate.id.startsWith(`${prefix}.`)
-  ));
-  return nonEmptyString(item?.text);
-}
-
-function returnedNeighbourhood(feature: MapTilerFeature, venueName: string): string | undefined {
-  if (featureTypes(feature).includes("neighbourhood")) return venueName;
-  const exactNeighbourhood = contextText(feature, "neighbourhood");
-  if (exactNeighbourhood) return exactNeighbourhood;
-
-  const neighbourhoodDesignations = new Set(["neighbourhood", "quarter", "suburb"]);
-  const place = contextItems(feature).find((item) => (
-    typeof item.place_designation === "string" && neighbourhoodDesignations.has(item.place_designation)
-  ));
-  return nonEmptyString(place?.text);
-}
-
-function featureTag(feature: MapTilerFeature, key: string): string | undefined {
-  const tags = feature.properties?.feature_tags;
-  if (typeof tags !== "object" || tags === null) return undefined;
-  return nonEmptyString((tags as Record<string, unknown>)[key]);
-}
-
-function returnedAddress(feature: MapTilerFeature, venueName: string): string | undefined {
-  const taggedStreet = featureTag(feature, "addr:street");
-  const taggedHouseNumber = featureTag(feature, "addr:housenumber");
-  if (taggedStreet) return [taggedStreet, taggedHouseNumber].filter(Boolean).join(" ");
-
-  const address = nonEmptyString(feature.address);
-  if (!address) return featureTypes(feature).includes("address") ? venueName : undefined;
-  if (!/^\d/.test(address)) return address;
-
-  const road = contextText(feature, "road");
-  if (road) return `${road} ${address}`;
-  if (featureTypes(feature).includes("address")) return `${venueName} ${address}`;
-  return address;
-}
-
-function toSuggestion(value: unknown): RankedPlaceSuggestion | null {
-  if (typeof value !== "object" || value === null) return null;
-  const feature = value as MapTilerFeature;
-  const id = nonEmptyString(feature.id);
-  const venueName = nonEmptyString(feature.text);
-  const coordinates = coordinatePair(feature.center)
-    ?? (feature.geometry?.type === "Point" ? coordinatePair(feature.geometry.coordinates) : null);
-  if (!id || !venueName || !coordinates) return null;
-
-  const [longitude, latitude] = coordinates;
-  const neighbourhood = returnedNeighbourhood(feature, venueName);
-  const address = returnedAddress(feature, venueName);
-
-  return {
-    id,
-    venueName,
-    label: nonEmptyString(feature.place_name) ?? venueName,
-    ...(address ? { address } : {}),
-    ...(neighbourhood ? { neighbourhood } : {}),
-    latitude,
-    longitude,
-    relevance: typeof feature.relevance === "number" && Number.isFinite(feature.relevance) ? feature.relevance : 0,
-  };
-}
-
-async function requestPlaces(
-  query: string,
+async function requestGeocoding(
+  pathSegment: string,
+  params: Readonly<Record<string, string>>,
   key: string,
-  types: string | undefined,
   signal?: AbortSignal,
-): Promise<readonly RankedPlaceSuggestion[]> {
-  const url = new URL(`https://api.maptiler.com/geocoding/${encodeURIComponent(query.trim())}.json`);
+): Promise<unknown> {
+  const url = new URL(`https://api.maptiler.com/geocoding/${pathSegment}.json`);
   url.searchParams.set("key", key);
-  url.searchParams.set("autocomplete", "true");
-  url.searchParams.set("bbox", MILAN_BBOX);
-  url.searchParams.set("proximity", MILAN_CENTER.join(","));
-  url.searchParams.set("country", "it");
   url.searchParams.set("language", "it");
-  if (types) url.searchParams.set("types", types);
-  url.searchParams.set("limit", String(RESULT_LIMIT));
+  for (const [name, value] of Object.entries(params)) url.searchParams.set(name, value);
 
   let response: Response;
   try {
-    response = await fetch(url, {
-      headers: { Accept: "application/json" },
-      signal,
-    });
+    response = await fetch(url, { headers: { Accept: "application/json" }, signal });
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") throw error;
     throw new PlaceSearchError("network");
@@ -177,45 +75,80 @@ async function requestPlaces(
   if (response.status === 401 || response.status === 403) throw new PlaceSearchError("forbidden");
   if (!response.ok) throw new PlaceSearchError("network");
 
-  let payload: unknown;
   try {
-    payload = await response.json();
+    return await response.json();
   } catch {
     throw new PlaceSearchError("invalid-response");
   }
-  if (typeof payload !== "object" || payload === null) throw new PlaceSearchError("invalid-response");
-  const features = (payload as MapTilerFeatureCollection).features;
-  if (!Array.isArray(features)) throw new PlaceSearchError("invalid-response");
+}
 
-  return features.flatMap((feature) => {
-    const suggestion = toSuggestion(feature);
-    return suggestion ? [suggestion] : [];
-  });
+function normalizeQuery(query: string): string {
+  return query.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
 export async function searchMilanPlaces(query: string, signal?: AbortSignal): Promise<readonly PlaceSuggestion[]> {
   const key = getMapTilerKey();
   if (!key) throw new PlaceSearchError("missing-key");
 
-  // L'indice predefinito privilegia indirizzi e luoghi geografici; la ricerca POI va abilitata esplicitamente.
-  const [places, pointsOfInterest] = await Promise.all([
-    requestPlaces(query, key, undefined, signal),
-    requestPlaces(query, key, "poi", signal),
-  ]);
-  const seen = new Set<string>();
+  const cacheKey = normalizeQuery(query);
+  const cached = searchCache.get(cacheKey);
+  if (cached) return cached;
+
+  const payload = await requestGeocoding(encodeURIComponent(query.trim()), {
+    autocomplete: "true",
+    bbox: MILAN_BBOX,
+    proximity: MILAN_CENTER.join(","),
+    country: "it",
+    types: SEARCH_TYPES,
+    limit: String(REQUEST_LIMIT),
+  }, key, signal);
+  if (typeof payload !== "object" || payload === null) throw new PlaceSearchError("invalid-response");
+  const features = (payload as { readonly features?: unknown }).features;
+  if (!Array.isArray(features)) throw new PlaceSearchError("invalid-response");
+
   const normalizedQuery = query.trim();
-  return [...places, ...pointsOfInterest]
+  const seen = new Set<string>();
+  const suggestions = features
+    .flatMap((feature) => {
+      const place = parsePlaceFeature(feature);
+      return place ? [place] : [];
+    })
     .sort((left, right) => {
       const leftExact = left.venueName.localeCompare(normalizedQuery, "it", { sensitivity: "base" }) === 0 ? 1 : 0;
       const rightExact = right.venueName.localeCompare(normalizedQuery, "it", { sensitivity: "base" }) === 0 ? 1 : 0;
       return rightExact - leftExact || right.relevance - left.relevance;
     })
-    .flatMap(({ relevance: _relevance, ...suggestion }) => {
-      if (seen.has(suggestion.id)) return [];
-      seen.add(suggestion.id);
-      return [suggestion];
+    .filter((place) => {
+      if (seen.has(place.id)) return false;
+      seen.add(place.id);
+      return true;
     })
     .slice(0, RESULT_LIMIT);
+
+  searchCache.set(cacheKey, suggestions);
+  return suggestions;
+}
+
+/**
+ * Via e quartiere del punto, in una sola richiesta (`types=address&limit=1`: l'indirizzo più vicino, con il quartiere nel contesto).
+ * `null` se il servizio non trova nulla vicino. Le risposte si ricordano per punto arrotondato a circa un metro.
+ */
+export async function reverseGeocodeMilan(
+  latitude: number,
+  longitude: number,
+  signal?: AbortSignal,
+): Promise<ReverseAddress | null> {
+  const key = getMapTilerKey();
+  if (!key) throw new PlaceSearchError("missing-key");
+
+  const cacheKey = `${latitude.toFixed(5)},${longitude.toFixed(5)}`;
+  const cached = reverseCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+
+  const payload = await requestGeocoding(`${longitude.toFixed(6)},${latitude.toFixed(6)}`, { types: "address", limit: "1" }, key, signal);
+  const reverse = parseReverseResponse(payload, { latitude, longitude });
+  reverseCache.set(cacheKey, reverse);
+  return reverse;
 }
 
 export function getPlaceSearchErrorMessage(error: unknown): string {

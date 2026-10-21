@@ -132,7 +132,7 @@ export function EventParticipationPanel({ eventId, startsAt, endsAt, onParticipa
 
   return (
     <section
-      className="content-reveal mt-8 rounded-[1.5rem] border border-line bg-surface p-4 sm:p-6"
+      className="surface-card content-reveal mt-8 p-4 sm:p-6"
       aria-labelledby="participation-title"
       aria-busy={busy || state.status === "loading"}
     >

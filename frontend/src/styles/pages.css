@@ -66,10 +66,11 @@
   display: flex;
   align-items: center;
   gap: 0.9rem;
-  border: 1px solid var(--color-line);
+  border: 1px solid var(--glass-well-ring);
   border-radius: 1.25rem;
-  background: var(--color-surface);
+  background: rgb(255 255 255 / 0.9);
   padding: 0.8rem 1rem 0.8rem 0.8rem;
+  box-shadow: 0 1px 2px rgb(24 24 22 / 0.04), inset 0 1px 0 rgb(255 255 255 / 0.95);
 }
 
 .event-facts__icon {
@@ -240,7 +241,8 @@
   }
 
   .chat-thread {
-    height: calc(100dvh - 4.5rem - 1px - env(safe-area-inset-top, 0px) - 1.25rem - max(0.75rem, env(safe-area-inset-bottom, 0px)) - 5.25rem);
+    /* Finestra meno lo spazio delle pillole in alto, il margine della pagina e la Bottom Navigation: il campo messaggio resta sempre in vista. */
+    height: calc(100dvh - var(--page-top) - 1.25rem - max(0.75rem, env(safe-area-inset-bottom, 0px)) - 5.25rem);
     min-height: 22rem;
   }
 
@@ -249,4 +251,305 @@
     min-height: 0;
     flex: 1 1 0;
   }
+}
+
+/* Azione discreta dentro una scheda: "Visualizza sulla mappa". */
+.map-link {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 999px;
+  padding-inline: 0.2rem;
+  color: var(--color-linkr-strong);
+  font-size: 0.8125rem;
+  font-weight: 800;
+  transition: transform 200ms var(--ease-spring);
+}
+
+.map-link:active {
+  transform: scale(0.97);
+}
+
+@media (hover: hover) {
+  .map-link:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}
+
+/* ——— Superfici di contenuto Human Signal ———
+ * Le pagine fuori da Discover poggiano sullo sfondo ambientale: le carte sono chiare e quasi piene (mai vetro su vetro, mai blur
+ * ripetuto su una lista), con filetto scuro, luce in alto e ombra morbida. Il vetro vero resta alle superfici che galleggiano.
+ */
+.surface-card {
+  border: 1px solid var(--glass-well-ring);
+  border-radius: var(--radius-card);
+  background: rgb(255 255 255 / 0.9);
+  box-shadow:
+    0 1px 2px rgb(24 24 22 / 0.04),
+    0 14px 30px -20px rgb(24 24 22 / 0.24),
+    inset 0 1px 0 rgb(255 255 255 / 0.95);
+}
+
+.surface-card--pressable {
+  transition: transform 220ms var(--ease-spring), box-shadow 200ms ease, background-color 160ms ease;
+}
+
+.surface-card--pressable:active {
+  transform: scale(0.99);
+}
+
+@media (hover: hover) {
+  .surface-card--pressable:hover {
+    background: rgb(255 255 255 / 0.98);
+    box-shadow:
+      0 1px 2px rgb(24 24 22 / 0.05),
+      0 18px 34px -18px rgb(24 24 22 / 0.3),
+      inset 0 1px 0 rgb(255 255 255 / 1);
+  }
+}
+
+@media (prefers-contrast: more) {
+  .surface-card {
+    border-color: rgb(24 24 22 / 0.4);
+    background: white;
+  }
+}
+
+/* Ingresso scaglionato di una lista: ogni riga arriva un attimo dopo la precedente (massimo otto passi, poi tutte insieme). */
+.stagger-in {
+  animation: item-in 340ms var(--ease-out-soft) backwards;
+  animation-delay: calc(min(var(--i, 0), 8) * 36ms);
+}
+
+@keyframes item-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+}
+
+/* ——— Selettore a capsula con indicatore che scorre ——— */
+.segmented {
+  position: relative;
+  display: inline-flex;
+  max-width: 100%;
+  overflow-x: auto;
+  border-radius: 999px;
+  padding: 0.3rem;
+  scrollbar-width: none;
+}
+
+.segmented::-webkit-scrollbar {
+  display: none;
+}
+
+.segmented__option {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  min-height: 2.75rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border-radius: 999px;
+  padding-inline: 1rem;
+  color: var(--color-ink);
+  font-size: 0.875rem;
+  font-weight: 750;
+  white-space: nowrap;
+  transition: color 140ms ease 60ms, transform 200ms var(--ease-spring);
+}
+
+.segmented__option:active {
+  transform: scale(0.97);
+}
+
+@media (hover: hover) {
+  .segmented__option[aria-pressed="false"]:hover {
+    color: var(--color-linkr-strong);
+  }
+}
+
+.segmented__option[aria-pressed="true"] {
+  color: white;
+}
+
+.segmented__option:focus-visible {
+  outline-offset: -3px;
+}
+
+.segmented__thumb {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--thumb-w, 0px);
+  height: var(--thumb-h, 0px);
+  transform: translate(var(--thumb-x, 0px), var(--thumb-y, 0px));
+  border-radius: 999px;
+  background: var(--lens-ink-bg);
+  box-shadow: var(--lens-ink-shadow);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.segmented[data-thumb="on"] > .segmented__thumb {
+  opacity: 1;
+}
+
+.segmented[data-animated="true"]:not([data-snap]) > .segmented__thumb {
+  transition:
+    transform 380ms var(--ease-out-soft),
+    width 380ms var(--ease-out-soft),
+    height 380ms var(--ease-out-soft),
+    opacity 160ms ease;
+}
+
+/* Senza indicatore misurato la voce attiva porta da sola il proprio sfondo. */
+.segmented:not([data-thumb="on"]) .segmented__option[aria-pressed="true"] {
+  background: var(--lens-ink-bg);
+  box-shadow: var(--lens-ink-shadow);
+}
+
+/* Interessi in comune e stati di un Link: pillole piccole, stesso linguaggio delle categorie di Discover. */
+.shared-chip {
+  display: inline-flex;
+  min-height: 1.75rem;
+  align-items: center;
+  border-radius: 999px;
+  background: var(--color-linkr-soft);
+  padding-inline: 0.7rem;
+  color: var(--color-linkr-strong);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.shared-chip--more {
+  background: rgb(24 24 22 / 0.06);
+  color: var(--color-muted);
+}
+
+.status-pill {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  background: rgb(24 24 22 / 0.06);
+  padding: 0.5rem 1rem;
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+  font-weight: 800;
+}
+
+.status-pill--success {
+  background: #e4f3ec;
+  color: var(--color-success);
+}
+
+/* Stato di una richiesta Link: in attesa (corallo), collegati (verde), archiviata (neutro). */
+.link-status {
+  display: inline-flex;
+  min-height: 1.75rem;
+  align-items: center;
+  border-radius: 999px;
+  background: var(--color-linkr-soft);
+  padding-inline: 0.7rem;
+  color: var(--color-linkr-strong);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.link-status[data-status="ACCEPTED"] {
+  background: #e4f3ec;
+  color: var(--color-success);
+}
+
+.link-status[data-status="DECLINED"] {
+  background: rgb(24 24 22 / 0.06);
+  color: var(--color-muted);
+}
+
+/* ——— Chat ——— */
+.chat-thread__header {
+  border-bottom: 1px solid var(--glass-divider);
+}
+
+.chat-thread__notice {
+  border-bottom: 1px solid var(--glass-divider);
+  background: rgb(24 24 22 / 0.03);
+}
+
+.chat-thread__messages {
+  background: rgb(245 243 238 / 0.55);
+}
+
+.chat-thread__composer {
+  border-top: 1px solid var(--glass-divider);
+  background: rgb(255 255 255 / 0.7);
+}
+
+.chat-thread__jump {
+  position: absolute;
+  bottom: 0.75rem;
+  left: 50%;
+  display: inline-flex;
+  min-height: 2.5rem;
+  align-items: center;
+  gap: 0.4rem;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  padding-inline: 0.95rem;
+  color: var(--color-ink);
+  font-size: 0.8125rem;
+  font-weight: 800;
+}
+
+.chat-day-label {
+  margin: 0.75rem auto 0.6rem;
+  width: fit-content;
+  border-radius: 999px;
+  background: rgb(24 24 22 / 0.06);
+  padding: 0.2rem 0.7rem;
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+/* Bolle: le mie in corallo con la coda in basso a destra, quelle degli altri chiare con la coda a sinistra. */
+.chat-bubble {
+  max-width: 85%;
+  border: 1px solid var(--glass-well-ring);
+  border-radius: 1.25rem 1.25rem 1.25rem 0.4rem;
+  background: rgb(255 255 255 / 0.96);
+  padding: 0.6rem 0.9rem 0.45rem;
+  box-shadow: 0 1px 2px rgb(24 24 22 / 0.04);
+  color: var(--color-ink);
+}
+
+.chat-bubble[data-mine] {
+  border-color: transparent;
+  border-radius: 1.25rem 1.25rem 0.4rem 1.25rem;
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.1) 0%, rgb(255 255 255 / 0) 50%), var(--color-linkr-action);
+  box-shadow: 0 6px 14px -8px rgb(210 65 31 / 0.55);
+  color: white;
+}
+
+@media (min-width: 40rem) {
+  .chat-bubble {
+    max-width: 72%;
+  }
+}
+
+.chat-bubble__time {
+  margin-top: 0.15rem;
+  color: var(--color-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.chat-bubble[data-mine] .chat-bubble__time {
+  color: rgb(255 255 255 / 0.8);
 }

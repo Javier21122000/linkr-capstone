@@ -1,6 +1,7 @@
 import { Camera, ImagePlus, LoaderCircle, RefreshCw, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
+import { createPortal } from "react-dom";
 
 type CameraPhase = "starting" | "ready" | "captured" | "error";
 
@@ -204,7 +205,8 @@ export function CameraCapture({ open, onClose, onConfirm, onFallback }: CameraCa
     onFallback();
   }
 
-  return (
+  // Portale su body: dentro un pannello con transform/filter un elemento `fixed` si posizionerebbe rispetto al pannello, non alla finestra.
+  return createPortal(
     <div className="dialog-backdrop" role="presentation">
       <div
         ref={dialogRef}
@@ -265,6 +267,7 @@ export function CameraCapture({ open, onClose, onConfirm, onFallback }: CameraCa
           ) : null}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

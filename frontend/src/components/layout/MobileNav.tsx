@@ -1,8 +1,11 @@
 import { Compass, Link2, LogIn, MessageCircle, UserRound, UsersRound } from "lucide-react";
+import { useRef } from "react";
+import { useLocation } from "react-router";
 
 import { useAuth } from "../../context/AuthContext";
 import { useChatRealtime } from "../../context/ChatRealtimeContext";
 import { useLinkRequestCount } from "../../context/LinkRequestCountContext";
+import { useSlidingIndicator } from "../../hooks/useSlidingIndicator";
 import { ChatUnreadBadge } from "../chat/ChatUnreadBadge";
 import { IncomingLinkCountBadge } from "../links/IncomingLinkCountBadge";
 import { NavItem } from "./NavItem";
@@ -13,6 +16,9 @@ export function MobileNav() {
   const { status, user } = useAuth();
   const { unreadCount } = useChatRealtime();
   const { incomingCount } = useLinkRequestCount();
+  const { pathname } = useLocation();
+  const navRef = useRef<HTMLElement>(null);
+  useSlidingIndicator({ trackRef: navRef, activeSelector: '[aria-current="page"]', activeKey: `${pathname}:${status}` });
   const profileLabel = user ? `@${user.username}` : "Profilo";
   const linksAccessibleLabel = incomingCount
     ? `Link, ${incomingCount} ${incomingCount === 1 ? "richiesta ricevuta in attesa" : "richieste ricevute in attesa"}`
@@ -22,7 +28,8 @@ export function MobileNav() {
     : "Chat";
 
   return (
-    <nav className="mobile-nav md:hidden" aria-label="Primary navigation">
+    <nav ref={navRef} className="mobile-nav glass" aria-label="Primary navigation" data-map-inset="bottom">
+      <span className="nav-thumb" aria-hidden="true" />
       <NavItem to="/" end className="mobile-nav__item">
         <span className="mobile-nav__icon"><Compass size={ICON_SIZE} strokeWidth={2.2} aria-hidden="true" /></span>
         <span className="mobile-nav__label">Discover</span>

@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 
 import { App } from "./App";
 import { AuthProvider } from "./context/AuthContext";
+import { AppErrorBoundary } from "./components/ui/AppErrorBoundary";
 import { ChatRealtimeProvider } from "./context/ChatRealtimeContext";
 import "./styles/index.css";
 
@@ -15,10 +16,12 @@ if (!rootElement) {
 
 createRoot(rootElement).render(
   <StrictMode>
-    <AuthProvider>
-      <ChatRealtimeProvider>
-        <App />
-      </ChatRealtimeProvider>
-    </AuthProvider>
+    <AppErrorBoundary>
+      <AuthProvider>
+        <ChatRealtimeProvider>
+          <App />
+        </ChatRealtimeProvider>
+      </AuthProvider>
+    </AppErrorBoundary>
   </StrictMode>,
 );

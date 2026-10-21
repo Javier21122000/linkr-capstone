@@ -1,0 +1,1124 @@
+{
+ "poi.39460316": {
+  "id": "poi.39460316",
+  "text": "Duomo di Milano",
+  "place_name": "Duomo di Milano, 20122 Milano, Italia",
+  "place_type": [
+   "poi"
+  ],
+  "relevance": 1,
+  "center": [
+   9.191611969571,
+   45.46416709188928
+  ],
+  "properties": {
+   "feature_tags": {
+    "historic": "yes",
+    "amenity": "place_of_worship",
+    "tourism": "attraction"
+   },
+   "categories": [
+    "attraction",
+    "place of worship",
+    "cathedral"
+   ]
+  },
+  "context": [
+   {
+    "id": "road.304629",
+    "text": "1_27487",
+    "kind": "road"
+   },
+   {
+    "id": "postal_code.456668",
+    "text": "20122"
+   },
+   {
+    "id": "place.4281341",
+    "text": "Duomo",
+    "kind": "place",
+    "place_designation": "quarter"
+   },
+   {
+    "id": "locality.18026",
+    "text": "Municipio 1",
+    "kind": "admin_area"
+   },
+   {
+    "id": "municipality.51111",
+    "text": "Milano",
+    "kind": "admin_area",
+    "place_designation": "city"
+   },
+   {
+    "id": "county.1209",
+    "text": "Milano",
+    "kind": "admin_area"
+   },
+   {
+    "id": "region.444",
+    "text": "Lombardia",
+    "kind": "admin_area"
+   },
+   {
+    "id": "major_landform.4162290",
+    "text": "Penisola italiana"
+   },
+   {
+    "id": "country.137",
+    "text": "Italia",
+    "kind": "admin_area"
+   },
+   {
+    "id": "continental_marine.1",
+    "text": "Europa"
+   }
+  ]
+ },
+ "poi.14274203": {
+  "id": "poi.14274203",
+  "text": "Bar Basso",
+  "place_name": "Bar Basso, Via Plinio 39, 20129 Milano, Italia",
+  "place_type": [
+   "poi"
+  ],
+  "relevance": 1,
+  "center": [
+   9.217578917741776,
+   45.4767747692652
+  ],
+  "properties": {
+   "feature_tags": {
+    "amenity": "cafe",
+    "addr:country": "IT",
+    "addr:postcode": "20129",
+    "addr:city": "Milano",
+    "addr:housenumber": "39",
+    "addr:street": "Via Plinio"
+   },
+   "categories": [
+    "cafe"
+   ]
+  },
+  "context": [
+   {
+    "id": "address.6073874",
+    "text": "Via Plinio",
+    "kind": "street"
+   },
+   {
+    "id": "postal_code.813872",
+    "text": "20129"
+   },
+   {
+    "id": "place.4281328",
+    "text": "Buenos Aires - Venezia",
+    "kind": "place",
+    "place_designation": "quarter"
+   },
+   {
+    "id": "locality.18090",
+    "text": "Municipio 3",
+    "kind": "admin_area"
+   },
+   {
+    "id": "municipality.51111",
+    "text": "Milano",
+    "kind": "admin_area",
+    "place_designation": "city"
+   },
+   {
+    "id": "county.1209",
+    "text": "Milano",
+    "kind": "admin_area"
+   },
+   {
+    "id": "region.444",
+    "text": "Lombardia",
+    "kind": "admin_area"
+   },
+   {
+    "id": "major_landform.4162290",
+    "text": "Penisola italiana"
+   },
+   {
+    "id": "country.137",
+    "text": "Italia",
+    "kind": "admin_area"
+   },
+   {
+    "id": "continental_marine.1",
+    "text": "Europa"
+   }
+  ]
+ },
+ "poi.28873459": {
+  "id": "poi.28873459",
+  "text": "Triennale",
+  "place_name": "Triennale, Viale Emilio Alemagna 6, 20121 Milano, Italia",
+  "place_type": [
+   "poi"
+  ],
+  "relevance": 1,
+  "center": [
+   9.173650704324245,
+   45.47182862234876
+  ],
+  "properties": {
+   "feature_tags": {
+    "amenity": "bicycle_rental"
+   },
+   "categories": [
+    "bicycle rental"
+   ]
+  },
+  "context": [
+   {
+    "id": "address.3887611",
+    "text": "Viale Emilio Alemagna",
+    "kind": "street"
+   },
+   {
+    "id": "postal_code.728756",
+    "text": "20121"
+   },
+   {
+    "id": "place.4281375",
+    "text": "Parco Sempione",
+    "kind": "place",
+    "place_designation": "quarter"
+   },
+   {
+    "id": "locality.18026",
+    "text": "Municipio 1",
+    "kind": "admin_area"
+   },
+   {
+    "id": "municipality.51111",
+    "text": "Milano",
+    "kind": "admin_area",
+    "place_designation": "city"
+   },
+   {
+    "id": "county.1209",
+    "text": "Milano",
+    "kind": "admin_area"
+   },
+   {
+    "id": "region.444",
+    "text": "Lombardia",
+    "kind": "admin_area"
+   },
+   {
+    "id": "major_landform.4162290",
+    "text": "Penisola italiana"
+   },
+   {
+    "id": "country.137",
+    "text": "Italia",
+    "kind": "admin_area"
+   },
+   {
+    "id": "continental_marine.1",
+    "text": "Europa"
+   }
+  ]
+ },
+ "poi.25918941": {
+  "id": "poi.25918941",
+  "text": "Triennale",
+  "place_name": "Triennale, 20121 Milano, Italia",
+  "place_type": [
+   "poi"
+  ],
+  "relevance": 1,
+  "center": [
+   9.173141419887543,
+   45.4714387991798
+  ],
+  "properties": {
+   "feature_tags": {},
+   "categories": [
+    "bus stop",
+    "stop"
+   ]
+  },
+  "context": [
+   {
+    "id": "road.373378",
+    "text": "7108_7003",
+    "kind": "road"
+   },
+   {
+    "id": "postal_code.728756",
+    "text": "20121"
+   },
+   {
+    "id": "place.4281294",
+    "text": "Magenta - San Vittore",
+    "kind": "place",
+    "place_designation": "quarter"
+   },
+   {
+    "id": "locality.18026",
+    "text": "Municipio 1",
+    "kind": "admin_area"
+   },
+   {
+    "id": "municipality.51111",
+    "text": "Milano",
+    "kind": "admin_area",
+    "place_designation": "city"
+   },
+   {
+    "id": "county.1209",
+    "text": "Milano",
+    "kind": "admin_area"
+   },
+   {
+    "id": "region.444",
+    "text": "Lombardia",
+    "kind": "admin_area"
+   },
+   {
+    "id": "major_landform.4162290",
+    "text": "Penisola italiana"
+   },
+   {
+    "id": "country.137",
+    "text": "Italia",
+    "kind": "admin_area"
+   },
+   {
+    "id": "continental_marine.1",
+    "text": "Europa"
+   }
+  ]
+ },
+ "poi.12606228": {
+  "id": "poi.12606228",
+  "text": "Castello Sforzesco",
+  "place_name": "Castello Sforzesco, Duomo, Milano, Italia",
+  "place_type": [
+   "poi"
+  ],
+  "relevance": 1,
+  "center": [
+   9.178091140240554,
+   45.47030105498325
+  ],
+  "properties": {
+   "feature_tags": {
+    "historic": "castle",
+    "tourism": "attraction"
+   },
+   "categories": [
+    "attraction",
+    "castle"
+   ]
+  },
+  "context": [
+   {
+    "id": "address.11494733",
+    "text": "Viale Gerolamo Gadio",
+    "kind": "street"
+   },
+   {
+    "id": "postal_code.728756",
+    "text": "20121"
+   },
+   {
+    "id": "place.4281341",
+    "text": "Duomo",
+    "kind": "place",
+    "place_designation": "quarter"
+   },
+   {
+    "id": "locality.18026",
+    "text": "Municipio 1",
+    "kind": "admin_area"
+   },
+   {
+    "id": "municipality.51111",
+    "text": "Milano",
+    "kind": "admin_area",
+    "place_designation": "city"
+   },
+   {
+    "id": "county.1209",
+    "text": "Milano",
+    "kind": "admin_area"
+   },
+   {
+    "id": "region.444",
+    "text": "Lombardia",
+    "kind": "admin_area"
+   },
+   {
+    "id": "major_landform.4162290",
+    "text": "Penisola italiana"
+   },
+   {
+    "id": "country.137",
+    "text": "Italia",
+    "kind": "admin_area"
+   },
+   {
+    "id": "continental_marine.1",
+    "text": "Europa"
+   }
+  ]
+ },
+ "poi.12704719": {
+  "id": "poi.12704719",
+  "text": "Parco Sempione",
+  "place_name": "Parco Sempione, Parco Sempione, Milano, Italia",
+  "place_type": [
+   "poi"
+  ],
+  "relevance": 1,
+  "center": [
+   9.177142584393437,
+   45.473325466017684
+  ],
+  "properties": {
+   "feature_tags": {
+    "leisure": "park"
+   },
+   "categories": [
+    "park"
+   ]
+  },
+  "context": [
+   {
+    "id": "road.497666",
+    "text": "7100_36622",
+    "kind": "road"
+   },
+   {
+    "id": "postal_code.728756",
+    "text": "20121"
+   },
+   {
+    "id": "place.4281375",
+    "text": "Parco Sempione",
+    "kind": "place",
+    "place_designation": "quarter"
+   },
+   {
+    "id": "locality.18026",
+    "text": "Municipio 1",
+    "kind": "admin_area"
+   },
+   {
+    "id": "municipality.51111",
+    "text": "Milano",
+    "kind": "admin_area",
+    "place_designation": "city"
+   },
+   {
+    "id": "county.1209",
+    "text": "Milano",
+    "kind": "admin_area"
+   },
+   {
+    "id": "region.444",
+    "text": "Lombardia",
+    "kind": "admin_area"
+   },
+   {
+    "id": "major_landform.4162290",
+    "text": "Penisola italiana"
+   },
+   {
+    "id": "country.137",
+    "text": "Italia",
+    "kind": "admin_area"
+   },
+   {
+    "id": "continental_marine.1",
+    "text": "Europa"
+   }
+  ]
+ },
+ "place.4281375": {
+  "id": "place.4281375",
+  "text": "Parco Sempione",
+  "place_name": "Parco Sempione, Milano, Italia",
+  "place_type": [
+   "place"
+  ],
+  "relevance": 1,
+  "center": [
+   9.176249189939881,
+   45.47413775474612
+  ],
+  "properties": {
+   "place_designation": "quarter"
+  },
+  "context": [
+   {
+    "id": "locality.18026",
+    "text": "Municipio 1",
+    "kind": "admin_area"
+   },
+   {
+    "id": "municipality.51111",
+    "text": "Milano",
+    "kind": "admin_area",
+    "place_designation": "city"
+   },
+   {
+    "id": "county.1209",
+    "text": "Milano",
+    "kind": "admin_area"
+   },
+   {
+    "id": "region.444",
+    "text": "Lombardia",
+    "kind": "admin_area"
+   },
+   {
+    "id": "major_landform.4162290",
+    "text": "Penisola italiana"
+   },
+   {
+    "id": "country.137",
+    "text": "Italia",
+    "kind": "admin_area"
+   },
+   {
+    "id": "continental_marine.1",
+    "text": "Europa"
+   }
+  ]
+ },
+ "poi.39460927": {
+  "id": "poi.39460927",
+  "text": "Arco della Pace",
+  "place_name": "Arco della Pace, Piazza Sempione 2a, 20145 Milano, Italia",
+  "place_type": [
+   "poi"
+  ],
+  "relevance": 1,
+  "center": [
+   9.172425526972233,
+   45.47569273386569
+  ],
+  "properties": {
+   "feature_tags": {
+    "historic": "monument",
+    "tourism": "attraction"
+   },
+   "categories": [
+    "attraction",
+    "monument",
+    "building"
+   ]
+  },
+  "context": [
+   {
+    "id": "address.8789391",
+    "text": "Piazza Sempione",
+    "kind": "street"
+   },
+   {
+    "id": "postal_code.2518949",
+    "text": "20145"
+   },
+   {
+    "id": "place.4281375",
+    "text": "Parco Sempione",
+    "kind": "place",
+    "place_designation": "quarter"
+   },
+   {
+    "id": "locality.18026",
+    "text": "Municipio 1",
+    "kind": "admin_area"
+   },
+   {
+    "id": "municipality.51111",
+    "text": "Milano",
+    "kind": "admin_area",
+    "place_designation": "city"
+   },
+   {
+    "id": "county.1209",
+    "text": "Milano",
+    "kind": "admin_area"
+   },
+   {
+    "id": "region.444",
+    "text": "Lombardia",
+    "kind": "admin_area"
+   },
+   {
+    "id": "major_landform.4162290",
+    "text": "Penisola italiana"
+   },
+   {
+    "id": "country.137",
+    "text": "Italia",
+    "kind": "admin_area"
+   },
+   {
+    "id": "continental_marine.1",
+    "text": "Europa"
+   }
+  ]
+ },
+ "place.4281358": {
+  "id": "place.4281358",
+  "text": "Navigli",
+  "place_name": "Navigli, Milano, Italia",
+  "place_type": [
+   "place"
+  ],
+  "relevance": 1,
+  "center": [
+   9.169226114129515,
+   45.448519211611014
+  ],
+  "properties": {
+   "place_designation": "quarter"
+  },
+  "context": [
+   {
+    "id": "locality.18216",
+    "text": "Municipio 6",
+    "kind": "admin_area"
+   },
+   {
+    "id": "municipality.51111",
+    "text": "Milano",
+    "kind": "admin_area",
+    "place_designation": "city"
+   },
+   {
+    "id": "county.1209",
+    "text": "Milano",
+    "kind": "admin_area"
+   },
+   {
+    "id": "region.444",
+    "text": "Lombardia",
+    "kind": "admin_area"
+   },
+   {
+    "id": "major_landform.4162290",
+    "text": "Penisola italiana"
+   },
+   {
+    "id": "country.137",
+    "text": "Italia",
+    "kind": "admin_area"
+   },
+   {
+    "id": "continental_marine.1",
+    "text": "Europa"
+   }
+  ]
+ },
+ "poi.29134728": {
+  "id": "poi.29134728",
+  "text": "Duomo",
+  "place_name": "Duomo, Piazza del Duomo 21n04, 20121 Milano, Italia",
+  "place_type": [
+   "poi"
+  ],
+  "relevance": 0.885185,
+  "center": [
+   9.189475066959858,
+   45.46465619688692
+  ],
+  "properties": {
+   "feature_tags": {},
+   "categories": [
+    "railway station",
+    "train station",
+    "station"
+   ]
+  },
+  "context": [
+   {
+    "id": "address.8339952",
+    "text": "Piazza del Duomo",
+    "kind": "street"
+   },
+   {
+    "id": "postal_code.728756",
+    "text": "20121"
+   },
+   {
+    "id": "place.4281341",
+    "text": "Duomo",
+    "kind": "place",
+    "place_designation": "quarter"
+   },
+   {
+    "id": "locality.18026",
+    "text": "Municipio 1",
+    "kind": "admin_area"
+   },
+   {
+    "id": "municipality.51111",
+    "text": "Milano",
+    "kind": "admin_area",
+    "place_designation": "city"
+   },
+   {
+    "id": "county.1209",
+    "text": "Milano",
+    "kind": "admin_area"
+   },
+   {
+    "id": "region.444",
+    "text": "Lombardia",
+    "kind": "admin_area"
+   },
+   {
+    "id": "major_landform.4162290",
+    "text": "Penisola italiana"
+   },
+   {
+    "id": "country.137",
+    "text": "Italia",
+    "kind": "admin_area"
+   },
+   {
+    "id": "continental_marine.1",
+    "text": "Europa"
+   }
+  ]
+ },
+ "poi.14603613": {
+  "id": "poi.14603613",
+  "text": "Caffetteria triennale",
+  "place_name": "Caffetteria triennale, Viale Emilio Alemagna 6, 20121 Milano, Italia",
+  "place_type": [
+   "poi"
+  ],
+  "relevance": 0.8,
+  "center": [
+   9.174294769763947,
+   45.47235292790785
+  ],
+  "properties": {
+   "feature_tags": {
+    "addr:housenumber": "6",
+    "amenity": "cafe",
+    "addr:street": "Viale Emilio Alemagna",
+    "addr:postcode": "20121"
+   },
+   "categories": [
+    "cafe"
+   ]
+  },
+  "context": [
+   {
+    "id": "address.3887611",
+    "text": "Viale Emilio Alemagna",
+    "kind": "street"
+   },
+   {
+    "id": "postal_code.728756",
+    "text": "20121"
+   },
+   {
+    "id": "place.4281375",
+    "text": "Parco Sempione",
+    "kind": "place",
+    "place_designation": "quarter"
+   },
+   {
+    "id": "locality.18026",
+    "text": "Municipio 1",
+    "kind": "admin_area"
+   },
+   {
+    "id": "municipality.51111",
+    "text": "Milano",
+    "kind": "admin_area",
+    "place_designation": "city"
+   },
+   {
+    "id": "county.1209",
+    "text": "Milano",
+    "kind": "admin_area"
+   },
+   {
+    "id": "region.444",
+    "text": "Lombardia",
+    "kind": "admin_area"
+   },
+   {
+    "id": "major_landform.4162290",
+    "text": "Penisola italiana"
+   },
+   {
+    "id": "country.137",
+    "text": "Italia",
+    "kind": "admin_area"
+   },
+   {
+    "id": "continental_marine.1",
+    "text": "Europa"
+   }
+  ]
+ },
+ "address.8339952": {
+  "id": "address.8339952",
+  "text": "Piazza del Duomo",
+  "place_name": "Piazza del Duomo, 20124 Milano, Italia",
+  "place_type": [
+   "address"
+  ],
+  "relevance": 0.62963,
+  "center": [
+   9.19054426252842,
+   45.464678065424714
+  ],
+  "properties": {},
+  "context": [
+   {
+    "id": "postal_code.709031",
+    "text": "20124"
+   },
+   {
+    "id": "place.4281341",
+    "text": "Duomo",
+    "kind": "place",
+    "place_designation": "quarter"
+   },
+   {
+    "id": "locality.18026",
+    "text": "Municipio 1",
+    "kind": "admin_area"
+   },
+   {
+    "id": "municipality.51111",
+    "text": "Milano",
+    "kind": "admin_area",
+    "place_designation": "city"
+   },
+   {
+    "id": "county.1209",
+    "text": "Milano",
+    "kind": "admin_area"
+   },
+   {
+    "id": "region.444",
+    "text": "Lombardia",
+    "kind": "admin_area"
+   },
+   {
+    "id": "major_landform.4162290",
+    "text": "Penisola italiana"
+   },
+   {
+    "id": "country.137",
+    "text": "Italia",
+    "kind": "admin_area"
+   },
+   {
+    "id": "continental_marine.1",
+    "text": "Europa"
+   }
+  ]
+ },
+ "poi.30003266": {
+  "id": "poi.30003266",
+  "text": "Piazza Diaz",
+  "place_name": "Piazza Diaz, 20123 Milano, Italia",
+  "place_type": [
+   "poi"
+  ],
+  "relevance": 0.7,
+  "center": [
+   9.190334714949131,
+   45.462585701739755
+  ],
+  "properties": {
+   "feature_tags": {},
+   "categories": [
+    "bus stop",
+    "stop"
+   ]
+  },
+  "context": [
+   {
+    "id": "road.343781",
+    "text": "339_22720",
+    "kind": "road"
+   },
+   {
+    "id": "postal_code.812430",
+    "text": "20123"
+   },
+   {
+    "id": "place.4281341",
+    "text": "Duomo",
+    "kind": "place",
+    "place_designation": "quarter"
+   },
+   {
+    "id": "locality.18026",
+    "text": "Municipio 1",
+    "kind": "admin_area"
+   },
+   {
+    "id": "municipality.51111",
+    "text": "Milano",
+    "kind": "admin_area",
+    "place_designation": "city"
+   },
+   {
+    "id": "county.1209",
+    "text": "Milano",
+    "kind": "admin_area"
+   },
+   {
+    "id": "region.444",
+    "text": "Lombardia",
+    "kind": "admin_area"
+   },
+   {
+    "id": "major_landform.4162290",
+    "text": "Penisola italiana"
+   },
+   {
+    "id": "country.137",
+    "text": "Italia",
+    "kind": "admin_area"
+   },
+   {
+    "id": "continental_marine.1",
+    "text": "Europa"
+   }
+  ]
+ },
+ "poi.14318093": {
+  "id": "poi.14318093",
+  "text": "Navigli Craft Beer",
+  "place_name": "Navigli Craft Beer, Alzaia Naviglio Grande 44, 20144 Milano, Italia",
+  "place_type": [
+   "poi"
+  ],
+  "relevance": 1,
+  "center": [
+   9.172042720019817,
+   45.45134679529069
+  ],
+  "properties": {
+   "feature_tags": {
+    "addr:housenumber": "44",
+    "addr:street": "Alzaia Naviglio Grande",
+    "addr:postcode": "20144",
+    "amenity": "pub",
+    "addr:city": "Milano"
+   },
+   "categories": [
+    "pub"
+   ]
+  },
+  "context": [
+   {
+    "id": "address.4419437",
+    "text": "Alzaia Naviglio Grande",
+    "kind": "street"
+   },
+   {
+    "id": "postal_code.2493795",
+    "text": "20144"
+   },
+   {
+    "id": "place.4281358",
+    "text": "Navigli",
+    "kind": "place",
+    "place_designation": "quarter"
+   },
+   {
+    "id": "locality.18216",
+    "text": "Municipio 6",
+    "kind": "admin_area"
+   },
+   {
+    "id": "municipality.51111",
+    "text": "Milano",
+    "kind": "admin_area",
+    "place_designation": "city"
+   },
+   {
+    "id": "county.1209",
+    "text": "Milano",
+    "kind": "admin_area"
+   },
+   {
+    "id": "region.444",
+    "text": "Lombardia",
+    "kind": "admin_area"
+   },
+   {
+    "id": "major_landform.4162290",
+    "text": "Penisola italiana"
+   },
+   {
+    "id": "country.137",
+    "text": "Italia",
+    "kind": "admin_area"
+   },
+   {
+    "id": "continental_marine.1",
+    "text": "Europa"
+   }
+  ]
+ },
+ "poi.35188325": {
+  "id": "poi.35188325",
+  "text": "Biblioteca Comunale Parco Sempione",
+  "place_name": "Biblioteca Comunale Parco Sempione, 20121 Milano, Italia",
+  "place_type": [
+   "poi"
+  ],
+  "relevance": 0.8,
+  "center": [
+   9.174932422952452,
+   45.47445068913037
+  ],
+  "properties": {
+   "feature_tags": {
+    "amenity": "library"
+   },
+   "categories": [
+    "library",
+    "building"
+   ]
+  },
+  "context": [
+   {
+    "id": "road.374552",
+    "text": "7089_36603",
+    "kind": "road"
+   },
+   {
+    "id": "postal_code.728756",
+    "text": "20121"
+   },
+   {
+    "id": "place.4281375",
+    "text": "Parco Sempione",
+    "kind": "place",
+    "place_designation": "quarter"
+   },
+   {
+    "id": "locality.18026",
+    "text": "Municipio 1",
+    "kind": "admin_area"
+   },
+   {
+    "id": "municipality.51111",
+    "text": "Milano",
+    "kind": "admin_area",
+    "place_designation": "city"
+   },
+   {
+    "id": "county.1209",
+    "text": "Milano",
+    "kind": "admin_area"
+   },
+   {
+    "id": "region.444",
+    "text": "Lombardia",
+    "kind": "admin_area"
+   },
+   {
+    "id": "major_landform.4162290",
+    "text": "Penisola italiana"
+   },
+   {
+    "id": "country.137",
+    "text": "Italia",
+    "kind": "admin_area"
+   },
+   {
+    "id": "continental_marine.1",
+    "text": "Europa"
+   }
+  ]
+ },
+ "poi.14491479": {
+  "id": "poi.14491479",
+  "text": "Sempione",
+  "place_name": "Sempione, Via Giovanni Gherardini 2, 20145 Milano, Italia",
+  "place_type": [
+   "poi"
+  ],
+  "relevance": 0.59,
+  "center": [
+   9.170260056853294,
+   45.47702396947716
+  ],
+  "properties": {
+   "feature_tags": {
+    "addr:housenumber": "5",
+    "addr:street": "Corso Sempione",
+    "amenity": "fast_food"
+   },
+   "categories": [
+    "fast food"
+   ]
+  },
+  "context": [
+   {
+    "id": "road.213106",
+    "text": "7140_1198",
+    "kind": "road"
+   },
+   {
+    "id": "postal_code.2518949",
+    "text": "20145"
+   },
+   {
+    "id": "place.4281303",
+    "text": "Pagano",
+    "kind": "place",
+    "place_designation": "quarter"
+   },
+   {
+    "id": "locality.18026",
+    "text": "Municipio 1",
+    "kind": "admin_area"
+   },
+   {
+    "id": "municipality.51111",
+    "text": "Milano",
+    "kind": "admin_area",
+    "place_designation": "city"
+   },
+   {
+    "id": "county.1209",
+    "text": "Milano",
+    "kind": "admin_area"
+   },
+   {
+    "id": "region.444",
+    "text": "Lombardia",
+    "kind": "admin_area"
+   },
+   {
+    "id": "major_landform.4162290",
+    "text": "Penisola italiana"
+   },
+   {
+    "id": "country.137",
+    "text": "Italia",
+    "kind": "admin_area"
+   },
+   {
+    "id": "continental_marine.1",
+    "text": "Europa"
+   }
+  ]
+ }
+}

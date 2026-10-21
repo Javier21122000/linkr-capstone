@@ -8,79 +8,31 @@ import { EventCoverField } from "../components/events/EventCoverField";
 import { EventLocationPicker } from "../components/events/EventLocationPicker";
 import { PlaceAutocomplete } from "../components/events/PlaceAutocomplete";
 import { useAuth } from "../context/AuthContext";
+import { useEventCover } from "../hooks/useEventCover";
+import { usePlaceResolution } from "../hooks/usePlaceResolution";
 import { categoryOptions } from "../lib/eventPresentation";
-import {
-  getEventImageUploadError,
-  isAllowedEventImageUrl,
-  prepareEventImageFile,
-  uploadEventImage,
-} from "../lib/eventImages";
+import { uploadEventImage } from "../lib/eventImages";
 import type { PlaceSuggestion } from "../lib/geocoding";
 import {
   createEvent,
   getCreateEventFailure,
   getUpdateEventFailure,
   updateEvent,
-  type CreateEventPayload,
 } from "../lib/eventCreation";
+import {
+  buildEventPayload,
+  fillPlaceDetails,
+  initialEventFormValues as initialValues,
+  mapServerFieldErrors,
+  parseCoordinate,
+  validateEventForm,
+} from "../lib/eventForm";
+import type { EventFormErrors, EventFormValues } from "../lib/eventForm";
 import { getEvent, getEventsErrorMessage, isRequestCancelled } from "../lib/events";
-import type { EventCategory, EventDetail, EventType } from "../types/event";
-
-interface EventFormValues {
-  readonly title: string;
-  readonly description: string;
-  readonly category: EventCategory | "";
-  readonly eventType: EventType;
-  readonly startsAt: string;
-  readonly endsAt: string;
-  readonly venueName: string;
-  readonly address: string;
-  readonly neighbourhood: string;
-  readonly latitude: string;
-  readonly longitude: string;
-  readonly imageUrl: string;
-  readonly imageAlt: string;
-  readonly imageCredit: string;
-}
-
-type EventFormErrors = Partial<Record<keyof EventFormValues, string>>;
-
-const initialValues: EventFormValues = {
-  title: "",
-  description: "",
-  category: "",
-  eventType: "COMMUNITY",
-  startsAt: "",
-  endsAt: "",
-  venueName: "",
-  address: "",
-  neighbourhood: "",
-  latitude: "",
-  longitude: "",
-  imageUrl: "",
-  imageAlt: "",
-  imageCredit: "",
-};
+import { toRomeLocalInput } from "../lib/romeTime";
+import type { EventCategory, EventDetail } from "../types/event";
 
 const EVENT_DRAFT_KEY_PREFIX = "linkr:create-event-draft:";
-const MAX_EVENT_DURATION_MS = 7 * 24 * 60 * 60 * 1_000;
-
-const backendFieldMessages: Partial<Record<keyof EventFormValues, string>> = {
-  title: "Il titolo deve contenere da 3 a 120 caratteri.",
-  description: "Inserisci una descrizione di massimo 5.000 caratteri.",
-  category: "Scegli una categoria valida.",
-  startsAt: "La data di inizio deve essere valida e nel futuro.",
-  endsAt: "La fine deve essere successiva all’inizio e distante al massimo 7 giorni.",
-  venueName: "Inserisci un luogo di massimo 120 caratteri.",
-  address: "Inserisci un indirizzo di massimo 200 caratteri.",
-  neighbourhood: "Inserisci un quartiere di massimo 60 caratteri.",
-  latitude: "La latitudine deve essere compresa tra 45.35 e 45.60.",
-  longitude: "La longitudine deve essere compresa tra 8.95 e 9.45.",
-  imageUrl: "Usa un URL HTTPS senza spazi, di massimo 500 caratteri.",
-  imageAlt: "Inserisci un testo alternativo di massimo 200 caratteri quando usi un’immagine.",
-  imageCredit: "I crediti dell’immagine non possono superare 120 caratteri.",
-  eventType: "Scegli un tipo di evento consentito per il tuo account.",
-};
 
 function readDraft(key: string): EventFormValues {
   try {
@@ -117,91 +69,15 @@ function removeDraft(key: string) {
   }
 }
 
-function parseCoordinate(value: string): number | null {
-  if (!value.trim()) return null;
-  const coordinate = Number(value);
-  return Number.isFinite(coordinate) ? coordinate : null;
-}
-
-function validate(values: EventFormValues, originalStartsAt?: string, hasSelectedImage = false): EventFormErrors {
-  const errors: EventFormErrors = {};
-  const title = values.title.trim();
-  const description = values.description.trim();
-  const venueName = values.venueName.trim();
-  const address = values.address.trim();
-  const neighbourhood = values.neighbourhood.trim();
-  const latitude = parseCoordinate(values.latitude);
-  const longitude = parseCoordinate(values.longitude);
-  const startsAt = values.startsAt ? new Date(values.startsAt).getTime() : Number.NaN;
-  const endsAt = values.endsAt ? new Date(values.endsAt).getTime() : null;
-
-  if (!title) errors.title = "Inserisci un titolo.";
-  else if (title.length < 3) errors.title = "Il titolo deve contenere almeno 3 caratteri.";
-  else if (title.length > 120) errors.title = "Il titolo non può superare 120 caratteri.";
-
-  if (!description) errors.description = "Descrivi cosa succederà durante l’evento.";
-  else if (description.length > 5_000) errors.description = "La descrizione non può superare 5.000 caratteri.";
-
-  if (!values.category) errors.category = "Scegli una categoria.";
-
-  if (!values.startsAt) errors.startsAt = "Scegli data e ora di inizio.";
-  else if (!Number.isFinite(startsAt)) errors.startsAt = "Inserisci una data e un’ora valide.";
-  else if (startsAt <= Date.now() && (!originalStartsAt || startsAt !== Date.parse(originalStartsAt))) {
-    errors.startsAt = "L’evento deve iniziare nel futuro quando ne modifichi la data.";
-  }
-
-  if (endsAt !== null) {
-    if (!Number.isFinite(endsAt)) errors.endsAt = "Inserisci una data e un’ora valide.";
-    else if (Number.isFinite(startsAt) && endsAt <= startsAt) errors.endsAt = "La fine deve essere successiva all’inizio.";
-    else if (Number.isFinite(startsAt) && endsAt - startsAt > MAX_EVENT_DURATION_MS) {
-      errors.endsAt = "L’evento non può durare più di 7 giorni.";
-    }
-  }
-
-  if (!venueName) errors.venueName = "Inserisci il nome del luogo.";
-  else if (venueName.length > 120) errors.venueName = "Il luogo non può superare 120 caratteri.";
-
-  if (!address) errors.address = "Inserisci l’indirizzo.";
-  else if (address.length > 200) errors.address = "L’indirizzo non può superare 200 caratteri.";
-
-  if (!neighbourhood) errors.neighbourhood = "Inserisci il quartiere.";
-  else if (neighbourhood.length > 60) errors.neighbourhood = "Il quartiere non può superare 60 caratteri.";
-
-  if (latitude === null) errors.latitude = "Inserisci una latitudine valida.";
-  else if (latitude < 45.35 || latitude > 45.60) errors.latitude = "La latitudine deve essere tra 45.35 e 45.60.";
-
-  if (longitude === null) errors.longitude = "Inserisci una longitudine valida.";
-  else if (longitude < 8.95 || longitude > 9.45) errors.longitude = "La longitudine deve essere tra 8.95 e 9.45.";
-
-  const imageUrl = values.imageUrl.trim();
-  if (imageUrl.length > 500) errors.imageUrl = "L’URL dell’immagine non può superare 500 caratteri.";
-  else if (imageUrl && !isAllowedEventImageUrl(imageUrl)) errors.imageUrl = "Inserisci un URL HTTPS senza spazi.";
-
-  const imageAlt = values.imageAlt.trim();
-  if (imageAlt.length > 200) errors.imageAlt = "Il testo alternativo non può superare 200 caratteri.";
-  else if ((imageUrl || hasSelectedImage) && !imageAlt) errors.imageAlt = "Descrivi l’immagine per chi non può vederla.";
-
-  if (values.imageCredit.trim().length > 120) errors.imageCredit = "I crediti non possono superare 120 caratteri.";
-
-  return errors;
-}
-
-function toLocalDateTime(isoDate: string | null): string {
-  if (!isoDate) return "";
-  const date = new Date(isoDate);
-  if (Number.isNaN(date.getTime())) return "";
-  const offset = date.getTimezoneOffset() * 60_000;
-  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
-}
-
 function valuesFromEvent(event: EventDetail): EventFormValues {
   return {
     title: event.title,
     description: event.description,
     category: event.category,
     eventType: event.type,
-    startsAt: toLocalDateTime(event.startsAt),
-    endsAt: toLocalDateTime(event.endsAt),
+    // Il campo mostra e legge l'ora di Milano, non quella del dispositivo (vedi `romeTime.ts`).
+    startsAt: toRomeLocalInput(event.startsAt),
+    endsAt: toRomeLocalInput(event.endsAt),
     venueName: event.venueName,
     address: event.address,
     neighbourhood: event.neighbourhood,
@@ -219,7 +95,6 @@ function EventFormPage({ mode }: { readonly mode: "create" | "edit" }) {
   const { eventId } = useParams<{ eventId: string }>();
   const formRef = useRef<HTMLFormElement>(null);
   const submittingRef = useRef(false);
-  const imageSelectionRevisionRef = useRef(0);
   const isAdmin = user?.role === "ADMIN";
   const isEdit = mode === "edit";
   const draftKey = `${EVENT_DRAFT_KEY_PREFIX}${user?.id ?? "unknown"}`;
@@ -235,11 +110,26 @@ function EventFormPage({ mode }: { readonly mode: "create" | "edit" }) {
   const [requestKey, setRequestKey] = useState(0);
   const [originalStartsAt, setOriginalStartsAt] = useState<string>();
   const [mapFocusRevision, setMapFocusRevision] = useState(0);
-  const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [imageFileError, setImageFileError] = useState<string>();
-  const [imageStatusMessage, setImageStatusMessage] = useState<string>();
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const [validatingImage, setValidatingImage] = useState(false);
+  const cover = useEventCover({
+    onUrlChange: (value) => updateValue("imageUrl", value),
+    onFileAccepted: () => {
+      setErrors((current) => {
+        if (!current.imageUrl) return current;
+        const next = { ...current };
+        delete next.imageUrl;
+        return next;
+      });
+      setFormError(null);
+    },
+  });
+  const {
+    selectedImage,
+    fileError: imageFileError,
+    fileRejected: imageFileRejected,
+    statusMessage: imageStatusMessage,
+    uploading: uploadingImage,
+    validating: validatingImage,
+  } = cover;
 
   useEffect(() => {
     if (!isEdit) return undefined;
@@ -282,9 +172,26 @@ function EventFormPage({ mode }: { readonly mode: "create" | "edit" }) {
     setFormError(null);
   }
 
+  // Scelto il punto una volta (suggerimento o mappa), indirizzo e quartiere mancanti si recuperano da soli e riempiono solo i campi vuoti.
+  const placeResolution = usePlaceResolution((point, completed) => {
+    setValues((current) => {
+      const next = fillPlaceDetails(current, point, completed);
+      if (next !== current && !isEdit) storeDraft(draftKey, next);
+      return next;
+    });
+    setErrors((current) => {
+      if (!current.address && !current.neighbourhood) return current;
+      const next = { ...current };
+      if (completed.address) delete next.address;
+      if (completed.neighbourhood) delete next.neighbourhood;
+      return next;
+    });
+  });
+
   function updateCoordinates(latitude: number, longitude: number) {
     updateValue("latitude", latitude.toFixed(6));
     updateValue("longitude", longitude.toFixed(6));
+    void placeResolution.resolve({ latitude, longitude, place: { venueName: "", landmark: false }, origin: "map" });
   }
 
   function selectPlace(suggestion: PlaceSuggestion) {
@@ -292,8 +199,9 @@ function EventFormPage({ mode }: { readonly mode: "create" | "edit" }) {
       const next: EventFormValues = {
         ...current,
         venueName: suggestion.venueName,
-        ...(suggestion.address ? { address: suggestion.address } : {}),
-        ...(suggestion.neighbourhood ? { neighbourhood: suggestion.neighbourhood } : {}),
+        // Un nuovo luogo sostituisce quello di prima, indirizzo e quartiere compresi: se il servizio non li ha, si cercano o si chiedono.
+        address: suggestion.address ?? "",
+        neighbourhood: suggestion.neighbourhood ?? "",
         latitude: suggestion.latitude.toFixed(6),
         longitude: suggestion.longitude.toFixed(6),
       };
@@ -311,64 +219,19 @@ function EventFormPage({ mode }: { readonly mode: "create" | "edit" }) {
     });
     setFormError(null);
     setMapFocusRevision((current) => current + 1);
-  }
-
-  async function selectImage(file: File) {
-    const revision = imageSelectionRevisionRef.current + 1;
-    imageSelectionRevisionRef.current = revision;
-    setValidatingImage(true);
-    setImageFileError(undefined);
-    setImageStatusMessage("Controllo immagine in corso…");
-    const prepared = await prepareEventImageFile(file);
-    if (imageSelectionRevisionRef.current !== revision) return;
-    setValidatingImage(false);
-    setImageStatusMessage(undefined);
-    if (prepared.error || !prepared.file) {
-      setImageFileError(prepared.error ?? "Non è stato possibile leggere questa immagine.");
-      setSelectedImage(null);
-      return;
-    }
-
-    setSelectedImage(prepared.file);
-    setErrors((current) => {
-      if (!current.imageUrl) return current;
-      const next = { ...current };
-      delete next.imageUrl;
-      return next;
-    });
-    setFormError(null);
-  }
-
-  function removeImage() {
-    imageSelectionRevisionRef.current += 1;
-    setValidatingImage(false);
-    setImageFileError(undefined);
-    setImageStatusMessage(undefined);
-    if (selectedImage) {
-      setSelectedImage(null);
-      return;
-    }
-    updateValue("imageUrl", "");
-  }
-
-  function updateImageUrl(value: string) {
-    imageSelectionRevisionRef.current += 1;
-    setValidatingImage(false);
-    setSelectedImage(null);
-    setImageFileError(undefined);
-    setImageStatusMessage(undefined);
-    updateValue("imageUrl", value);
+    void placeResolution.resolve({ latitude: suggestion.latitude, longitude: suggestion.longitude, place: suggestion, origin: "search" });
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (submittingRef.current || validatingImage) return;
-    if (imageFileError) {
+    // Solo un file scartato blocca l'invio: dopo un upload fallito la foto resta selezionata e si può ritentare (come in Quick Create).
+    if (imageFileRejected) {
       window.requestAnimationFrame(() => formRef.current?.querySelector<HTMLElement>("#event-cover-file-error")?.focus());
       return;
     }
 
-    const validationErrors = validate(values, originalStartsAt, Boolean(selectedImage));
+    const validationErrors = validateEventForm(values, originalStartsAt, Boolean(selectedImage));
     setErrors(validationErrors);
     setFormError(null);
     if (Object.keys(validationErrors).length > 0) {
@@ -383,41 +246,15 @@ function EventFormPage({ mode }: { readonly mode: "create" | "edit" }) {
     try {
       let imageUrl = values.imageUrl.trim();
       if (selectedImage) {
-        setUploadingImage(true);
-        setImageFileError(undefined);
-        setImageStatusMessage("Caricamento foto in corso…");
-        try {
-          const uploadedImage = await authorizedRequest((accessToken) => uploadEventImage(accessToken, selectedImage));
-          imageUrl = uploadedImage.imageUrl;
-          updateValue("imageUrl", uploadedImage.imageUrl);
-          setSelectedImage(null);
-          setImageStatusMessage("Foto caricata. Salvataggio dell’evento in corso…");
-        } catch (error) {
-          setImageFileError(getEventImageUploadError(error));
-          setImageStatusMessage(undefined);
+        const uploadedUrl = await cover.uploadSelected((file) => authorizedRequest((accessToken) => uploadEventImage(accessToken, file)));
+        if (uploadedUrl === null) {
           window.requestAnimationFrame(() => formRef.current?.querySelector<HTMLElement>("#event-cover-file-error")?.focus());
           return;
-        } finally {
-          setUploadingImage(false);
         }
+        imageUrl = uploadedUrl;
       }
 
-      const payload: CreateEventPayload = {
-        title: values.title.trim(),
-        description: values.description.trim(),
-        category: values.category as EventCategory,
-        startsAt: new Date(values.startsAt).toISOString(),
-        ...(values.endsAt ? { endsAt: new Date(values.endsAt).toISOString() } : {}),
-        venueName: values.venueName.trim(),
-        address: values.address.trim(),
-        neighbourhood: values.neighbourhood.trim(),
-        latitude: Number(values.latitude),
-        longitude: Number(values.longitude),
-        ...(imageUrl ? { imageUrl } : {}),
-        ...(values.imageAlt.trim() ? { imageAlt: values.imageAlt.trim() } : {}),
-        ...(values.imageCredit.trim() ? { imageCredit: values.imageCredit.trim() } : {}),
-        type: isAdmin ? values.eventType : "COMMUNITY",
-      };
+      const payload = buildEventPayload(values, imageUrl, isAdmin ? values.eventType : "COMMUNITY");
 
       const savedEvent = await authorizedRequest((accessToken) => (
         isEdit && eventId
@@ -429,14 +266,7 @@ function EventFormPage({ mode }: { readonly mode: "create" | "edit" }) {
       navigate(`/events/${encodeURIComponent(savedEvent.id)}`, { replace: true });
     } catch (error) {
       const failure = isEdit ? getUpdateEventFailure(error) : getCreateEventFailure(error);
-      const serverErrors: EventFormErrors = {};
-      for (const field of Object.keys(failure.fieldErrors ?? {})) {
-        const formField = field === "type" ? "eventType" : field;
-        if (formField in initialValues) {
-          const typedField = formField as keyof EventFormValues;
-          serverErrors[typedField] = backendFieldMessages[typedField] ?? "Controlla questo campo.";
-        }
-      }
+      const serverErrors = mapServerFieldErrors(failure.fieldErrors);
       if (Object.keys(serverErrors).length > 0) setErrors((current) => ({ ...current, ...serverErrors }));
       setFormError(failure.message);
       window.requestAnimationFrame(() => formRef.current?.querySelector<HTMLElement>('[role="alert"]')?.focus());
@@ -457,7 +287,7 @@ function EventFormPage({ mode }: { readonly mode: "create" | "edit" }) {
   if (loadError) {
     return (
       <div className="page-shell page-with-mobile-nav py-16">
-        <div className="mx-auto max-w-xl rounded-[1.75rem] border border-line bg-surface px-6 py-12 text-center">
+        <div className="surface-card mx-auto max-w-xl px-6 py-12 text-center">
           <h1 className="text-3xl font-extrabold tracking-[-0.045em] text-ink">Modifica non disponibile</h1>
           <p className="mt-3 text-sm leading-6 text-muted">{loadError}</p>
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
@@ -561,16 +391,17 @@ function EventFormPage({ mode }: { readonly mode: "create" | "edit" }) {
                 <div className="grid gap-5 sm:grid-cols-2">
                   <FormField
                     id="startsAt"
-                    label="Inizio"
+                    label="Inizio (ora di Milano)"
                     type="datetime-local"
                     value={values.startsAt}
                     onChange={(event) => updateValue("startsAt", event.target.value)}
                     error={errors.startsAt}
+                    hint="Sempre l’ora di Milano, anche se il tuo dispositivo è in un altro fuso."
                     disabled={submitting}
                   />
                   <FormField
                     id="endsAt"
-                    label="Fine (opzionale)"
+                    label="Fine (opzionale, ora di Milano)"
                     type="datetime-local"
                     value={values.endsAt}
                     onChange={(event) => updateValue("endsAt", event.target.value)}
@@ -645,9 +476,9 @@ function EventFormPage({ mode }: { readonly mode: "create" | "edit" }) {
                   urlError={errors.imageUrl}
                   statusMessage={imageStatusMessage}
                   disabled={submitting || validatingImage}
-                  onFileSelect={selectImage}
-                  onRemove={removeImage}
-                  onUrlChange={updateImageUrl}
+                  onFileSelect={cover.selectFile}
+                  onRemove={cover.removeImage}
+                  onUrlChange={cover.changeUrl}
                 />
                 <FormField
                   id="imageAlt"
@@ -718,7 +549,19 @@ function EventFormPage({ mode }: { readonly mode: "create" | "edit" }) {
               />
             </div>
 
-            <p className="mt-5 text-sm font-semibold leading-6 text-muted">Tocca la mappa o trascina il segnaposto per scegliere il punto esatto.</p>
+            <p className="mt-3 min-h-5 text-xs font-bold leading-5 text-muted" role="status" aria-live="polite">
+              {placeResolution.status === "resolving" ? "Cerco indirizzo e quartiere…" : null}
+              {placeResolution.status === "failed" ? (
+                <span>
+                  {placeResolution.error} Compila tu i campi mancanti.
+                  <button className="ml-2 inline-flex items-center gap-1 font-extrabold text-ink" type="button" onClick={placeResolution.retry}>
+                    <RotateCcw size={13} aria-hidden="true" /> Riprova
+                  </button>
+                </span>
+              ) : null}
+            </p>
+
+            <p className="mt-3 text-sm font-semibold leading-6 text-muted">Tocca la mappa o trascina il segnaposto per scegliere il punto esatto.</p>
             <div className="mt-3 overflow-hidden rounded-[1.25rem] border border-line">
               <EventLocationPicker
                 latitude={latitude}
@@ -777,7 +620,7 @@ function EventFormPage({ mode }: { readonly mode: "create" | "edit" }) {
             >
               Annulla
             </Link>
-            <button className="button-primary inline-flex items-center gap-2" type="submit" disabled={submitting || validatingImage || Boolean(imageFileError)} aria-busy={submitting || validatingImage}>
+            <button className="button-primary inline-flex items-center gap-2" type="submit" disabled={submitting || validatingImage || imageFileRejected} aria-busy={submitting || validatingImage}>
               {submitting || validatingImage ? <LoaderCircle className="animate-spin motion-reduce:animate-none" size={18} aria-hidden="true" /> : null}
               {validatingImage ? "Controllo foto…" : uploadingImage ? "Caricamento foto…" : submitting ? (isEdit ? "Salvataggio…" : "Pubblicazione…") : (isEdit ? "Salva modifiche" : "Pubblica evento")}
             </button>

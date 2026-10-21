@@ -7,11 +7,13 @@ import { EventImage } from "../components/events/EventImage";
 import { CancelEventDialog } from "../components/events/CancelEventDialog";
 import { EventPeopleSection } from "../components/events/EventPeopleSection";
 import { EventParticipationPanel } from "../components/events/EventParticipationPanel";
+import { ViewOnMapLink } from "../components/events/ViewOnMapLink";
 import { EmptyEventsIllustration } from "../components/ui/EmptyEventsIllustration";
 import { useAuth } from "../context/AuthContext";
-import { categoryLabels, formatEventDate, formatEventTimeRange } from "../lib/eventPresentation";
+import { categoryLabels, formatEventDate, formatEventTimeRange, isEventEnded } from "../lib/eventPresentation";
 import { cancelEvent, getCancelEventFailure } from "../lib/eventCreation";
 import { getEvent, getEventsErrorMessage, isRequestCancelled } from "../lib/events";
+import { hasValidCoordinates } from "../lib/map";
 import type { EventDetail } from "../types/event";
 import type { ParticipationResponse } from "../types/participation";
 
@@ -100,7 +102,7 @@ export function EventDetailPage() {
           )}
 
           {eventState.status === "error" && (
-            <div className="mt-7 rounded-[1.75rem] border border-line bg-surface px-6 py-12 text-center">
+            <div className="surface-card mt-7 px-6 py-12 text-center">
               <EmptyEventsIllustration className="mx-auto mb-5 w-48" />
               <h1 className="text-3xl font-extrabold tracking-[-0.045em] text-ink">Evento non disponibile</h1>
               <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-muted">{eventState.message}</p>
@@ -173,6 +175,15 @@ export function EventDetailPage() {
                 </span>
               </li>
             </ul>
+
+            {/* Un evento annullato o finito non è più su Discover: l'azione non deve promettere un marker che non c'è. */}
+            {eventState.event.status === "PUBLISHED"
+              && !isEventEnded(eventState.event.startsAt, eventState.event.endsAt)
+              && hasValidCoordinates(eventState.event) ? (
+                <div className="mt-4">
+                  <ViewOnMapLink eventId={eventState.event.id} />
+                </div>
+              ) : null}
 
             <section className="mt-8" aria-labelledby="event-description-title">
               <h2 id="event-description-title" className="section-kicker">Informazioni sull’evento</h2>

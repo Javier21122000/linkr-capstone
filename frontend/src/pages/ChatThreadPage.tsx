@@ -1,5 +1,5 @@
 import axios from "axios";
-import { ArrowLeft, RotateCcw, Send } from "lucide-react";
+import { ArrowDown, ArrowLeft, LoaderCircle, RotateCcw, Send } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
 import { Link, useParams } from "react-router";
@@ -15,6 +15,7 @@ import {
   markConversationRead,
   sendMessage,
 } from "../lib/chat";
+import { prefersReducedMotion } from "../lib/motion";
 import type { ConversationResponse, MessageResponse } from "../types/chat";
 
 type ThreadState =
@@ -28,15 +29,21 @@ interface ScrollSnapshot {
   readonly top: number;
 }
 
-function formatMessageTime(value: string): string {
+const dayFormatter = new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "long" });
+
+/** Etichetta del giorno per i separatori della conversazione: "Oggi", "Ieri" o la data. Giorno di calendario del dispositivo, come l'ora dei messaggi. */
+function formatDayLabel(value: string, now: Date): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat("it-IT", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
+  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  if (date.toDateString() === now.toDateString()) return "Oggi";
+  if (date.toDateString() === yesterday.toDateString()) return "Ieri";
+  return dayFormatter.format(date);
+}
+
+function formatClock(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : new Intl.DateTimeFormat("it-IT", { hour: "2-digit", minute: "2-digit" }).format(date);
 }
 
 function uniqueMessages(messages: readonly MessageResponse[]): readonly MessageResponse[] {
@@ -61,6 +68,7 @@ export function ChatThreadPage() {
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [sendUncertain, setSendUncertain] = useState(false);
+  const [atBottom, setAtBottom] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const seenMessageIdsRef = useRef(new Set<string>());
@@ -243,6 +251,19 @@ export function ChatThreadPage() {
     await submitMessage();
   }
 
+  function handleMessagesScroll() {
+    const element = scrollRef.current;
+    if (!element) return;
+    const nextAtBottom = element.scrollHeight - element.scrollTop - element.clientHeight < 160;
+    setAtBottom((current) => (current === nextAtBottom ? current : nextAtBottom));
+  }
+
+  function jumpToLatest() {
+    const element = scrollRef.current;
+    if (!element) return;
+    element.scrollTo({ top: element.scrollHeight, behavior: prefersReducedMotion() ? "auto" : "smooth" });
+  }
+
   function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
     event.preventDefault();
@@ -252,7 +273,7 @@ export function ChatThreadPage() {
   if (state.status === "loading") {
     return (
       <div className="page-shell py-8" aria-busy="true" aria-label="Caricamento conversazione">
-        <div className="mx-auto h-[70dvh] max-w-3xl animate-pulse rounded-2xl bg-line/70 motion-reduce:animate-none" />
+        <div className="mx-auto h-[70dvh] max-w-3xl animate-pulse rounded-[1.5rem] bg-white/70 ring-1 ring-black/5 motion-reduce:animate-none" />
       </div>
     );
   }
@@ -260,7 +281,7 @@ export function ChatThreadPage() {
   if (state.status === "not-found") {
     return (
       <div className="page-shell page-with-mobile-nav py-12">
-        <div className="mx-auto max-w-xl rounded-2xl border border-line bg-surface p-6 text-center" role="alert">
+        <div className="surface-card mx-auto max-w-xl p-6 text-center" role="alert">
           <h1 className="text-2xl font-extrabold text-ink">Conversazione non disponibile</h1>
           <p className="mt-2 text-sm leading-6 text-muted">La chat non esiste oppure non puoi accedervi.</p>
           <Link className="button-secondary mt-5 inline-flex items-center gap-2" to="/chats"><ArrowLeft size={17} aria-hidden="true" /> Torna alle chat</Link>
@@ -283,10 +304,13 @@ export function ChatThreadPage() {
   }
 
   const { conversation, hasMore } = state;
+  const now = new Date();
+  // Un messaggio mio già letto mostra "Letto" solo sull'ultimo: è l'unica informazione utile e non rumorosa.
+  const lastMineId = [...messages].reverse().find((message) => message.mine)?.messageId;
   return (
     <div className="page-shell page-with-mobile-nav chat-thread-page py-5 sm:py-8">
-      <section className="chat-thread mx-auto flex max-w-3xl flex-col overflow-hidden rounded-2xl border border-line bg-surface" aria-labelledby="chat-person-title">
-        <header className="flex items-center gap-3 border-b border-line p-4">
+      <section className="chat-thread surface-card mx-auto flex max-w-3xl flex-col overflow-hidden" aria-labelledby="chat-person-title">
+        <header className="chat-thread__header flex items-center gap-3 p-3.5 sm:p-4">
           <Link className="icon-button shrink-0" to="/chats" aria-label="Torna alle chat"><ArrowLeft size={19} aria-hidden="true" /></Link>
           <UserAvatar displayName={conversation.otherUser.displayName} avatarUrl={conversation.otherUser.avatarUrl} className="size-11 text-xs" />
           <div className="min-w-0">
@@ -295,40 +319,61 @@ export function ChatThreadPage() {
           </div>
         </header>
 
-        {connectionStatus === "disconnected" ? <p className="border-b border-line px-4 py-2 text-center text-xs font-bold text-muted">Realtime non disponibile: invio e cronologia REST restano attivi.</p> : null}
+        {connectionStatus === "disconnected" ? <p className="chat-thread__notice px-4 py-2 text-center text-xs font-bold text-muted">Realtime non disponibile: invio e cronologia REST restano attivi.</p> : null}
 
-        <div ref={scrollRef} className="chat-thread__messages h-[min(60dvh,38rem)] overflow-y-auto overscroll-contain bg-canvas/60 px-4 py-5" aria-live="polite">
-          <div className="mb-5 text-center">
-            {olderError ? <p className="form-message form-message--error mb-3" role="alert">{olderError}</p> : null}
-            {hasMore ? (
-              <button className="button-secondary inline-flex min-w-48 items-center" type="button" disabled={loadingOlder} onClick={() => void loadOlderMessages()}>
-                {loadingOlder ? "Caricamento…" : olderError ? "Riprova" : "Carica messaggi precedenti"}
-              </button>
-            ) : messages.length > 0 ? <p className="text-xs font-bold text-muted">Inizio della conversazione</p> : null}
+        <div className="relative min-h-0 flex-1">
+          <div ref={scrollRef} className="chat-thread__messages h-[min(60dvh,38rem)] overflow-y-auto overscroll-contain px-4 py-5" aria-live="polite" onScroll={handleMessagesScroll}>
+            <div className="mb-5 text-center">
+              {olderError ? <p className="form-message form-message--error mb-3" role="alert">{olderError}</p> : null}
+              {hasMore ? (
+                <button className="button-secondary inline-flex min-w-48 items-center" type="button" disabled={loadingOlder} onClick={() => void loadOlderMessages()}>
+                  {loadingOlder ? "Caricamento…" : olderError ? "Riprova" : "Carica messaggi precedenti"}
+                </button>
+              ) : messages.length > 0 ? <p className="text-xs font-bold text-muted">Inizio della conversazione</p> : null}
+            </div>
+
+            {messages.length === 0 ? (
+              <div className="grid h-full place-items-center text-center" role="status">
+                <div>
+                  <p className="font-extrabold text-ink">Inizia la conversazione</p>
+                  <p className="mt-1 text-sm text-muted">Scrivi un messaggio a {conversation.otherUser.displayName}.</p>
+                </div>
+              </div>
+            ) : (
+              <ol className="space-y-1.5">
+                {messages.map((message, index) => {
+                  const previous = messages[index - 1];
+                  const newDay = !previous || new Date(previous.createdAt).toDateString() !== new Date(message.createdAt).toDateString();
+                  const startsGroup = !previous || previous.mine !== message.mine || newDay;
+                  return (
+                    <li key={message.messageId} className={startsGroup && index > 0 ? "pt-2" : undefined}>
+                      {newDay ? (
+                        <p className="chat-day-label" role="separator">{formatDayLabel(message.createdAt, now)}</p>
+                      ) : null}
+                      <div className={`flex ${message.mine ? "justify-end" : "justify-start"}`}>
+                        <div className="chat-bubble" data-mine={message.mine || undefined}>
+                          <p className="whitespace-pre-wrap break-words text-[0.9375rem] leading-6">{message.body}</p>
+                          <p className="chat-bubble__time">{formatClock(message.createdAt)}</p>
+                        </div>
+                      </div>
+                      {message.mine && message.messageId === lastMineId && message.readAt ? (
+                        <p className="mt-1 text-right text-[0.68rem] font-bold text-muted">Letto</p>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
           </div>
 
-          {messages.length === 0 ? (
-            <div className="grid h-full place-items-center text-center" role="status">
-              <div>
-                <p className="font-extrabold text-ink">Inizia la conversazione</p>
-                <p className="mt-1 text-sm text-muted">Scrivi un messaggio a {conversation.otherUser.displayName}.</p>
-              </div>
-            </div>
-          ) : (
-            <ol className="space-y-3">
-              {messages.map((message) => (
-                <li className={`flex ${message.mine ? "justify-end" : "justify-start"}`} key={message.messageId}>
-                  <div className={`max-w-[85%] rounded-2xl px-4 py-3 sm:max-w-[72%] ${message.mine ? "bg-linkr-action text-white" : "border border-line bg-surface text-ink"}`}>
-                    <p className="whitespace-pre-wrap break-words text-sm leading-6">{message.body}</p>
-                    <p className={`mt-1 text-[0.68rem] font-bold ${message.mine ? "text-white/75" : "text-muted"}`}>{formatMessageTime(message.createdAt)}</p>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          )}
+          {!atBottom && messages.length > 0 ? (
+            <button className="chat-thread__jump glass glass--strong content-reveal" type="button" onClick={jumpToLatest}>
+              <ArrowDown size={16} aria-hidden="true" /> Ultimi messaggi
+            </button>
+          ) : null}
         </div>
 
-        <form ref={formRef} className="border-t border-line p-3 sm:p-4" onSubmit={(event) => void submitMessage(event)}>
+        <form ref={formRef} className="chat-thread__composer p-3 sm:p-4" onSubmit={(event) => void submitMessage(event)}>
           <label className="sr-only" htmlFor="chat-message">Messaggio</label>
           <div className="flex items-end gap-2">
             <textarea
@@ -342,8 +387,8 @@ export function ChatThreadPage() {
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={handleComposerKeyDown}
             />
-            <button className="button-primary inline-flex size-12 shrink-0 items-center px-0" type="submit" disabled={sending || draft.trim().length === 0} aria-label="Invia messaggio">
-              <Send size={18} aria-hidden="true" />
+            <button className="button-primary inline-flex size-12 shrink-0 items-center px-0" type="submit" disabled={sending || draft.trim().length === 0} aria-label={sending ? "Invio in corso" : "Invia messaggio"} aria-busy={sending}>
+              {sending ? <LoaderCircle className="animate-spin motion-reduce:animate-none" size={18} aria-hidden="true" /> : <Send size={18} aria-hidden="true" />}
             </button>
           </div>
           <div className="mt-2 flex items-start justify-between gap-3">

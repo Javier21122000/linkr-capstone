@@ -3,9 +3,10 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 
 import { EventImage } from "../components/events/EventImage";
+import { ViewOnMapLink } from "../components/events/ViewOnMapLink";
 import { useAuth } from "../context/AuthContext";
 import { getMyEvents } from "../lib/eventCreation";
-import { categoryLabels, formatEventDate, formatEventTimeRange } from "../lib/eventPresentation";
+import { categoryLabels, formatEventDate, formatEventTimeRange, isEventEnded } from "../lib/eventPresentation";
 import { getEventsErrorMessage, isRequestCancelled } from "../lib/events";
 import type { EventSummary } from "../types/event";
 
@@ -16,31 +17,39 @@ type EventsState =
 
 function EventCard({ event }: { readonly event: EventSummary }) {
   const cancelled = event.status === "CANCELLED";
+  const onMap = !cancelled && !isEventEnded(event.startsAt, event.endsAt);
   return (
-    <Link
-      className="group grid overflow-hidden rounded-[1.5rem] border border-line bg-surface transition-transform active:scale-[0.99] motion-reduce:transition-none sm:grid-cols-[11rem_minmax(0,1fr)]"
-      to={`/events/${encodeURIComponent(event.id)}`}
-    >
-      <div className="relative min-h-44 bg-line sm:min-h-full">
-        <EventImage imageUrl={event.imageUrl} imageAlt={event.imageAlt} category={event.category} className={`absolute inset-0 size-full object-cover ${cancelled ? "grayscale opacity-60" : ""}`} />
-      </div>
-      <div className="p-5 sm:p-6">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="section-kicker">{categoryLabels[event.category]}</span>
-          <span className={`rounded-full px-2.5 py-1 text-[0.65rem] font-extrabold uppercase tracking-[0.12em] ${cancelled ? "bg-line text-muted" : "bg-linkr-soft text-linkr-strong"}`}>
-            {cancelled ? "Annullato" : "Pubblicato"}
-          </span>
-          <span className="text-[0.65rem] font-extrabold uppercase tracking-[0.12em] text-muted">{event.type === "COMMUNITY" ? "Community" : "Official"}</span>
+    <div className="surface-card overflow-hidden">
+      <Link
+        className="group grid transition-transform active:scale-[0.99] motion-reduce:transition-none sm:grid-cols-[11rem_minmax(0,1fr)]"
+        to={`/events/${encodeURIComponent(event.id)}`}
+      >
+        <div className="relative min-h-44 bg-line sm:min-h-full">
+          <EventImage imageUrl={event.imageUrl} imageAlt={event.imageAlt} category={event.category} className={`absolute inset-0 size-full object-cover ${cancelled ? "grayscale opacity-60" : ""}`} />
         </div>
-        <h3 className="mt-3 text-2xl font-extrabold tracking-[-0.04em] text-ink group-hover:text-linkr-strong">{event.title}</h3>
-        <p className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-muted">
-          <CalendarDays size={17} aria-hidden="true" /> {formatEventDate(event.startsAt)} · {formatEventTimeRange(event.startsAt, event.endsAt)}
-        </p>
-        <p className="mt-2 inline-flex items-start gap-2 text-sm font-semibold text-muted">
-          <MapPin className="mt-0.5 shrink-0" size={17} aria-hidden="true" /> {event.venueName} · {event.neighbourhood}
-        </p>
-      </div>
-    </Link>
+        <div className="p-5 sm:p-6">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="section-kicker">{categoryLabels[event.category]}</span>
+            <span className={`rounded-full px-2.5 py-1 text-[0.65rem] font-extrabold uppercase tracking-[0.12em] ${cancelled ? "bg-line text-muted" : "bg-linkr-soft text-linkr-strong"}`}>
+              {cancelled ? "Annullato" : "Pubblicato"}
+            </span>
+            <span className="text-[0.65rem] font-extrabold uppercase tracking-[0.12em] text-muted">{event.type === "COMMUNITY" ? "Community" : "Official"}</span>
+          </div>
+          <h3 className="mt-3 text-2xl font-extrabold tracking-[-0.04em] text-ink group-hover:text-linkr-strong">{event.title}</h3>
+          <p className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-muted">
+            <CalendarDays size={17} aria-hidden="true" /> {formatEventDate(event.startsAt)} · {formatEventTimeRange(event.startsAt, event.endsAt)}
+          </p>
+          <p className="mt-2 inline-flex items-start gap-2 text-sm font-semibold text-muted">
+            <MapPin className="mt-0.5 shrink-0" size={17} aria-hidden="true" /> {event.venueName} · {event.neighbourhood}
+          </p>
+        </div>
+      </Link>
+      {onMap ? (
+        <div className="border-t border-line px-5 py-1 sm:px-6">
+          <ViewOnMapLink eventId={event.id} variant="inline" />
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -79,12 +88,12 @@ export function MyEventsPage() {
 
       {state.status === "loading" ? (
         <div className="mt-10 grid gap-4" aria-busy="true" aria-label="Caricamento eventi">
-          {[0, 1].map((item) => <div key={item} className="h-52 animate-pulse rounded-[1.5rem] bg-line/70 motion-reduce:animate-none" />)}
+          {[0, 1].map((item) => <div key={item} className="h-52 animate-pulse rounded-[1.5rem] bg-white/70 ring-1 ring-black/5 motion-reduce:animate-none" />)}
         </div>
       ) : null}
 
       {state.status === "error" ? (
-        <div className="mt-10 rounded-[1.5rem] border border-line bg-surface px-6 py-12 text-center" role="alert">
+        <div className="surface-card mt-10 px-6 py-12 text-center" role="alert">
           <h2 className="text-2xl font-extrabold tracking-[-0.04em] text-ink">Non riusciamo a caricare i tuoi eventi</h2>
           <p className="mt-3 text-sm leading-6 text-muted">{state.message}</p>
           <button className="button-primary mt-6 inline-flex items-center gap-2" type="button" onClick={() => setRequestKey((current) => current + 1)}><RotateCcw size={17} aria-hidden="true" /> Riprova</button>
@@ -92,7 +101,7 @@ export function MyEventsPage() {
       ) : null}
 
       {state.status === "success" && state.events.length === 0 ? (
-        <div className="mt-10 rounded-[1.5rem] border border-line bg-surface px-6 py-14 text-center">
+        <div className="surface-card mt-10 px-6 py-14 text-center">
           <h2 className="text-2xl font-extrabold tracking-[-0.04em] text-ink">Il prossimo evento parte da te</h2>
           <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-muted">Non hai ancora creato eventi. Pubblica un’uscita community e scegli il punto sulla mappa.</p>
           <Link className="button-primary mt-6 inline-flex items-center gap-2" to="/events/new"><Plus size={17} aria-hidden="true" /> Crea il primo evento</Link>

@@ -43,7 +43,7 @@ export function ProfileInterests({ saved = false, initialInterests }: ProfileInt
   }, [authorizedRequest, initialInterests, requestKey]);
 
   return (
-    <section className="mt-10 border-t border-line pt-8" aria-labelledby="profile-interests-title">
+    <section className="surface-card mt-10 p-5 sm:p-6" aria-labelledby="profile-interests-title">
       {saved ? <div className="form-message form-message--success mb-6" role="status">Interessi salvati.</div> : null}
 
       <div className="flex items-end justify-between gap-4">

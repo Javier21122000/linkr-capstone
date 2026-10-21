@@ -1,18 +1,34 @@
 import {
   AttributionControl,
-  LngLatBounds,
   Map as MapLibreMap,
   Marker,
   setWorkerUrl,
 } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
-import { Minus, Plus } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Focus, Minus, Plus, RotateCcw } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { categoryColors, unknownCategoryColor } from "../../lib/eventPresentation";
-import { getMapTilerStyleUrl, hasValidCoordinates, MILAN_CENTER, MILAN_INITIAL_ZOOM } from "../../lib/map";
+import {
+  getMapTilerStyleUrl,
+  hasValidCoordinates,
+  isFatalMapError,
+  MAP_MAX_PIXEL_RATIO,
+  MAP_MAX_ZOOM,
+  MAP_MIN_ZOOM,
+  MILAN_CENTER,
+  MILAN_INITIAL_ZOOM,
+} from "../../lib/map";
+import type { MapPickState, PickedPoint } from "../../lib/map";
+import {
+  applyCameraTarget,
+  planEventsFraming,
+  planSelectionFraming,
+} from "../../lib/mapCamera";
+import { getStyleSwapOptions } from "../../lib/mapStyle";
+import { prefersReducedMotion } from "../../lib/motion";
 import type { EventSummary } from "../../types/event";
 import { LinkrSymbol } from "../ui/BrandMark";
 import { IconButton } from "../ui/IconButton";
@@ -28,51 +44,32 @@ interface MarkerEntry {
   readonly event: EventSummary;
 }
 
+/** Selezione corrente. `source` decide se la mappa deve portare l'evento in vista (lista) o solo se è nascosto (marker). */
+export interface MapSelection {
+  readonly id: string;
+  readonly source: "map" | "list";
+}
+
 interface EventMapProps {
+  /** Eventi da mostrare, già filtrati per categoria. */
   readonly events: readonly EventSummary[];
-  readonly selectedEventId: string | null;
+  /** `false` finché l'elenco non è caricato: mai inquadrare dati parziali o vuoti perché non ancora arrivati. */
+  readonly eventsReady: boolean;
+  /** Cambia solo per una scelta dell'utente (es. categoria) e chiede una nuova inquadratura. Mai per un refresh dei dati. */
+  readonly viewKey: string;
+  readonly selection: MapSelection | null;
   /** La mappa resta montata tra le navigazioni: `false` quando Discover non è la pagina visibile. */
   readonly active: boolean;
-  /** Cambia solo quando serve riquadrare gli eventi (es. nuova categoria): mai per un semplice refresh dei dati. */
-  readonly fitKey: string;
   readonly onSelectEvent: (eventId: string) => void;
+  /** Modalità "scegli un punto" (Quick Create): `null` = spenta. Il tocco sulla mappa propone un punto, non crea nulla. */
+  readonly pick?: MapPickState | null;
+  readonly onPickPoint?: (point: PickedPoint) => void;
 }
 
-const reduceMotionQuery = "(prefers-reduced-motion: reduce)";
-const SMALL_GROUP_MAX_ZOOM = 14.5;
-const LARGE_GROUP_MAX_ZOOM = 13.5;
-const COMPACT_MAP_WIDTH = 768;
-
-function animationDuration(): number {
-  return window.matchMedia(reduceMotionQuery).matches ? 0 : 220;
-}
-
-/** Margini lasciati liberi da header, filtri, anteprima e navigazione sovrapposti alla mappa. */
-function cameraPadding(container: HTMLElement) {
-  const compact = container.clientWidth < COMPACT_MAP_WIDTH;
-  const side = compact ? 40 : 72;
-  // Su schermi bassi (es. landscape) il padding non deve superare lo spazio disponibile.
-  const maxVertical = container.clientHeight * 0.3;
-
-  return {
-    top: Math.min(compact ? 156 : 96, maxVertical),
-    right: side,
-    bottom: Math.min(compact ? 232 : 140, maxVertical),
-    left: side,
-  };
-}
-
-function selectedEventOffset(container: HTMLElement): [number, number] {
-  return [0, container.clientWidth < COMPACT_MAP_WIDTH ? -84 : -56];
-}
-
-function isSameMarkerEvent(a: EventSummary, b: EventSummary): boolean {
-  return a.id === b.id
-    && a.title === b.title
-    && a.category === b.category
-    && a.latitude === b.latitude
-    && a.longitude === b.longitude
-    && a.imageUrl === b.imageUrl;
+/** Richiesta di inquadratura in attesa di dati: si esegue una sola volta e poi si consuma. */
+interface FramingRequest {
+  /** `initial`: primo caricamento (non deve scavalcare una mappa già mossa dall'utente). `view`: scelta esplicita dell'utente. */
+  readonly reason: "initial" | "view";
 }
 
 function createMarkerElement(event: EventSummary, onSelect: () => void): HTMLButtonElement {
@@ -89,7 +86,16 @@ function createMarkerElement(event: EventSummary, onSelect: () => void): HTMLBut
   return button;
 }
 
-export function EventMap({ events, selectedEventId, active, fitKey, onSelectEvent }: EventMapProps) {
+function isSameMarkerEvent(a: EventSummary, b: EventSummary): boolean {
+  return a.id === b.id
+    && a.title === b.title
+    && a.category === b.category
+    && a.latitude === b.latitude
+    && a.longitude === b.longitude
+    && a.imageUrl === b.imageUrl;
+}
+
+export function EventMap({ events, eventsReady, viewKey, selection, active, onSelectEvent, pick = null, onPickPoint }: EventMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markersRef = useRef<Map<string, MarkerEntry>>(new Map());
@@ -97,13 +103,32 @@ export function EventMap({ events, selectedEventId, active, fitKey, onSelectEven
   const onSelectRef = useRef(onSelectEvent);
   const eventsRef = useRef(events);
   const activeRef = useRef(active);
-  const fittedKeyRef = useRef<string | null>(null);
+  const selectionRef = useRef(selection);
+  const pickingRef = useRef(pick !== null);
+  const onPickPointRef = useRef(onPickPoint);
+  const pickMarkerRef = useRef<Marker | null>(null);
+  const framingRef = useRef<FramingRequest | null>({ reason: "initial" });
+  const viewKeyRef = useRef(viewKey);
+  /** `true` quando la camera non è più quella scelta dall'app (gesto dell'utente o selezione): niente inquadrature automatiche sopra. */
+  const adjustedRef = useRef(false);
+  const [cameraAdjusted, setCameraAdjusted] = useState(false);
   const [status, setStatus] = useState<MapStatus>(() => getMapTilerStyleUrl() ? "loading" : "missing-key");
+  /** Cambia con "Riprova": ricrea la mappa dopo un errore di rete sullo stile. */
+  const [attempt, setAttempt] = useState(0);
   const styleUrl = getMapTilerStyleUrl();
+  const hasMappableEvents = useMemo(() => events.some(hasValidCoordinates), [events]);
 
   onSelectRef.current = onSelectEvent;
   eventsRef.current = events;
   activeRef.current = active;
+  selectionRef.current = selection;
+  pickingRef.current = pick !== null;
+  onPickPointRef.current = onPickPoint;
+
+  const markAdjusted = useCallback(() => {
+    adjustedRef.current = true;
+    setCameraAdjusted(true);
+  }, []);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -119,28 +144,51 @@ export function EventMap({ events, selectedEventId, active, fitKey, onSelectEven
     setStatus("loading");
 
     try {
+      // Lo stile si applica dopo i listener (sotto): arriva già alleggerito, senza un primo frame con la cartografia completa.
       map = new MapLibreMap({
         container,
-        style: styleUrl,
         center: MILAN_CENTER,
         zoom: MILAN_INITIAL_ZOOM,
-        minZoom: 9,
-        maxZoom: 18,
+        minZoom: MAP_MIN_ZOOM,
+        maxZoom: MAP_MAX_ZOOM,
         attributionControl: false,
         dragRotate: false,
         pitchWithRotate: false,
+        // Mappa 2D: nessuna inclinazione, né col gesto a due dita né da tastiera.
+        maxPitch: 0,
       });
       mapRef.current = map;
+      map.setPixelRatio(Math.min(window.devicePixelRatio || 1, MAP_MAX_PIXEL_RATIO));
       map.touchZoomRotate.disableRotation();
       map.addControl(new AttributionControl({ compact: false }), "top-left");
+
+      // Una mappa nuova parte da Milano: serve una prima inquadratura sugli eventi.
+      framingRef.current = { reason: "initial" };
+      adjustedRef.current = false;
+      setCameraAdjusted(false);
 
       map.on("load", () => {
         hasLoaded = true;
         if (!disposed) setStatus("ready");
       });
-      map.on("error", () => {
-        if (!disposed && !hasLoaded) setStatus("error");
+      map.on("error", (event) => {
+        if (!disposed && !hasLoaded && isFatalMapError(event)) setStatus("error");
       });
+      // Solo i gesti reali portano un `originalEvent` (trascinamento, pinch, doppio click, tastiera): le transizioni
+      // avviate dall'app (inquadrature, selezioni) no, quindi non si scambiano per navigazione manuale.
+      // Lo zoom con la rotellina è l'eccezione: MapLibre emette `movestart` senza `originalEvent`, quindi si ascolta `wheel`.
+      map.on("movestart", (event) => {
+        if (event.originalEvent) markAdjusted();
+      });
+      map.on("wheel", markAdjusted);
+      // `click` di MapLibre non scatta dopo un trascinamento: pan e pinch non scelgono mai un punto. Fuori dalla modalità non fa nulla.
+      map.on("click", (event) => {
+        if (!pickingRef.current) return;
+        // Un tocco sul segnaposto stesso non è un nuovo punto: il suo ancoraggio sposterebbe il punto di qualche pixel.
+        if (event.originalEvent.target instanceof Element && event.originalEvent.target.closest(".maplibregl-marker")) return;
+        onPickPointRef.current?.({ latitude: event.lngLat.lat, longitude: event.lngLat.lng });
+      });
+      map.setStyle(styleUrl, getStyleSwapOptions());
     } catch {
       setStatus("error");
     }
@@ -156,11 +204,13 @@ export function EventMap({ events, selectedEventId, active, fitKey, onSelectEven
       resizeObserver.disconnect();
       markersRef.current.forEach(({ marker }) => marker.remove());
       markersRef.current.clear();
+      pickMarkerRef.current?.remove();
+      pickMarkerRef.current = null;
       setMarkerEntries([]);
       map?.remove();
       if (mapRef.current === map) mapRef.current = null;
     };
-  }, [styleUrl]);
+  }, [styleUrl, markAdjusted, attempt]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -188,6 +238,33 @@ export function EventMap({ events, selectedEventId, active, fitKey, onSelectEven
     setMarkerEntries([...next.values()]);
   }, [events]);
 
+  // Segnaposto del punto proposto: trascinabile, stesso aspetto di quello del form completo. Segue sempre `pick.point`.
+  const pickLatitude = pick?.point?.latitude ?? null;
+  const pickLongitude = pick?.point?.longitude ?? null;
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || pickLatitude === null || pickLongitude === null) {
+      pickMarkerRef.current?.remove();
+      pickMarkerRef.current = null;
+      return;
+    }
+
+    if (pickMarkerRef.current) {
+      pickMarkerRef.current.setLngLat([pickLongitude, pickLatitude]);
+      return;
+    }
+    const marker = new Marker({ color: "#e84d2f", draggable: true })
+      .setLngLat([pickLongitude, pickLatitude])
+      .addTo(map);
+    marker.on("dragend", () => {
+      const point = marker.getLngLat();
+      onPickPointRef.current?.({ latitude: point.lat, longitude: point.lng });
+    });
+    pickMarkerRef.current = marker;
+  }, [pickLatitude, pickLongitude]);
+
+  const selectedEventId = selection?.id ?? null;
+
   useEffect(() => {
     markersRef.current.forEach(({ element }, eventId) => {
       const selected = eventId === selectedEventId;
@@ -197,62 +274,83 @@ export function EventMap({ events, selectedEventId, active, fitKey, onSelectEven
     // Anche quando i marker cambiano: un marker ricreato da un refresh deve ereditare la selezione corrente.
   }, [selectedEventId, markerEntries]);
 
-  // Selezione: porta l'evento scelto in vista. Non dipende dai dati, così un refresh non sposta la mappa.
+  // Selezione: porta l'evento in vista nell'area libera dagli overlay. Non dipende dai dati, così un refresh non sposta la mappa.
   useEffect(() => {
     const map = mapRef.current;
     const container = containerRef.current;
-    if (!selectedEventId || !activeRef.current || !map || !container) return;
+    if (!selection || !activeRef.current || !map || !container) return;
 
-    const selectedEvent = eventsRef.current.find((event) => event.id === selectedEventId);
+    const selectedEvent = eventsRef.current.find((event) => event.id === selection.id);
     if (!selectedEvent || !hasValidCoordinates(selectedEvent)) return;
 
-    map.easeTo({
-      center: [selectedEvent.longitude, selectedEvent.latitude],
-      zoom: Math.max(map.getZoom(), 13),
-      offset: selectedEventOffset(container),
-      duration: animationDuration(),
-      essential: true,
-    });
-  }, [selectedEventId]);
+    const target = planSelectionFraming(map, container, selectedEvent, { onlyIfHidden: selection.source === "map" });
+    if (!target) return;
 
-  // Riquadro iniziale: una sola volta per `fitKey`. Tornare su Discover o aggiornare i dati non tocca la vista.
+    applyCameraTarget(map, target, { animate: true, kind: "selection" });
+    markAdjusted();
+  }, [selection, markAdjusted]);
+
+  // Una nuova `viewKey` (categoria scelta dall'utente) apre una richiesta di inquadratura.
   useEffect(() => {
+    if (viewKeyRef.current === viewKey) return;
+    viewKeyRef.current = viewKey;
+    framingRef.current = { reason: "view" };
+  }, [viewKey]);
+
+  // Inquadratura: eseguita una sola volta per richiesta, e solo con i dati che le appartengono (`eventsReady`).
+  // Refresh silenziosi, ritorno da altre pagine e resize non aprono richieste, quindi non spostano mai la camera.
+  useEffect(() => {
+    const request = framingRef.current;
+    if (!request || !eventsReady || !active) return;
+
     const map = mapRef.current;
     const container = containerRef.current;
-    if (!active || !map || !container || fittedKeyRef.current === fitKey) return;
-    if (container.clientWidth === 0 || container.clientHeight === 0) return;
+    if (!map || !container || container.clientWidth === 0 || container.clientHeight === 0) return;
 
+    framingRef.current = null;
+    // Un evento appena portato in vista (es. "Visualizza sulla mappa", che toglie anche il filtro) vince sull'inquadratura generale.
+    if (request.reason === "view" && selectionRef.current) return;
+    // Categoria senza eventi: stato vuoto, la mappa resta dov'è.
     const mappableEvents = events.filter(hasValidCoordinates);
     if (mappableEvents.length === 0) return;
-    fittedKeyRef.current = fitKey;
+    // Se l'utente ha già mosso la mappa prima che arrivassero i dati, la sua scelta vince sull'inquadratura iniziale.
+    if (request.reason === "initial" && adjustedRef.current) return;
 
-    if (mappableEvents.length === 1) {
-      const [event] = mappableEvents;
-      map.easeTo({
-        center: [event.longitude, event.latitude],
-        zoom: 14.25,
-        offset: selectedEventOffset(container),
-        duration: animationDuration(),
-        essential: true,
-      });
-      return;
-    }
+    const target = planEventsFraming(map, container, mappableEvents);
+    if (!target) return;
 
-    const bounds = new LngLatBounds();
-    mappableEvents.forEach((event) => bounds.extend([event.longitude, event.latitude]));
+    applyCameraTarget(map, target, { animate: map.loaded(), kind: "framing" });
+    adjustedRef.current = false;
+    setCameraAdjusted(false);
+  }, [events, eventsReady, active, viewKey]);
 
-    map.fitBounds(bounds, {
-      padding: cameraPadding(container),
-      maxZoom: mappableEvents.length <= 3 ? SMALL_GROUP_MAX_ZOOM : LARGE_GROUP_MAX_ZOOM,
-      duration: animationDuration(),
-      essential: true,
-    });
-  }, [active, events, fitKey]);
+  const reframe = useCallback(() => {
+    const map = mapRef.current;
+    const container = containerRef.current;
+    if (!map || !container) return;
+
+    const target = planEventsFraming(map, container, eventsRef.current.filter(hasValidCoordinates));
+    if (!target) return;
+
+    applyCameraTarget(map, target, { animate: true, kind: "framing" });
+    adjustedRef.current = false;
+    setCameraAdjusted(false);
+  }, []);
+
+  const zoomBy = useCallback((direction: "in" | "out") => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    markAdjusted();
+    const options = { duration: prefersReducedMotion() ? 0 : 220 };
+    if (direction === "in") map.zoomIn(options);
+    else map.zoomOut(options);
+  }, [markAdjusted]);
 
   const unavailable = status === "missing-key" || status === "error";
 
   return (
-    <div className="event-map" data-status={status}>
+    <div className="event-map" data-status={status} data-picking={pick !== null ? "true" : undefined}>
       <div
         ref={containerRef}
         className="event-map__canvas"
@@ -266,14 +364,28 @@ export function EventMap({ events, selectedEventId, active, fitKey, onSelectEven
       )}
 
       {!unavailable && (
-        <div className="map-controls glass glass--strong" role="group" aria-label="Zoom della mappa">
-          <IconButton variant="bare" label="Ingrandisci la mappa" onClick={() => mapRef.current?.zoomIn({ duration: animationDuration() })}>
-            <Plus size={20} strokeWidth={2.4} aria-hidden="true" />
-          </IconButton>
-          <span className="map-controls__divider" aria-hidden="true" />
-          <IconButton variant="bare" label="Riduci la mappa" onClick={() => mapRef.current?.zoomOut({ duration: animationDuration() })}>
-            <Minus size={20} strokeWidth={2.4} aria-hidden="true" />
-          </IconButton>
+        <div className="map-controls" data-map-inset="right">
+          <div className="map-controls__zoom glass" role="group" aria-label="Zoom della mappa">
+            <IconButton variant="bare" label="Ingrandisci la mappa" onClick={() => zoomBy("in")}>
+              <Plus size={20} strokeWidth={2.4} aria-hidden="true" />
+            </IconButton>
+            <span className="map-controls__divider" aria-hidden="true" />
+            <IconButton variant="bare" label="Riduci la mappa" onClick={() => zoomBy("out")}>
+              <Minus size={20} strokeWidth={2.4} aria-hidden="true" />
+            </IconButton>
+          </div>
+
+          {/* Compare solo dopo una navigazione manuale o una selezione: riporta la vista sugli eventi mostrati. */}
+          {cameraAdjusted && hasMappableEvents && (
+            <IconButton
+              variant="glass"
+              className="map-controls__reframe content-reveal"
+              label="Inquadra di nuovo gli eventi"
+              onClick={reframe}
+            >
+              <Focus size={19} strokeWidth={2.3} aria-hidden="true" />
+            </IconButton>
+          )}
         </div>
       )}
 
@@ -293,6 +405,11 @@ export function EventMap({ events, selectedEventId, active, fitKey, onSelectEven
               ? "La basemap non è configurata in questo ambiente. Puoi continuare dalla lista eventi."
               : "Il provider cartografico non risponde. Gli eventi restano disponibili dalla lista."}
           </p>
+          {status === "error" ? (
+            <button className="button-secondary mt-4 inline-flex items-center gap-2" type="button" onClick={() => setAttempt((current) => current + 1)}>
+              <RotateCcw size={16} aria-hidden="true" /> Riprova
+            </button>
+          ) : null}
         </div>
       )}
 

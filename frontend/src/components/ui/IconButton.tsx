@@ -1,9 +1,10 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, ReactNode, Ref } from "react";
 
 interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "aria-label"> {
   /** Obbligatorio: il pulsante non ha testo visibile. */
   readonly label: string;
   readonly variant?: "solid" | "glass" | "bare" | "accent";
+  readonly ref?: Ref<HTMLButtonElement>;
   readonly children: ReactNode;
 }
 

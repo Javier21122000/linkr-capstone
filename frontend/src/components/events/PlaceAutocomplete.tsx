@@ -19,6 +19,8 @@ interface PlaceAutocompleteProps {
   readonly value: string;
   readonly error?: string;
   readonly disabled?: boolean;
+  /** Per chi scrive un nome libero (es. punto scelto sulla mappa): "Nessun luogo trovato" non è un errore e non va mostrato. */
+  readonly hideEmptyNotice?: boolean;
   readonly onChange: (value: string) => void;
   readonly onSelect: (suggestion: PlaceSuggestion) => void;
 }
@@ -29,6 +31,7 @@ export function PlaceAutocomplete({
   value,
   error,
   disabled = false,
+  hideEmptyNotice = false,
   onChange,
   onSelect,
 }: PlaceAutocompleteProps) {
@@ -181,7 +184,7 @@ export function PlaceAutocomplete({
       {error ? <p id={`${id}-error`} className="field-error mt-2">{error}</p> : null}
       <div id={statusId} className="mt-2 min-h-5 text-xs font-semibold leading-5 text-muted" role="status" aria-live="polite">
         {status === "loading" ? "Ricerca luoghi…" : null}
-        {status === "success" && results.length === 0 ? "Nessun luogo trovato nell’area di Milano." : null}
+        {status === "success" && results.length === 0 && !hideEmptyNotice ? "Nessun luogo trovato nell’area di Milano." : null}
         {status === "error" ? (
           <span>
             {searchError}
@@ -200,7 +203,7 @@ export function PlaceAutocomplete({
       </div>
 
       {showPanel && results.length > 0 ? (
-        <div className="absolute inset-x-0 top-full z-30 mt-1 overflow-hidden rounded-xl border border-line bg-surface shadow-xl">
+        <div data-place-results="" className="absolute inset-x-0 top-full z-30 mt-1 overflow-hidden rounded-xl border border-line bg-surface shadow-xl">
           <ul id={listboxId} role="listbox" aria-label="Suggerimenti luoghi" className="max-h-72 overflow-y-auto py-1">
             {results.map((suggestion, index) => (
               <li

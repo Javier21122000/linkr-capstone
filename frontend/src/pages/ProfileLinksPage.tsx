@@ -5,6 +5,8 @@ import { Link } from "react-router";
 
 import { UserAvatar } from "../components/auth/UserAvatar";
 import { WriteMessageLink } from "../components/chat/WriteMessageLink";
+import { EmptyState } from "../components/ui/EmptyState";
+import { SegmentedControl } from "../components/ui/SegmentedControl";
 import { useAuth } from "../context/AuthContext";
 import { useLinkRequestCount } from "../context/LinkRequestCountContext";
 import {
@@ -13,6 +15,7 @@ import {
   getLinkRequestErrorMessage,
   getLinkRequests,
 } from "../lib/linkRequests";
+import { staggerStyle } from "../lib/motion";
 import type { LinkRequestDirectionFilter, LinkRequestResponse, LinkRequestStatus } from "../types/linkRequest";
 import type { PageResponse } from "../types/people";
 
@@ -207,26 +210,13 @@ export function ProfileLinksPage() {
         <h1 id="profile-links-title" className="mt-2 text-4xl font-extrabold tracking-[-0.05em] text-ink sm:text-5xl">I miei Link</h1>
         <p className="mt-3 max-w-xl text-sm leading-6 text-muted">Gestisci le richieste nate dagli eventi e ritrova le persone con cui sei in contatto.</p>
 
-        <div className="scrollbar-none mt-7 flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Viste delle richieste Link">
-          {VIEW_OPTIONS.map((option) => (
-            <button
-              className="filter-chip"
-              type="button"
-              aria-pressed={view === option.id}
-              data-selected={view === option.id}
-              key={option.id}
-              onClick={() => changeView(option.id)}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl className="mt-7" label="Viste delle richieste Link" options={VIEW_OPTIONS} value={view} onChange={changeView} />
 
-        {feedback ? <div className="form-message form-message--success mt-5" role="status">{feedback}</div> : null}
+        {feedback ? <div className="form-message form-message--success content-reveal mt-5" role="status">{feedback}</div> : null}
 
         {state.status === "loading" ? (
           <div className="mt-6 space-y-3" aria-busy="true" aria-label="Caricamento richieste Link">
-            {Array.from({ length: 3 }, (_, index) => <div className="h-32 animate-pulse rounded-2xl bg-line/70 motion-reduce:animate-none" key={index} />)}
+            {Array.from({ length: 3 }, (_, index) => <div className="h-32 animate-pulse rounded-[1.5rem] bg-white/70 ring-1 ring-black/5 motion-reduce:animate-none" key={index} />)}
           </div>
         ) : null}
 
@@ -240,22 +230,30 @@ export function ProfileLinksPage() {
         ) : null}
 
         {loadedPage && loadedPage.items.length === 0 ? (
-          <div className="mt-6 rounded-2xl border border-line bg-surface p-6 text-center">
-            {view === "outgoing" ? <Send className="mx-auto text-linkr-strong" size={28} aria-hidden="true" /> : <Link2 className="mx-auto text-linkr-strong" size={28} aria-hidden="true" />}
-            <p className="mt-3 font-extrabold text-ink">{emptyCopy.title}</p>
-            <p className="mt-2 text-sm leading-6 text-muted">{emptyCopy.description}</p>
+          <div className="surface-card content-reveal mt-6 px-6 py-10">
+            <EmptyState
+              className="mx-auto max-w-sm"
+              illustration={(
+                <span className="grid size-14 place-items-center rounded-full bg-linkr-soft text-linkr-strong">
+                  {view === "outgoing" ? <Send size={26} aria-hidden="true" /> : <Link2 size={26} aria-hidden="true" />}
+                </span>
+              )}
+              title={emptyCopy.title}
+              description={emptyCopy.description}
+              action={view === "outgoing" ? <Link className="button-secondary inline-flex items-center" to="/people">Scopri persone</Link> : undefined}
+            />
           </div>
         ) : null}
 
         {loadedPage && loadedPage.items.length > 0 ? (
           <>
-            <ul className="mt-6 divide-y divide-line border-y border-line">
-              {loadedPage.items.map((request) => {
+            <ul className="mt-6 space-y-3">
+              {loadedPage.items.map((request, index) => {
                 const pendingAction = pendingAnswers[request.requestId];
                 const pending = pendingAction !== undefined;
                 const actionError = answerErrors[request.requestId];
                 return (
-                  <li className="py-5" key={request.requestId} aria-busy={pending}>
+                  <li className="surface-card stagger-in p-5" style={staggerStyle(index)} key={request.requestId} aria-busy={pending}>
                     <div className="flex gap-3">
                       <UserAvatar displayName={request.otherUser.displayName} avatarUrl={request.otherUser.avatarUrl} className="size-12 text-sm" />
                       <div className="min-w-0 flex-1">
@@ -264,7 +262,7 @@ export function ProfileLinksPage() {
                             <p className="truncate font-extrabold text-ink">{request.otherUser.displayName}</p>
                             <p className="truncate text-sm font-semibold text-muted">@{request.otherUser.username}</p>
                           </div>
-                          <span className="rounded-full bg-linkr-soft px-2.5 py-1 text-xs font-extrabold text-linkr-strong">{requestStatusLabel(request.status)}</span>
+                          <span className="link-status" data-status={request.status}>{requestStatusLabel(request.status)}</span>
                         </div>
 
                         {request.eventId && request.eventTitle ? (

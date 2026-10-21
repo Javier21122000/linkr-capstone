@@ -8,12 +8,21 @@ import { EventImage } from "./EventImage";
 
 interface EventPreviewProps {
   readonly event: EventSummary;
+  /** L'anteprima sta uscendo: resta visibile per l'animazione ma non è più interattiva né letta come contenuto. */
+  readonly leaving?: boolean;
   readonly onClose: () => void;
 }
 
-export function EventPreview({ event, onClose }: EventPreviewProps) {
+export function EventPreview({ event, leaving = false, onClose }: EventPreviewProps) {
   return (
-    <article className="event-preview glass glass--strong content-reveal" aria-labelledby="selected-event-title">
+    <article
+      className="event-preview glass glass--strong content-reveal"
+      aria-labelledby="selected-event-title"
+      aria-hidden={leaving || undefined}
+      inert={leaving || undefined}
+      data-leaving={leaving || undefined}
+      data-map-inset={leaving ? undefined : "bottom"}
+    >
       <div className="event-preview__image">
         <EventImage imageUrl={event.imageUrl} imageAlt={event.imageAlt} category={event.category} compact className="size-full object-cover" />
       </div>

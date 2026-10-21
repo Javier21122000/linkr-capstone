@@ -2,17 +2,43 @@
  * Liquid Glass — primitiva unica.
  * Usare solo su elementi "di controllo" sovrapposti alla mappa o ai contenuti
  * (navigazione, filtri, controlli, anteprime). Testi lunghi e form restano opachi.
+ *
+ * Materiali e misure vivono in tokens.css. Le preferenze di accessibilità cambiano i token (non le classi):
+ * ogni superficie che li usa passa da sola al fallback opaco.
  */
 .glass {
   border: 1px solid var(--glass-border);
-  background: var(--glass-bg);
+  background: var(--glass-sheen), var(--glass-bg);
   box-shadow: var(--glass-shadow);
   -webkit-backdrop-filter: var(--glass-filter);
   backdrop-filter: var(--glass-filter);
 }
 
+/* Contenuti informativi (anteprime, messaggi): più densa, la mappa resta solo un'idea sotto. */
 .glass--strong {
-  background: var(--glass-bg-strong);
+  background: var(--glass-sheen-soft), var(--glass-bg-strong);
+}
+
+/*
+ * Pannelli grandi con molto testo (lista eventi, bottom sheet): vetro vero ma più denso e più sfocato dei controlli.
+ * Il blur grande è tenuto lontano dai testi dalla densità del velo (~78%); la sfocatura è l'unico costo per frame della mappa
+ * in movimento, ed è il motivo per cui i pannelli sono pochi e mai annidati.
+ */
+.glass--panel {
+  --glass-filter: var(--glass-filter-panel);
+  background: var(--glass-sheen-soft), var(--glass-bg-panel);
+}
+
+/* Dialoghi con campi (Quick Create): stesso vetro del pannello ma più denso. */
+.glass--sheet {
+  --glass-filter: var(--glass-filter-panel);
+  background: var(--glass-sheen-soft), var(--glass-bg-sheet);
+}
+
+/* Superficie "pozzetto" dentro il vetro: righe cliccabili, riepiloghi, campi. Mai vetro su vetro: qui niente blur. */
+.glass-well {
+  border: 1px solid var(--glass-well-ring);
+  background: var(--glass-well);
 }
 
 .glass--dark {
@@ -26,27 +52,36 @@
 
 /* Browser senza backdrop-filter: superficie quasi opaca, nessuna perdita di leggibilità. */
 @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
-  .glass,
-  .glass--strong {
-    background: var(--glass-fallback);
-  }
-
-  .glass--dark {
-    background: var(--glass-fallback-dark);
+  :root {
+    --glass-bg: var(--glass-fallback);
+    --glass-bg-strong: var(--glass-fallback);
+    --glass-bg-panel: var(--glass-fallback);
+    --glass-bg-sheet: var(--glass-fallback);
+    --glass-well: var(--glass-fallback);
+    --glass-well-strong: var(--glass-fallback);
+    --glass-bg-dark: var(--glass-fallback-dark);
+    --glass-sheen: none;
+    --glass-sheen-soft: none;
+    --glass-filter: none;
+    --glass-filter-panel: none;
   }
 }
 
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
-  .glass,
-  .glass--strong {
-    background: var(--glass-fallback);
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-  }
-
-  .glass--dark {
-    background: var(--glass-fallback-dark);
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
+  :root {
+    --glass-bg: var(--glass-fallback);
+    --glass-bg-strong: var(--glass-fallback);
+    --glass-bg-panel: var(--glass-fallback);
+    --glass-bg-sheet: var(--glass-fallback);
+    --glass-well: var(--glass-fallback);
+    --glass-well-strong: var(--glass-fallback);
+    --glass-bg-dark: var(--glass-fallback-dark);
+    --glass-sheen: none;
+    --glass-sheen-soft: none;
+    --glass-filter: none;
+    --glass-filter-panel: none;
+    --glass-border: rgb(24 24 22 / 0.22);
+    --glass-well-ring: rgb(24 24 22 / 0.3);
+    --glass-divider: rgb(24 24 22 / 0.2);
   }
 }

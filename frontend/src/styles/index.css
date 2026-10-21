@@ -4,6 +4,7 @@
 @import "./layout.css";
 @import "./discover.css";
 @import "./pages.css";
+@import "./quick-create.css";
 
 :root {
   color-scheme: light;
@@ -201,7 +202,7 @@ a {
 /* Variante vetro: controlli flottanti sopra la mappa (stessi token di .glass). */
 .icon-button--glass {
   border-color: var(--glass-border);
-  background: var(--glass-bg-strong);
+  background: var(--glass-sheen), var(--glass-bg);
   box-shadow: var(--glass-shadow);
   -webkit-backdrop-filter: var(--glass-filter);
   backdrop-filter: var(--glass-filter);
@@ -209,11 +210,11 @@ a {
 
 @media (hover: hover) {
   .icon-button--glass:hover:not(:disabled) {
-    background: rgb(255 255 255 / 0.96);
+    background: var(--glass-sheen), rgb(255 255 255 / 0.74);
   }
 }
 
-/* Dentro un gruppo già in vetro. */
+/* Dentro un gruppo già in vetro: al passaggio si accende una lente chiara. */
 .icon-button--bare {
   border-color: transparent;
   background: transparent;
@@ -221,8 +222,13 @@ a {
 
 @media (hover: hover) {
   .icon-button--bare:hover:not(:disabled) {
-    background: rgb(24 24 22 / 0.06);
+    background: rgb(255 255 255 / 0.66);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.9), 0 1px 3px rgb(24 24 22 / 0.1);
   }
+}
+
+.icon-button--bare:active:not(:disabled) {
+  background: rgb(24 24 22 / 0.07);
 }
 
 .icon-button--accent {
@@ -365,10 +371,14 @@ a {
 }
 
 .auth-panel {
-  border: 1px solid var(--color-line);
+  border: 1px solid var(--glass-well-ring);
   border-radius: 1.75rem;
-  background: var(--color-surface);
+  background: rgb(255 255 255 / 0.92);
   padding: 1.5rem;
+  box-shadow:
+    0 1px 2px rgb(24 24 22 / 0.04),
+    0 24px 48px -28px rgb(24 24 22 / 0.3),
+    inset 0 1px 0 rgb(255 255 255 / 0.95);
 }
 
 .form-label {
@@ -547,15 +557,21 @@ a {
 
 .create-event-layout {
   display: grid;
+  /* Senza una traccia esplicita la colonna prende la larghezza minima del figlio più largo e sfora lo schermo sotto ~375px. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 1.25rem;
 }
 
 .create-event-card,
 .create-event-location {
-  border: 1px solid var(--color-line);
+  border: 1px solid var(--glass-well-ring);
   border-radius: 1.5rem;
-  background: var(--color-surface);
+  background: rgb(255 255 255 / 0.9);
   padding: 1.25rem;
+  box-shadow:
+    0 1px 2px rgb(24 24 22 / 0.04),
+    0 14px 30px -20px rgb(24 24 22 / 0.24),
+    inset 0 1px 0 rgb(255 255 255 / 0.95);
 }
 
 .create-event-card__icon {
@@ -752,7 +768,20 @@ a {
   *::after {
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
     animation-duration: 0.01ms !important;
+    /* Senza questo un ingresso scaglionato terrebbe le righe invisibili fino alla fine del ritardo. */
+    animation-delay: 0ms !important;
     animation-iteration-count: 1 !important;
+    /* Un ingresso "backwards" terrebbe l'elemento invisibile finché il primo fotogramma non avvia l'animazione: senza riempimento si vede subito. */
+    animation-fill-mode: none !important;
+  }
+
+  /* Gli ingressi sono pura decorazione: con "riduci animazioni" non esistono, così nessun contenuto dipende dal primo fotogramma. */
+  .stagger-in,
+  .app-content,
+  .discover-host,
+  .content-reveal {
+    animation: none !important;
   }
 }

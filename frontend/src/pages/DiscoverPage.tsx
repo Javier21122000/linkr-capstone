@@ -1,16 +1,40 @@
 import { List, RotateCcw } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router";
 
 import { CategoryFilterBar } from "../components/events/CategoryFilterBar";
 import { EventList } from "../components/events/EventList";
-import { EventMap } from "../components/events/EventMap";
+import type { MapSelection } from "../components/events/EventMap";
 import { EventPreview } from "../components/events/EventPreview";
+import { MapNotice } from "../components/events/MapNotice";
+import { QuickCreate } from "../components/events/QuickCreate";
+import { useLeaving } from "../hooks/useLeaving";
 import { EmptyEventsIllustration } from "../components/ui/EmptyEventsIllustration";
 import { EmptyState } from "../components/ui/EmptyState";
 import { GlassSurface } from "../components/ui/GlassSurface";
 import { categoryOptions } from "../lib/eventPresentation";
-import { getEvents, getEventsErrorMessage, isRequestCancelled } from "../lib/events";
-import type { EventCategory, EventSummary } from "../types/event";
+import { getEvents, getEventsErrorMessage, isRequestCancelled, toEventSummary } from "../lib/events";
+import { hasValidCoordinates } from "../lib/map";
+import type { MapPickState } from "../lib/map";
+import { readMapFocusRequest } from "../lib/navigation";
+import type { EventCategory, EventDetail, EventSummary } from "../types/event";
+
+// MapLibre pesa più di tutto il resto dell'app: si scarica solo quando Discover viene davvero mostrato (non su login, dettaglio evento...).
+// Discover resta montato dopo la prima visita, quindi la mappa si carica una volta sola e il keep-alive non cambia.
+const EventMap = lazy(() => import("../components/events/EventMap").then((module) => ({ default: module.EventMap })));
+
+/** Stesso contenitore e stesso stato "loading" della mappa vera, così layout e indicatore non saltano quando il codice arriva. */
+function MapPlaceholder() {
+  return (
+    <div className="event-map" data-status="loading">
+      <div className="event-map__canvas" aria-hidden="true" />
+      <div className="event-map__loading" role="status">
+        <span className="event-map__loading-dot" aria-hidden="true" />
+        Caricamento mappa
+      </div>
+    </div>
+  );
+}
 
 type EventsState =
   | { readonly status: "loading" }
@@ -21,6 +45,15 @@ const NO_EVENTS: readonly EventSummary[] = [];
 
 function areSameEvents(a: readonly EventSummary[], b: readonly EventSummary[]): boolean {
   return a.length === b.length && a.every((event, index) => JSON.stringify(event) === JSON.stringify(b[index]));
+}
+
+/** Avviso sopra la mappa generato da Discover (es. filtro tolto per mostrare un evento). */
+interface DiscoverNotice {
+  readonly key: number;
+  readonly title: string;
+  readonly detail?: string;
+  readonly actionLabel?: string;
+  readonly onAction?: () => void;
 }
 
 interface DiscoverPageProps {
@@ -47,24 +80,31 @@ export function DiscoverPage({ active }: DiscoverPageProps) {
   const [activeCategory, setActiveCategory] = useState<EventCategory | null>(null);
   const [requestKey, setRequestKey] = useState(0);
   const [eventsState, setEventsState] = useState<EventsState>({ status: "loading" });
-  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [selection, setSelection] = useState<MapSelection | null>(null);
   const [listOpen, setListOpen] = useState(false);
+  const [mapPick, setMapPick] = useState<MapPickState | null>(null);
+  const [notice, setNotice] = useState<DiscoverNotice | null>(null);
   const listTriggerRef = useRef<HTMLButtonElement>(null);
   const isDesktop = useDesktopDiscoveryLayout();
-  const categoryRef = useRef(activeCategory);
   const eventsStatusRef = useRef(eventsState.status);
   const wasActiveRef = useRef(active);
   const refreshControllerRef = useRef<AbortController | null>(null);
+  const focusControllerRef = useRef<AbortController | null>(null);
+  const handledFocusRef = useRef<number | null>(null);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const focusRequest = readMapFocusRequest(location.state);
 
-  categoryRef.current = activeCategory;
   eventsStatusRef.current = eventsState.status;
 
+  // Si carica l'elenco completo una sola volta: la categoria è un filtro locale. Cambiare filtro è quindi istantaneo e
+  // sincrono, senza richieste in volo che possano arrivare fuori ordine e senza dati di una categoria sotto la chiave di un'altra.
   useEffect(() => {
     const controller = new AbortController();
     refreshControllerRef.current?.abort();
     setEventsState({ status: "loading" });
 
-    void getEvents(activeCategory ?? undefined, controller.signal)
+    void getEvents(undefined, controller.signal)
       .then((events) => setEventsState({ status: "success", events }))
       .catch((error: unknown) => {
         if (!isRequestCancelled(error)) {
@@ -73,7 +113,7 @@ export function DiscoverPage({ active }: DiscoverPageProps) {
       });
 
     return () => controller.abort();
-  }, [activeCategory, requestKey]);
+  }, [requestKey]);
 
   // Al ritorno su Discover i dati si aggiornano in silenzio: la mappa non si svuota e la vista resta dov'era.
   useEffect(() => {
@@ -87,14 +127,12 @@ export function DiscoverPage({ active }: DiscoverPageProps) {
     }
     if (eventsStatusRef.current !== "success") return;
 
-    const category = categoryRef.current;
     const controller = new AbortController();
     refreshControllerRef.current?.abort();
     refreshControllerRef.current = controller;
 
-    void getEvents(category ?? undefined, controller.signal)
+    void getEvents(undefined, controller.signal)
       .then((fresh) => {
-        if (categoryRef.current !== category) return;
         setEventsState((current) => (
           current.status === "success" && areSameEvents(current.events, fresh)
             ? current
@@ -106,35 +144,139 @@ export function DiscoverPage({ active }: DiscoverPageProps) {
       });
   }, [active]);
 
-  useEffect(() => () => refreshControllerRef.current?.abort(), []);
+  useEffect(() => () => {
+    refreshControllerRef.current?.abort();
+    focusControllerRef.current?.abort();
+  }, []);
 
-  const events = eventsState.status === "success" ? eventsState.events : NO_EVENTS;
+  const allEvents = eventsState.status === "success" ? eventsState.events : NO_EVENTS;
+  const events = useMemo(
+    () => (activeCategory ? allEvents.filter((event) => event.category === activeCategory) : allEvents),
+    [allEvents, activeCategory],
+  );
+  const selectedEventId = selection?.id ?? null;
   const selectedEvent = events.find((event) => event.id === selectedEventId) ?? null;
+  // L'anteprima esce con un breve movimento quando si chiude o si cambia filtro, invece di sparire di colpo.
+  const preview = useLeaving(selectedEvent && !mapPick ? selectedEvent : null);
   const selectedLabel = categoryOptions.find((option) => option.value === activeCategory)?.label ?? "Tutte";
 
+  // Un refresh può togliere l'evento selezionato (annullato, terminato): la selezione non deve restare appesa.
   useEffect(() => {
-    if (eventsState.status === "success" && selectedEventId && !eventsState.events.some((event) => event.id === selectedEventId)) {
-      setSelectedEventId(null);
+    if (eventsState.status === "success" && selectedEventId && !events.some((event) => event.id === selectedEventId)) {
+      setSelection(null);
     }
-  }, [eventsState, selectedEventId]);
+  }, [eventsState.status, events, selectedEventId]);
 
   const closeList = useCallback(() => {
     setListOpen(false);
     window.requestAnimationFrame(() => listTriggerRef.current?.focus());
   }, []);
-  const selectFromMap = useCallback((eventId: string) => setSelectedEventId(eventId), []);
+  const selectFromMap = useCallback((eventId: string) => setSelection({ id: eventId, source: "map" }), []);
   const selectFromList = useCallback((eventId: string) => {
-    setSelectedEventId(eventId);
+    setSelection({ id: eventId, source: "list" });
     if (!isDesktop) closeList();
   }, [closeList, isDesktop]);
 
+  // Evento appena pubblicato con Quick Create: entra nell'elenco in ordine di inizio, senza ricaricare né azzerare la vista.
+  // Se il filtro attivo lo nasconde, il filtro resta com'è e l'avviso di Quick Create offre il link al dettaglio.
+  const addCreatedEvent = useCallback((created: EventDetail): "shown" | "hidden-by-filter" => {
+    const summary = toEventSummary(created);
+    setEventsState((current) => {
+      if (current.status !== "success") return current;
+      const others = current.events.filter((event) => event.id !== summary.id);
+      const events = [...others, summary].sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt) || a.title.localeCompare(b.title, "it"));
+      return { status: "success", events };
+    });
+    if (activeCategory === null || activeCategory === summary.category) {
+      setSelection({ id: summary.id, source: "list" });
+      return "shown";
+    }
+    return "hidden-by-filter";
+  }, [activeCategory]);
+
   function selectCategory(category: EventCategory | null) {
-    setSelectedEventId(null);
+    setSelection(null);
     setActiveCategory(category);
   }
 
+  /**
+   * Porta un evento in vista sulla mappa già aperta: seleziona, inquadra e mostra l'anteprima. Non crea mappe né ricarica la pagina.
+   * Se il filtro categoria lo nasconde, il filtro viene tolto e un avviso lo dice (con "Ripristina"): il marker non "sparisce" in silenzio.
+   * Un evento non ancora nell'elenco (appena creato altrove) si cerca con un aggiornamento prima di dire che non c'è.
+   */
+  const focusEventOnMap = useCallback(async (eventId: string) => {
+    focusControllerRef.current?.abort();
+    const controller = new AbortController();
+    focusControllerRef.current = controller;
+
+    let known = allEvents;
+    let event = known.find((candidate) => candidate.id === eventId);
+    if (!event) {
+      try {
+        known = await getEvents(undefined, controller.signal);
+        if (controller.signal.aborted) return;
+        setEventsState({ status: "success", events: known });
+        event = known.find((candidate) => candidate.id === eventId);
+      } catch (error) {
+        if (isRequestCancelled(error)) return;
+      }
+    }
+
+    if (!event || !hasValidCoordinates(event)) {
+      setNotice({
+        key: Date.now(),
+        title: "Questo evento non è sulla mappa",
+        detail: "È terminato, è stato annullato o non ha una posizione.",
+      });
+      return;
+    }
+
+    setListOpen(false);
+    const previousCategory = activeCategory;
+    if (previousCategory !== null && event.category !== previousCategory) {
+      setActiveCategory(null);
+      setNotice({
+        key: Date.now(),
+        title: "Filtro tolto per mostrarti l’evento",
+        detail: `Era attivo «${categoryOptions.find((option) => option.value === previousCategory)?.label ?? "categoria"}».`,
+        actionLabel: "Ripristina",
+        onAction: () => selectCategory(previousCategory),
+      });
+    }
+    setSelection({ id: eventId, source: "list" });
+  // `selectCategory` usa solo setter: non serve tra le dipendenze.
+  }, [allEvents, activeCategory]);
+
+  // "Visualizza sulla mappa" da un'altra pagina: arriva con lo stato di navigazione. Si gestisce una volta e lo stato si toglie
+  // dalla voce di cronologia, così tornare indietro o ricaricare non rimette la camera dove l'utente non la vuole più.
+  const focusEventId = focusRequest?.eventId;
+  const focusRequestedAt = focusRequest?.requestedAt;
+  useEffect(() => {
+    if (!active || focusEventId === undefined || focusRequestedAt === undefined) return;
+    if (handledFocusRef.current === focusRequestedAt || eventsState.status === "loading") return;
+
+    handledFocusRef.current = focusRequestedAt;
+    navigate({ pathname: location.pathname, search: location.search }, { replace: true, state: null });
+    if (eventsState.status === "error") {
+      setNotice({ key: Date.now(), title: "Non riesco a mostrarti l’evento", detail: "L’elenco degli eventi non è disponibile adesso." });
+      return;
+    }
+    void focusEventOnMap(focusEventId);
+  }, [active, eventsState.status, focusEventId, focusRequestedAt, focusEventOnMap, location.pathname, location.search, navigate]);
+
+  // Un avviso non resta appeso a una pagina nascosta.
+  useEffect(() => {
+    if (!active) setNotice(null);
+  }, [active]);
+  const dismissNotice = useCallback(() => setNotice(null), []);
+
   return (
     <div className="discover" data-layout={isDesktop ? "split" : "overlay"}>
+      <h1 id="discover-title" className="sr-only">Scopri eventi a Milano</h1>
+
+      {/* Ordine di lettura e di tabulazione: filtri → lista → mappa (i filtri comandano la lista). Il posizionamento è tutto CSS. */}
+      <CategoryFilterBar activeCategory={activeCategory} onSelect={selectCategory} />
+
       {isDesktop && (
         <EventList
           variant="panel"
@@ -151,18 +293,18 @@ export function DiscoverPage({ active }: DiscoverPageProps) {
       )}
 
       <section className="discover-map-stage" aria-labelledby="discover-title">
-        <h1 id="discover-title" className="sr-only">Scopri eventi a Milano</h1>
-
-        {/* I filtri precedono la mappa nel DOM: la tastiera li raggiunge prima dei marker (posizione: CSS assoluto). */}
-        <CategoryFilterBar activeCategory={activeCategory} onSelect={selectCategory} />
-
-        <EventMap
-          events={events}
-          selectedEventId={selectedEventId}
-          active={active}
-          fitKey={activeCategory ?? "all"}
-          onSelectEvent={selectFromMap}
-        />
+        <Suspense fallback={<MapPlaceholder />}>
+          <EventMap
+            events={events}
+            eventsReady={eventsState.status === "success"}
+            viewKey={activeCategory ?? "all"}
+            selection={selection}
+            active={active}
+            onSelectEvent={selectFromMap}
+            pick={mapPick}
+            onPickPoint={(point) => setMapPick({ point })}
+          />
+        </Suspense>
 
         <p className="sr-only" aria-live="polite">
           {eventsState.status === "loading" && "Caricamento eventi in corso"}
@@ -205,10 +347,11 @@ export function DiscoverPage({ active }: DiscoverPageProps) {
           </GlassSurface>
         )}
 
-        {!isDesktop && !listOpen && eventsState.status === "success" && events.length > 0 && (
+        {!isDesktop && !listOpen && !mapPick && eventsState.status === "success" && events.length > 0 && (
           <button
             ref={listTriggerRef}
             className="map-list-trigger glass glass--strong"
+            data-map-inset="bottom"
             type="button"
             onClick={() => setListOpen(true)}
             aria-haspopup="dialog"
@@ -217,9 +360,28 @@ export function DiscoverPage({ active }: DiscoverPageProps) {
           </button>
         )}
 
-        {selectedEvent && (!listOpen || isDesktop) && (
-          <EventPreview event={selectedEvent} onClose={() => setSelectedEventId(null)} />
+        {preview.shown && (!listOpen || isDesktop) && (
+          <EventPreview event={preview.shown} leaving={preview.leaving} onClose={() => setSelection(null)} />
         )}
+
+        <QuickCreate
+          active={active}
+          buttonHidden={listOpen && !isDesktop}
+          mapPick={mapPick}
+          onMapPickChange={setMapPick}
+          onCreated={addCreatedEvent}
+          onShowOnMap={(eventId) => void focusEventOnMap(eventId)}
+        />
+
+        <div className="qc-notice-region" role="status" aria-live="polite">
+          {notice ? (
+            <MapNotice key={notice.key} title={notice.title} detail={notice.detail} durationMs={notice.onAction ? 12_000 : 8_000} onDismiss={dismissNotice}>
+              {notice.onAction ? (
+                <button className="qc-link-button" type="button" onClick={() => { notice.onAction?.(); dismissNotice(); }}>{notice.actionLabel}</button>
+              ) : null}
+            </MapNotice>
+          ) : null}
+        </div>
 
         {!isDesktop && listOpen && active && (
           <EventList

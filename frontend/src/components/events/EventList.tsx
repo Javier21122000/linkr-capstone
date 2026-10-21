@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 
 import { categoryLabels, formatEventDate, formatEventTimeRange } from "../../lib/eventPresentation";
 import { hasValidCoordinates } from "../../lib/map";
+import { staggerStyle } from "../../lib/motion";
 import type { EventSummary } from "../../types/event";
 import { EmptyEventsIllustration } from "../ui/EmptyEventsIllustration";
 import { EmptyState } from "../ui/EmptyState";
@@ -84,8 +85,10 @@ export function EventList({
   return (
     <section
       ref={panelRef}
-      className={`event-list-panel event-list-panel--${variant} ${isSheet ? "glass glass--strong" : ""} content-reveal`}
+      className={`event-list-panel event-list-panel--${variant} glass glass--panel content-reveal`}
       role={isSheet ? "dialog" : "region"}
+      // Il pannello fisso (desktop) occupa il lato sinistro della mappa: la camera ne tiene conto. Lo sheet è transitorio.
+      data-map-inset={isSheet ? undefined : "left"}
       tabIndex={isSheet ? -1 : undefined}
       aria-labelledby="event-list-title"
     >
@@ -142,13 +145,14 @@ export function EventList({
           </div>
         )}
 
-        {!loading && !errorMessage && events.map((event) => {
+        {!loading && !errorMessage && events.map((event, index) => {
           const locationAvailable = hasValidCoordinates(event);
           const selected = selectedEventId === event.id;
           return (
             <button
               key={event.id}
-              className="event-list-item"
+              className="event-list-item stagger-in"
+              style={staggerStyle(index)}
               type="button"
               data-selected={selected}
               aria-pressed={selected}

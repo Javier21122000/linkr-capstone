@@ -88,17 +88,18 @@ export function ProfilePage() {
     <div className="page-shell page-with-mobile-nav pt-8 sm:pt-12 lg:pt-16">
       <section className="mx-auto max-w-2xl" aria-labelledby="profile-title">
         <p className="section-kicker">Il tuo profilo</p>
-        <div className="mt-5 flex items-center gap-5">
-          <UserAvatar displayName={user.displayName} avatarUrl={user.avatarUrl} className="size-20 text-xl sm:size-24 sm:text-2xl" />
-          <div className="min-w-0">
-            <h1 id="profile-title" className="truncate text-3xl font-extrabold tracking-[-0.05em] text-ink sm:text-4xl">
-              {user.displayName}
-            </h1>
-            <p className="mt-1 truncate font-semibold text-muted">@{user.username}</p>
+        <div className="surface-card mt-4 p-5 sm:p-6">
+          <div className="flex items-center gap-5">
+            <UserAvatar displayName={user.displayName} avatarUrl={user.avatarUrl} className="size-20 text-xl sm:size-24 sm:text-2xl" />
+            <div className="min-w-0">
+              <h1 id="profile-title" className="truncate text-3xl font-extrabold tracking-[-0.05em] text-ink sm:text-4xl">
+                {user.displayName}
+              </h1>
+              <p className="mt-1 truncate font-semibold text-muted">@{user.username}</p>
+            </div>
           </div>
+          {user.bio?.trim() ? <p className="mt-5 text-base leading-7 text-ink">{user.bio}</p> : null}
         </div>
-
-        {user.bio?.trim() ? <p className="mt-6 text-base leading-7 text-ink">{user.bio}</p> : null}
 
         {loadError ? (
           <div className="form-message form-message--error mt-6" role="alert">
@@ -109,7 +110,7 @@ export function ProfilePage() {
           </div>
         ) : null}
 
-        <div className="mt-8 divide-y divide-line border-y border-line">
+        <div className="surface-card mt-4 divide-y divide-black/5 px-5">
           <div className="flex items-start gap-4 py-5">
             <Mail className="mt-0.5 shrink-0 text-linkr-strong" size={20} aria-hidden="true" />
             <div className="min-w-0">
@@ -126,7 +127,7 @@ export function ProfilePage() {
           </div>
         </div>
 
-        <section className="mt-8 rounded-2xl border border-line bg-surface p-5" aria-labelledby="discovery-setting-title">
+        <section className="surface-card mt-4 p-5" aria-labelledby="discovery-setting-title">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <h2 id="discovery-setting-title" className="font-extrabold text-ink">Compari in Scopri persone</h2>
@@ -157,7 +158,7 @@ export function ProfilePage() {
         </section>
 
         <Link
-          className="mt-8 flex min-h-16 items-center gap-4 rounded-2xl border border-line bg-surface p-4 text-ink transition-transform active:scale-[0.99] motion-reduce:transition-none"
+          className="surface-card surface-card--pressable mt-4 flex min-h-16 items-center gap-4 p-4 text-ink"
           to="/profile/links"
           aria-label={incomingCount
             ? `I miei Link, ${incomingCount} richieste ricevute in attesa`
@@ -174,7 +175,7 @@ export function ProfilePage() {
         </Link>
 
         <Link
-          className="mt-4 flex min-h-16 items-center gap-4 rounded-2xl border border-line bg-surface p-4 text-ink transition-transform active:scale-[0.99] motion-reduce:transition-none"
+          className="surface-card surface-card--pressable mt-3 flex min-h-16 items-center gap-4 p-4 text-ink"
           to="/profile/events"
         >
           <span className="grid size-11 shrink-0 place-items-center rounded-full bg-linkr-soft text-linkr-strong">

@@ -17,6 +17,8 @@ interface EventCoverFieldProps {
   readonly onFileSelect: (file: File) => void;
   readonly onRemove: () => void;
   readonly onUrlChange: (value: string) => void;
+  /** Versione per Quick Create: niente URL esterno, niente segnaposto vuoto e anteprima bassa. */
+  readonly compact?: boolean;
 }
 
 export function EventCoverField({
@@ -30,6 +32,7 @@ export function EventCoverField({
   onFileSelect,
   onRemove,
   onUrlChange,
+  compact = false,
 }: EventCoverFieldProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null);
@@ -65,23 +68,25 @@ export function EventCoverField({
       <div>
         <span className="form-label">Foto di copertina (opzionale)</span>
         <div className="mt-2 overflow-hidden rounded-2xl border border-line bg-canvas">
-          <div className="relative aspect-[16/9] min-h-44">
-            {previewUrl ? (
-              <img
-                className="absolute inset-0 size-full object-cover"
-                src={previewUrl}
-                alt={imageAlt.trim() || "Anteprima della foto di copertina"}
-              />
-            ) : (
-              <div className="absolute inset-0 grid place-items-center px-5 text-center text-muted">
-                <span>
-                  <ImagePlus className="mx-auto" size={30} strokeWidth={1.7} aria-hidden="true" />
-                  <span className="mt-3 block text-sm font-bold">Nessuna foto selezionata</span>
-                </span>
-              </div>
-            )}
-          </div>
-          <div className="border-t border-line p-4">
+          {compact && !previewUrl ? null : (
+            <div className={compact ? "relative h-36" : "relative h-44 sm:aspect-[16/9] sm:h-auto sm:min-h-44"}>
+              {previewUrl ? (
+                <img
+                  className="absolute inset-0 size-full object-cover"
+                  src={previewUrl}
+                  alt={imageAlt.trim() || "Anteprima della foto di copertina"}
+                />
+              ) : (
+                <div className="absolute inset-0 grid place-items-center px-5 text-center text-muted">
+                  <span>
+                    <ImagePlus className="mx-auto" size={30} strokeWidth={1.7} aria-hidden="true" />
+                    <span className="mt-3 block text-sm font-bold">Nessuna foto selezionata</span>
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+          <div className={compact && !previewUrl ? "p-4" : "border-t border-line p-4"}>
             <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
               <button
                 className="button-secondary inline-flex items-center gap-2"
@@ -122,25 +127,27 @@ export function EventCoverField({
             {fileError ? (
               <p id="event-cover-file-error" className="field-error mt-3" role="alert" tabIndex={-1}>{fileError}</p>
             ) : (
-              <p id="event-cover-file-hint" className="mt-3 text-xs leading-5 text-muted">JPEG, PNG o WebP, massimo 5 MB. La foto viene caricata quando salvi l’evento.</p>
+              <p id="event-cover-file-hint" className="mt-3 text-xs leading-5 text-muted">JPEG, PNG o WebP, massimo 5 MB. La foto viene caricata quando {compact ? "pubblichi" : "salvi l’evento"}.</p>
             )}
             {statusMessage ? <p className="mt-3 text-xs font-bold text-linkr-strong" role="status" aria-live="polite">{statusMessage}</p> : null}
           </div>
         </div>
       </div>
 
-      <FormField
-        id="imageUrl"
-        label="Oppure URL immagine"
-        type="url"
-        value={imageUrl}
-        onChange={(event) => onUrlChange(event.target.value)}
-        error={urlError}
-        hint="Puoi usare un indirizzo pubblico HTTPS. Se scegli un file, la foto selezionata ha la precedenza."
-        maxLength={500}
-        placeholder="https://…"
-        disabled={disabled}
-      />
+      {compact ? null : (
+        <FormField
+          id="imageUrl"
+          label="Oppure URL immagine"
+          type="url"
+          value={imageUrl}
+          onChange={(event) => onUrlChange(event.target.value)}
+          error={urlError}
+          hint="Puoi usare un indirizzo pubblico HTTPS. Se scegli un file, la foto selezionata ha la precedenza."
+          maxLength={500}
+          placeholder="https://…"
+          disabled={disabled}
+        />
+      )}
       <CameraCapture
         open={cameraOpen}
         onClose={() => setCameraOpen(false)}

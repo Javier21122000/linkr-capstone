@@ -1,0 +1,712 @@
+/*
+ * Quick Create — pulsante +, dialogo, scelta del punto sulla mappa e avviso di pubblicazione.
+ *
+ * Materiali (vetro, lenti, ombre) e z-index vengono da tokens.css e glass.css: qui solo geometria e stati.
+ * Il dialogo è un portale su `body`, quindi non eredita le variabili di `.discover`: le misure sono dichiarate qui.
+ *
+ * Mobile  (< 48rem) : bottom sheet sopra la Bottom Navigation e la tastiera (vedi `--qc-keyboard` in QuickCreateDialog).
+ * Tablet/desktop    : pannello ancorato in basso a destra, sopra il pulsante +, con velo leggero.
+ */
+
+/* Distanza del pulsante + e del pannello dai bordi della finestra (solo tablet e desktop: su mobile il pannello è un bottom sheet a larghezza piena). */
+:root {
+  --qc-edge: 1.25rem;
+}
+
+/* ——— Pulsante + ——— */
+.icon-button.quick-create-fab {
+  position: absolute;
+  z-index: var(--z-map-ui);
+  right: 0.75rem;
+  bottom: var(--discover-bottom);
+  width: 3.5rem;
+  height: 3.5rem;
+  border: 1px solid rgb(255 255 255 / 0.42);
+  background:
+    radial-gradient(120% 120% at 18% 6%, rgb(255 255 255 / 0.4) 0%, rgb(255 255 255 / 0) 52%),
+    linear-gradient(180deg, rgb(255 255 255 / 0.14) 0%, rgb(255 255 255 / 0) 50%),
+    var(--color-linkr-action);
+  box-shadow:
+    0 12px 26px rgb(210 65 31 / 0.38),
+    0 3px 8px rgb(24 24 22 / 0.18),
+    inset 0 1.5px 0 rgb(255 255 255 / 0.55),
+    inset 0 -8px 14px -8px rgb(120 24 8 / 0.5);
+  color: white;
+  transition: transform 240ms var(--ease-spring), box-shadow 200ms ease, background-color 160ms ease;
+  animation: qc-fab-in 360ms var(--ease-spring) backwards;
+}
+
+.icon-button.quick-create-fab svg {
+  transition: rotate 280ms var(--ease-spring);
+}
+
+/* Il + è un solo simbolo: aperto il dialogo diventa una × (rotazione di 45°), senza cambiare icona. */
+.icon-button.quick-create-fab[aria-expanded="true"] svg {
+  rotate: 45deg;
+}
+
+@media (hover: hover) {
+  .icon-button.quick-create-fab:hover:not(:disabled) {
+    transform: translateY(-2px);
+    background:
+      radial-gradient(120% 120% at 18% 6%, rgb(255 255 255 / 0.4) 0%, rgb(255 255 255 / 0) 52%),
+      linear-gradient(180deg, rgb(255 255 255 / 0.1) 0%, rgb(255 255 255 / 0) 50%),
+      var(--color-linkr-strong);
+    box-shadow:
+      0 16px 32px rgb(210 65 31 / 0.42),
+      0 4px 10px rgb(24 24 22 / 0.2),
+      inset 0 1.5px 0 rgb(255 255 255 / 0.55),
+      inset 0 -8px 14px -8px rgb(120 24 8 / 0.5);
+  }
+}
+
+.icon-button.quick-create-fab:active:not(:disabled) {
+  transform: scale(0.93);
+}
+
+@keyframes qc-fab-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+/* ——— Dialogo ——— */
+.qc-backdrop {
+  position: fixed;
+  z-index: var(--z-dialog);
+  inset: 0;
+  background: rgb(24 24 22 / 0.4);
+  animation: qc-backdrop-in 180ms ease-out backwards;
+}
+
+.qc-dialog {
+  position: fixed;
+  right: 0.5rem;
+  bottom: calc(max(0.5rem, env(safe-area-inset-bottom, 0px)) + var(--qc-keyboard, 0px));
+  left: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  /* Altezza = area realmente visibile (sopra la tastiera) meno un margine in alto: mai un'altezza fissa. */
+  max-height: min(calc(var(--qc-viewport-h, 100dvh) - max(1rem, env(safe-area-inset-top, 0px) + 0.5rem)), 46rem);
+  overflow: hidden;
+  border-radius: var(--radius-sheet);
+  outline: none;
+  animation: qc-sheet-in 300ms var(--ease-out-soft) backwards;
+}
+
+.qc-dialog__grabber {
+  width: 2.75rem;
+  height: 0.3rem;
+  flex: 0 0 auto;
+  margin: 0.55rem auto 0;
+  border-radius: 999px;
+  background: #c8c7c1;
+}
+
+.qc-view {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.qc-dialog__header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1.25rem 0.75rem;
+}
+
+/* Solo il corpo scorre: intestazione e CTA restano sempre raggiungibili, anche con la tastiera aperta. */
+.qc-dialog__body {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.35rem 1.25rem 1.1rem;
+}
+
+.qc-dialog__footer {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: stretch;
+  gap: 0.6rem;
+  border-top: 1px solid var(--glass-divider);
+  background: rgb(255 255 255 / 0.35);
+  padding: 0.75rem 1.25rem 0.85rem;
+}
+
+.qc-progress {
+  display: flex;
+  gap: 0.3rem;
+  margin-top: 0.75rem;
+}
+
+.qc-progress > span {
+  width: 1.6rem;
+  height: 0.28rem;
+  border-radius: 999px;
+  background: var(--color-line);
+  transition: background-color 240ms ease, width 300ms var(--ease-out-soft);
+}
+
+.qc-progress > span[data-state="done"] {
+  background: color-mix(in srgb, var(--color-linkr) 55%, white);
+}
+
+.qc-progress > span[data-state="current"] {
+  width: 2.6rem;
+  background: var(--color-linkr);
+}
+
+@keyframes qc-backdrop-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes qc-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(1.5rem);
+  }
+}
+
+@keyframes qc-popover-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem) scale(0.96);
+  }
+}
+
+/* ——— Azioni del menu ——— */
+.qc-actions {
+  display: grid;
+  align-content: start;
+  gap: 0.6rem;
+  padding-bottom: 1.25rem;
+}
+
+.qc-action {
+  display: flex;
+  width: 100%;
+  min-height: 4.25rem;
+  align-items: center;
+  gap: 0.9rem;
+  border: 1px solid var(--glass-well-ring);
+  border-radius: 1.25rem;
+  background: var(--glass-well-strong);
+  padding: 0.7rem 0.9rem;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.9);
+  transition: border-color 160ms ease, background-color 160ms ease, transform 220ms var(--ease-spring);
+}
+
+.qc-action[data-accent] {
+  border-color: color-mix(in srgb, var(--color-linkr) 38%, transparent);
+  background: linear-gradient(180deg, var(--glass-well-strong) 0%, color-mix(in srgb, var(--color-linkr-soft) 88%, transparent) 100%);
+}
+
+.qc-action__icon {
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--glass-well);
+  color: var(--color-ink);
+}
+
+.qc-action[data-accent] .qc-action__icon {
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.16) 0%, rgb(255 255 255 / 0) 52%),
+    var(--color-linkr-action);
+  box-shadow: 0 4px 10px rgb(210 65 31 / 0.32), inset 0 1px 0 rgb(255 255 255 / 0.4);
+  color: white;
+}
+
+@media (hover: hover) {
+  .qc-action:hover {
+    border-color: var(--color-muted);
+  }
+}
+
+.qc-action:active {
+  transform: scale(0.985);
+  background: var(--color-linkr-soft);
+}
+
+/* ——— Campi dei passaggi ——— */
+.qc-link-button {
+  display: inline-flex;
+  min-height: 2.75rem;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 999px;
+  padding-inline: 0.7rem;
+  color: var(--color-linkr-strong);
+  font-size: 0.8125rem;
+  font-weight: 800;
+  transition: background-color 160ms ease, transform 200ms var(--ease-spring);
+}
+
+@media (hover: hover) {
+  .qc-link-button:hover:not(:disabled) {
+    background: var(--color-linkr-soft);
+  }
+}
+
+.qc-link-button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.qc-link-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* La categoria è un gruppo di chip: se manca, riceve il focus programmaticamente (senza anello permanente). */
+.qc-chip-group:focus {
+  outline: none;
+}
+
+.qc-chip-group:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 4px;
+  border-radius: 0.5rem;
+}
+
+.qc-place {
+  border: 1px solid var(--glass-well-ring);
+  border-radius: 1rem;
+  background: var(--glass-well);
+  padding: 0.35rem 0.5rem 0.35rem 0.85rem;
+}
+
+.qc-place__summary {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.qc-place:has(.form-input) {
+  padding-bottom: 1rem;
+}
+
+.qc-readonly {
+  display: flex;
+  min-height: 3rem;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--glass-well-ring);
+  border-radius: 0.75rem;
+  background: var(--glass-well);
+  padding: 0.75rem 0.875rem;
+  color: var(--color-ink);
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.qc-readonly[data-invalid="true"] {
+  border-color: var(--color-danger);
+}
+
+.form-textarea.qc-textarea {
+  min-height: 6.5rem;
+}
+
+.qc-summary {
+  overflow: hidden;
+  border: 1px solid var(--glass-well-ring);
+  border-radius: 1.1rem;
+  background: var(--glass-well);
+}
+
+.qc-summary__row {
+  display: flex;
+  min-height: 3rem;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.15rem 0.35rem 0.15rem 0.85rem;
+}
+
+.qc-summary__row + .qc-summary__row {
+  border-top: 1px solid var(--glass-divider);
+}
+
+/* Campi e controlli dentro il dialogo: superfici chiare quasi piene con filetto scuro, non bianchi piatti su vetro. */
+.qc-dialog .form-input {
+  border-color: var(--glass-well-ring);
+  background: var(--glass-well-strong);
+}
+
+.qc-dialog .filter-chip {
+  border-color: var(--glass-well-ring);
+  background: var(--glass-well-strong);
+}
+
+.qc-dialog .filter-chip[data-selected="true"] {
+  border-color: var(--color-ink);
+  background: var(--color-ink);
+}
+
+.qc-dialog .button-secondary {
+  border-color: var(--glass-well-ring);
+  background: var(--glass-well-strong);
+}
+
+/* I suggerimenti del luogo, nel dialogo, scorrono con il corpo invece di uscire dal pannello (che ritaglia). */
+.qc-dialog [data-place-results] {
+  position: static;
+  margin-top: 0.25rem;
+  border-color: var(--glass-well-ring);
+  background: var(--glass-well-strong);
+  box-shadow: none;
+}
+
+.qc-dialog [data-place-results] ul {
+  max-height: 12.5rem;
+}
+
+/* ——— Scelta del punto sulla mappa ——— */
+.event-map[data-picking="true"] .event-marker {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.event-map[data-picking="true"] .maplibregl-canvas-container.maplibregl-interactive {
+  cursor: crosshair;
+}
+
+.event-map[data-picking="true"] .maplibregl-canvas-container.maplibregl-interactive:active {
+  cursor: grabbing;
+}
+
+.map-point-bar {
+  position: absolute;
+  z-index: var(--z-map-overlay);
+  right: 0.75rem;
+  bottom: var(--discover-bottom);
+  left: var(--discover-map-left);
+  display: grid;
+  max-width: 42rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.65rem 0.7rem;
+  margin-inline: auto;
+  border-radius: 1.6rem;
+  padding: 0.8rem;
+  outline: none;
+}
+
+.map-point-bar__icon {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--color-linkr-soft);
+  color: var(--color-linkr-strong);
+}
+
+.map-point-bar [data-invalid="true"] {
+  color: var(--color-danger);
+}
+
+.map-point-bar__actions {
+  display: flex;
+  grid-column: 1 / -1;
+  gap: 0.6rem;
+}
+
+.map-point-bar__actions > .button-primary {
+  flex: 1 1 auto;
+  justify-content: center;
+}
+
+/* ——— Avviso di pubblicazione ——— */
+.qc-notice-region {
+  position: absolute;
+  z-index: var(--z-map-overlay);
+  top: calc(var(--discover-below-filters) + 0.25rem);
+  left: var(--discover-map-center);
+  width: min(calc(100% - 1.5rem), 26rem);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.qc-notice {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  border-radius: 1.4rem;
+  padding: 0.55rem 0.5rem 0.55rem 0.9rem;
+  pointer-events: auto;
+}
+
+.qc-notice__close {
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--color-muted);
+}
+
+@media (hover: hover) {
+  .qc-notice__close:hover {
+    background: rgb(24 24 22 / 0.06);
+    color: var(--color-ink);
+  }
+}
+
+/* ——— Tablet e desktop: pannello ancorato sopra il pulsante + ——— */
+@media (min-width: 48rem) {
+  .qc-backdrop {
+    background: rgb(24 24 22 / 0.14);
+  }
+
+  /* Il pannello sta sopra il pulsante + con lo stesso margine dal bordo: 1.25rem dai lati e dal fondo, 0.75rem sopra il pulsante. */
+  .icon-button.quick-create-fab {
+    right: var(--qc-edge);
+    bottom: var(--qc-edge);
+  }
+
+  .qc-dialog {
+    right: var(--qc-edge);
+    bottom: calc(var(--qc-edge) + 3.5rem + 0.75rem);
+    left: auto;
+    width: min(26rem, calc(100% - 2 * var(--qc-edge)));
+    max-height: min(calc(100dvh - var(--qc-edge) - 3.5rem - 0.75rem - var(--float-top) - var(--float-pill-h) - 1rem), 44rem);
+    transform-origin: 100% 100%;
+    animation-name: qc-popover-in;
+    animation-duration: 220ms;
+  }
+
+  .qc-dialog__grabber {
+    display: none;
+  }
+
+  .qc-dialog__header {
+    padding: 1.25rem 1.5rem 0.85rem;
+  }
+
+  .qc-dialog__body {
+    padding-inline: 1.5rem;
+  }
+
+  .qc-dialog__footer {
+    padding-inline: 1.5rem;
+  }
+
+  .map-point-bar {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .map-point-bar__actions {
+    grid-column: auto;
+  }
+}
+
+/* Smartphone in orizzontale: il pulsante + sta a destra e "Mostra lista" gli si affianca (vedi discover.css). */
+@media (max-width: 47.999rem) and (max-height: 30rem) {
+  .icon-button.quick-create-fab {
+    right: 0.5rem;
+    bottom: var(--discover-bottom);
+  }
+
+  .qc-notice-region {
+    top: calc(var(--discover-top) + 0.25rem);
+  }
+
+  .qc-dialog {
+    left: 50%;
+    right: auto;
+    width: min(32rem, calc(100% - 1rem));
+    transform: translateX(-50%);
+    animation-name: qc-backdrop-in;
+  }
+}
+
+/* ——— Orario: scorciatoie, riga e ruota ore/minuti ——— */
+.qc-time__row {
+  display: flex;
+  width: 100%;
+  min-height: 3rem;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+  border: 1px solid var(--glass-well-ring);
+  border-radius: 0.75rem;
+  background: var(--glass-well-strong);
+  padding: 0.6rem 0.85rem;
+  color: var(--color-ink);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+
+.qc-time__row[data-empty="true"] {
+  color: var(--color-muted);
+}
+
+.qc-time__row[data-invalid="true"] {
+  border-color: var(--color-danger);
+}
+
+.qc-time__row:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+@media (hover: hover) {
+  .qc-time__row:hover:not(:disabled) {
+    border-color: var(--color-muted);
+  }
+}
+
+.qc-time__value {
+  font-size: 1.0625rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.qc-time__chevron {
+  transition: rotate 220ms var(--ease-out-soft);
+}
+
+.qc-time__row[aria-expanded="true"] .qc-time__chevron {
+  rotate: 180deg;
+}
+
+.qc-time__panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.6rem;
+  border: 1px solid var(--glass-well-ring);
+  border-radius: 1.1rem;
+  background: var(--glass-well);
+  padding: 0.75rem 0.75rem 0.85rem;
+  animation: content-reveal 200ms ease-out both;
+}
+
+.qc-time__wheels {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.qc-time__colon {
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.qc-time__ambiguous {
+  margin-top: 0.75rem;
+  border: 1px solid var(--glass-well-ring);
+  border-radius: 1rem;
+  background: var(--glass-well);
+  padding: 0.7rem 0.85rem 0.8rem;
+}
+
+/* Campo nativo: solo dove la ruota non può funzionare (nessuno scroll-snap). */
+.qc-time__native {
+  display: none;
+}
+
+@supports not (scroll-snap-type: y mandatory) {
+  .qc-time__native {
+    display: block;
+  }
+
+  .qc-time__row,
+  .qc-time__panel {
+    display: none;
+  }
+}
+
+/*
+ * Ruota in stile iOS: scorrimento nativo con snap alla riga, la riga selezionata sta sempre al centro, sotto una fascia chiara.
+ * Cinque righe visibili; ai bordi le righe sfumano (maschera, non un ricalcolo per frame).
+ */
+.wheel {
+  --wheel-item-h: 2.75rem;
+  position: relative;
+  width: 4.5rem;
+  height: calc(var(--wheel-item-h) * 5);
+  border-radius: 1rem;
+}
+
+.wheel::before {
+  position: absolute;
+  top: calc(var(--wheel-item-h) * 2);
+  right: 0;
+  left: 0;
+  height: var(--wheel-item-h);
+  border-radius: 0.85rem;
+  background: rgb(24 24 22 / 0.07);
+  box-shadow: inset 0 0 0 1px var(--glass-well-ring);
+  content: "";
+  pointer-events: none;
+}
+
+.wheel:has(.wheel__scroller:focus-visible) {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.wheel__scroller {
+  position: relative;
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none;
+  padding-block: calc(var(--wheel-item-h) * 2);
+  outline: none;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 30%, #000 70%, transparent 100%);
+  mask-image: linear-gradient(180deg, transparent 0%, #000 30%, #000 70%, transparent 100%);
+}
+
+.wheel__scroller::-webkit-scrollbar {
+  display: none;
+}
+
+/* Trascinamento con il mouse: niente snap mentre si trascina, lo scatto sulla riga arriva al rilascio. */
+.wheel__scroller[data-dragging] {
+  scroll-snap-type: none;
+  cursor: grabbing;
+}
+
+.wheel__item {
+  display: grid;
+  height: var(--wheel-item-h);
+  place-items: center;
+  scroll-snap-align: center;
+  scroll-snap-stop: always;
+  color: var(--color-muted);
+  font-size: 1.375rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: color 140ms ease;
+}
+
+.wheel__item[data-selected] {
+  color: var(--color-ink);
+  font-weight: 800;
+}
+
+.wheel[data-disabled] {
+  opacity: 0.55;
+}

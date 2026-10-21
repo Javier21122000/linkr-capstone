@@ -36,8 +36,18 @@ interface ActiveUnreadRequest {
 
 const ChatRealtimeContext = createContext<ChatRealtimeContextValue | null>(null);
 
+/** Il WebSocket vive dove vive l'API: con `VITE_API_BASE_URL` segue quell'origine (come REST e immagini), altrimenti la pagina (proxy `/ws`). */
 function websocketUrl(): string {
-  const url = new URL("/ws", window.location.href);
+  let origin = window.location.origin;
+  const configuredBase = import.meta.env.VITE_API_BASE_URL?.trim();
+  if (configuredBase) {
+    try {
+      origin = new URL(configuredBase, window.location.origin).origin;
+    } catch {
+      // Base non valida: si resta sull'origine della pagina, come per le immagini.
+    }
+  }
+  const url = new URL("/ws", origin);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   return url.toString();
 }

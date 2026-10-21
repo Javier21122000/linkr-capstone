@@ -9,7 +9,16 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import { useEffect, useRef, useState } from "react";
 
-import { getMapTilerStyleUrl, MILAN_CENTER, MILAN_INITIAL_ZOOM } from "../../lib/map";
+import {
+  getMapTilerStyleUrl,
+  isFatalMapError,
+  MAP_MAX_PIXEL_RATIO,
+  MAP_MAX_ZOOM,
+  MAP_MIN_ZOOM,
+  MILAN_CENTER,
+  MILAN_INITIAL_ZOOM,
+} from "../../lib/map";
+import { getStyleSwapOptions } from "../../lib/mapStyle";
 
 setWorkerUrl(workerUrl);
 
@@ -51,16 +60,17 @@ export function EventLocationPicker({ latitude, longitude, focusRevision, disabl
     try {
       map = new MapLibreMap({
         container,
-        style: styleUrl,
         center: MILAN_CENTER,
         zoom: MILAN_INITIAL_ZOOM,
-        minZoom: 9,
-        maxZoom: 18,
+        minZoom: MAP_MIN_ZOOM,
+        maxZoom: MAP_MAX_ZOOM,
         attributionControl: false,
         dragRotate: false,
         pitchWithRotate: false,
+        maxPitch: 0,
       });
       mapRef.current = map;
+      map.setPixelRatio(Math.min(window.devicePixelRatio || 1, MAP_MAX_PIXEL_RATIO));
       map.touchZoomRotate.disableRotation();
       map.addControl(new NavigationControl({ showCompass: false }), "top-right");
       map.addControl(new AttributionControl({ compact: true }), "bottom-right");
@@ -71,9 +81,10 @@ export function EventLocationPicker({ latitude, longitude, focusRevision, disabl
       map.on("click", ({ lngLat }) => {
         if (!disabledRef.current) onChangeRef.current(lngLat.lat, lngLat.lng);
       });
-      map.on("error", () => {
-        if (!disposed && !loaded) setStatus("error");
+      map.on("error", (event) => {
+        if (!disposed && !loaded && isFatalMapError(event)) setStatus("error");
       });
+      map.setStyle(styleUrl, getStyleSwapOptions());
     } catch {
       setStatus("error");
     }

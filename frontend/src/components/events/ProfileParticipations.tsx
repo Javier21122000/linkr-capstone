@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 
 import { useAuth } from "../../context/AuthContext";
-import { formatEventDate, formatEventTimeRange } from "../../lib/eventPresentation";
+import { formatEventDate, formatEventTimeRange, isEventEnded } from "../../lib/eventPresentation";
 import { getMyParticipations, getParticipationsErrorMessage } from "../../lib/participations";
 import type { UserParticipation } from "../../types/participation";
+import { ViewOnMapLink } from "./ViewOnMapLink";
 
 type ParticipationsState =
   | { readonly status: "loading" }
@@ -32,14 +33,14 @@ export function ProfileParticipations() {
   }, [authorizedRequest, requestKey]);
 
   return (
-    <section className="content-reveal mt-10 border-t border-line pt-8" aria-labelledby="profile-participations-title">
+    <section className="content-reveal mt-10" aria-labelledby="profile-participations-title">
       <p className="section-kicker">Agenda personale</p>
       <h2 id="profile-participations-title" className="mt-2 text-2xl font-extrabold tracking-[-0.04em] text-ink">I miei eventi</h2>
 
       {state.status === "loading" ? (
         <div className="mt-5 space-y-3" aria-busy="true" aria-label="Caricamento eventi personali">
           {Array.from({ length: 2 }, (_, index) => (
-            <div className="h-32 animate-pulse rounded-2xl bg-line/70 motion-reduce:animate-none" key={index} />
+            <div className="h-32 animate-pulse rounded-[1.5rem] bg-white/70 ring-1 ring-black/5 motion-reduce:animate-none" key={index} />
           ))}
         </div>
       ) : null}
@@ -54,7 +55,7 @@ export function ProfileParticipations() {
       ) : null}
 
       {state.status === "success" && state.participations.length === 0 ? (
-        <div className="mt-5 rounded-2xl border border-line bg-surface p-5">
+        <div className="surface-card mt-5 p-5">
           <p className="font-extrabold text-ink">La tua agenda è ancora vuota.</p>
           <p className="mt-2 text-sm leading-6 text-muted">Esplora Discover e salva gli eventi che ti interessano.</p>
           <Link className="mt-4 inline-flex min-h-11 items-center gap-1 rounded-full font-extrabold text-ink" to="/">
@@ -64,11 +65,11 @@ export function ProfileParticipations() {
       ) : null}
 
       {state.status === "success" && state.participations.length > 0 ? (
-        <div className="mt-5 divide-y divide-line border-y border-line">
+        <div className="mt-5 space-y-3">
           {state.participations.map(({ event, status, visibleToOthers }) => {
             const location = [event.venueName, event.neighbourhood].filter(Boolean).join(" · ");
             return (
-              <article className="py-5" key={event.id}>
+              <article className="surface-card p-5" key={event.id}>
                 <Link className="group block rounded-xl" to={`/events/${event.id}`}>
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
@@ -90,12 +91,17 @@ export function ProfileParticipations() {
                     <span className="rounded-full bg-linkr-soft px-3 py-1.5 text-linkr-strong">
                       {status === "INTERESTED" ? "Mi interessa" : "Parteciperò"}
                     </span>
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 text-muted">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-black/5 px-3 py-1.5 text-muted">
                       {visibleToOthers ? <Eye size={14} aria-hidden="true" /> : <EyeOff size={14} aria-hidden="true" />}
                       {visibleToOthers ? "Visibilità scelta: attiva" : "Visibilità scelta: privata"}
                     </span>
                   </div>
                 </Link>
+                {event.status === "PUBLISHED" && !isEventEnded(event.startsAt, event.endsAt) ? (
+                  <div className="mt-1">
+                    <ViewOnMapLink eventId={event.id} variant="inline" />
+                  </div>
+                ) : null}
               </article>
             );
           })}

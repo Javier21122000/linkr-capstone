@@ -1,43 +1,48 @@
+import type { ComponentType } from "react";
 import { createBrowserRouter, createRoutesFromElements, Route, RouterProvider } from "react-router";
 
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { AppShell } from "./components/layout/AppShell";
-import { CreateEventPage, EditEventPage } from "./pages/CreateEventPage";
-import { ChatsPage } from "./pages/ChatsPage";
-import { ChatThreadPage } from "./pages/ChatThreadPage";
-import { DiscoverPeoplePage } from "./pages/DiscoverPeoplePage";
-import { EditInterestsPage } from "./pages/EditInterestsPage";
 import { EventDetailPage } from "./pages/EventDetailPage";
-import { HealthPage } from "./pages/HealthPage";
 import { LoginPage } from "./pages/LoginPage";
-import { MyEventsPage } from "./pages/MyEventsPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
-import { ProfilePage } from "./pages/ProfilePage";
-import { ProfileLinksPage } from "./pages/ProfileLinksPage";
 import { RegisterPage } from "./pages/RegisterPage";
+import { RouteErrorPage } from "./pages/RouteErrorPage";
+
+/**
+ * Pagina caricata alla prima visita. Restano nel pacchetto principale solo le schermate da cui si entra nell'app
+ * (Discover, dettaglio evento da un link condiviso, accesso, registrazione): le altre si scaricano quando servono.
+ * La navigazione attende il download senza svuotare la pagina corrente, quindi Discover (e la sua mappa) resta com'è.
+ */
+function lazyPage<Name extends string>(load: () => Promise<Record<Name, ComponentType>>, name: Name) {
+  return async () => ({ Component: (await load())[name] });
+}
 
 const router = createBrowserRouter(
   createRoutesFromElements(
-    <Route>
+    <Route errorElement={<RouteErrorPage />}>
       <Route element={<AppShell />}>
-        {/* Discover è ospitato da AppShell e resta montato: vedi AppShell.tsx */}
-        <Route index element={null} />
-        <Route path="events/:eventId" element={<EventDetailPage />} />
-        <Route path="login" element={<LoginPage />} />
-        <Route path="register" element={<RegisterPage />} />
-        <Route element={<ProtectedRoute />}>
-          <Route path="chats" element={<ChatsPage />} />
-          <Route path="chats/:conversationId" element={<ChatThreadPage />} />
-          <Route path="people" element={<DiscoverPeoplePage />} />
-          <Route path="events/new" element={<CreateEventPage />} />
-          <Route path="events/:eventId/edit" element={<EditEventPage />} />
-          <Route path="profile" element={<ProfilePage />} />
-          <Route path="profile/events" element={<MyEventsPage />} />
-          <Route path="profile/interests" element={<EditInterestsPage />} />
-          <Route path="profile/links" element={<ProfileLinksPage />} />
+        {/* Un errore in una pagina compare dentro la struttura dell'app: intestazione e navigazione restano utilizzabili. */}
+        <Route errorElement={<RouteErrorPage inline />}>
+          {/* Discover è ospitato da AppShell e resta montato: vedi AppShell.tsx */}
+          <Route index element={null} />
+          <Route path="events/:eventId" element={<EventDetailPage />} />
+          <Route path="login" element={<LoginPage />} />
+          <Route path="register" element={<RegisterPage />} />
+          <Route element={<ProtectedRoute />}>
+            <Route path="chats" lazy={lazyPage(() => import("./pages/ChatsPage"), "ChatsPage")} />
+            <Route path="chats/:conversationId" lazy={lazyPage(() => import("./pages/ChatThreadPage"), "ChatThreadPage")} />
+            <Route path="people" lazy={lazyPage(() => import("./pages/DiscoverPeoplePage"), "DiscoverPeoplePage")} />
+            <Route path="events/new" lazy={lazyPage(() => import("./pages/CreateEventPage"), "CreateEventPage")} />
+            <Route path="events/:eventId/edit" lazy={lazyPage(() => import("./pages/CreateEventPage"), "EditEventPage")} />
+            <Route path="profile" lazy={lazyPage(() => import("./pages/ProfilePage"), "ProfilePage")} />
+            <Route path="profile/events" lazy={lazyPage(() => import("./pages/MyEventsPage"), "MyEventsPage")} />
+            <Route path="profile/interests" lazy={lazyPage(() => import("./pages/EditInterestsPage"), "EditInterestsPage")} />
+            <Route path="profile/links" lazy={lazyPage(() => import("./pages/ProfileLinksPage"), "ProfileLinksPage")} />
+          </Route>
         </Route>
       </Route>
-      <Route path="technical/health" element={<HealthPage />} />
+      <Route path="technical/health" lazy={lazyPage(() => import("./pages/HealthPage"), "HealthPage")} />
       <Route path="*" element={<NotFoundPage />} />
     </Route>,
   ),

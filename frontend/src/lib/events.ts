@@ -19,6 +19,26 @@ export async function getEvent(id: string, accessToken?: string, signal?: AbortS
   return data;
 }
 
+/** Riga dell'elenco/mappa per un evento appena creato: solo i campi di `EventSummary`, niente dettagli che l'elenco non porta. */
+export function toEventSummary(event: EventDetail): EventSummary {
+  return {
+    id: event.id,
+    title: event.title,
+    category: event.category,
+    startsAt: event.startsAt,
+    endsAt: event.endsAt,
+    venueName: event.venueName,
+    neighbourhood: event.neighbourhood,
+    latitude: event.latitude,
+    longitude: event.longitude,
+    imageUrl: event.imageUrl,
+    imageAlt: event.imageAlt,
+    demo: event.demo,
+    status: event.status,
+    type: event.type,
+  };
+}
+
 export function isRequestCancelled(error: unknown): boolean {
   return axios.isCancel(error);
 }

@@ -61,6 +61,13 @@ set +a
 
 Real `.env` files are ignored by Git and must never be committed.
 
+## Session security
+
+The frontend keeps the authenticated session in `sessionStorage`, so a valid JWT survives page refreshes but is removed
+when the browser session ends or the user logs out. Expired sessions are discarded and no password or refresh token is
+stored. Because `sessionStorage` is readable by JavaScript, a successful XSS attack could still steal the JWT; preventing
+script injection and maintaining an appropriate Content Security Policy remain required protections.
+
 ## 📌 Status
 
 Under development — October 2026.

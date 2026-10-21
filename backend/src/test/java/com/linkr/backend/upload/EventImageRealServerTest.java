@@ -102,18 +102,19 @@ class EventImageRealServerTest {
 	@Test
 	void anImageIsUploadedAndReadBackWithTheSecurityHeadersOverRealHttp() throws Exception {
 		byte[] png = ImageFixtures.png(200, 100);
+		byte[] stored = ImageMetadataSanitizer.sanitize(png, ImageInspector.inspect(png));      // il server salva l'immagine senza metadati incorporati
 
 		HttpResponse<byte[]> uploaded = post(multipart("foto.png", "image/png", png));
 		assertThat(uploaded.statusCode()).isEqualTo(201);
 		assertThat(uploaded.headers().firstValue("Content-Type").orElse("")).startsWith("application/json");
 		String body = new String(uploaded.body(), StandardCharsets.UTF_8);
 		String imageUrl = JsonPath.read(body, "$.imageUrl");
-		assertThat((Integer) JsonPath.read(body, "$.size")).isEqualTo(png.length);
+		assertThat((Integer) JsonPath.read(body, "$.size")).isEqualTo(stored.length);
 
 		// lettura PUBBLICA (nessun token)
 		HttpResponse<byte[]> read = get(imageUrl, false);
 		assertThat(read.statusCode()).isEqualTo(200);
-		assertThat(read.body()).isEqualTo(png);
+		assertThat(read.body()).isEqualTo(stored);
 		assertThat(read.headers().firstValue("Content-Type")).contains("image/png");
 		assertThat(read.headers().firstValue("X-Content-Type-Options")).contains("nosniff");
 		assertThat(read.headers().firstValue("Content-Security-Policy")).contains("default-src 'none'; sandbox");

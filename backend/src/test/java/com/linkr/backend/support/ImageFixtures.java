@@ -5,12 +5,19 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.List;
 import java.util.zip.CRC32;
 
+import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
+import javax.imageio.stream.ImageOutputStream;
 
 /**
  * File di prova per i test degli upload. PNG e JPEG li produce il JDK (encoder veri); i WebP sono file REALI generati con
@@ -142,6 +149,166 @@ public final class ImageFixtures {
 		return new byte[] { 'M', 'Z', (byte) 0x90, 0, 3, 0, 0, 0, 4, 0, 0, 0, (byte) 0xFF, (byte) 0xFF, 0, 0 };
 	}
 
+	// ---------- immagini CON metadati (per provare la rimozione) ----------
+
+	/** Testi segnaposto dentro i metadati: nessuno deve comparire in un file pubblicato. */
+	public static final List<String> SECRETS = List.of("SECRET-MAKE", "SECRET-GPS", "SECRET-XMP", "SECRET-COMMENT", "SECRET-IPTC",
+			"SECRET-SECOND", "SECRET-TEXT", "SECRET-PRIVATE");
+
+	/**
+	 * JPEG come lo produce un telefono: EXIF (Make, Orientation, IFD GPS), XMP, commento, IPTC/Photoshop, un segmento MPF
+	 * e, dopo l'EOI, una seconda immagine completa (come le immagini secondarie MPF) con un suo commento. Finisce con EOI, quindi
+	 * per ImageInspector e' un file valido.
+	 */
+	public static byte[] jpegWithMetadata(int orientation, boolean littleEndianExif) {
+		byte[] base = jpeg();
+		byte[] second = jpeg(8, 8);
+		byte[] secondWithComment = concat(Arrays.copyOfRange(second, 0, 2), segment(0xFE, ascii("SECRET-SECOND")), Arrays.copyOfRange(second, 2, second.length));
+		return concat(
+				new byte[] { (byte) 0xFF, (byte) 0xD8 },
+				segment(0xE1, concat(ascii("Exif\0\0"), exifTiff(littleEndianExif, orientation))),
+				segment(0xE1, ascii("http://ns.adobe.com/xap/1.0/\0<x:xmpmeta>SECRET-XMP</x:xmpmeta>")),
+				segment(0xFE, ascii("SECRET-COMMENT")),
+				segment(0xED, ascii("Photoshop 3.0\0" + "8BIM SECRET-IPTC")),
+				segment(0xE2, ascii("MPF\0" + "SECRET-SECOND-INDEX")),
+				Arrays.copyOfRange(base, 2, base.length),
+				secondWithComment);
+	}
+
+	/** JPEG progressivo (varie scansioni): serve a provare che i segmenti tra le scansioni sono letti correttamente. */
+	public static byte[] jpegProgressive(int width, int height) {
+		try {
+			ImageWriter writer = ImageIO.getImageWritersByFormatName("jpeg").next();
+			ImageWriteParam param = writer.getDefaultWriteParam();
+			param.setProgressiveMode(ImageWriteParam.MODE_DEFAULT);
+			ByteArrayOutputStream out = new ByteArrayOutputStream();
+			try (ImageOutputStream stream = ImageIO.createImageOutputStream(out)) {
+				writer.setOutput(stream);
+				writer.write(null, new IIOImage(gradient(width, height), null, null), param);
+			}
+			writer.dispose();
+			return out.toByteArray();
+		}
+		catch (IOException e) {
+			throw new UncheckedIOException(e);
+		}
+	}
+
+	/** Inserisce un segmento (marker + lunghezza + contenuto) subito dopo SOI. */
+	public static byte[] withJpegSegment(byte[] jpeg, int marker, byte[] payload) {
+		return concat(Arrays.copyOfRange(jpeg, 0, 2), segment(marker, payload), Arrays.copyOfRange(jpeg, 2, jpeg.length));
+	}
+
+	/** APP2 "ICC_PROFILE" con un frammento del profilo (sequenza 1-based su "count" frammenti). */
+	public static byte[] iccSegmentPayload(int sequence, int count, byte[] profilePart) {
+		return concat(ascii("ICC_PROFILE\0"), new byte[] { (byte) sequence, (byte) count }, profilePart);
+	}
+
+	/** Profilo ICC "plausibile": dimensione dichiarata coerente e firma "acsp" a offset 36 (il resto e' a zero). */
+	public static byte[] iccProfile(int size) {
+		byte[] profile = new byte[size];
+		ByteBuffer.wrap(profile).putInt(size);
+		profile[36] = 'a';
+		profile[37] = 'c';
+		profile[38] = 's';
+		profile[39] = 'p';
+		return profile;
+	}
+
+	/** Segmento APP14 "Adobe" (12 byte di contenuto), necessario a decodificare CMYK/YCCK. */
+	public static byte[] adobePayload() {
+		return concat(ascii("Adobe"), new byte[] { 0, 100, 0, 0, 0, 0, 1 });
+	}
+
+	/**
+	 * PNG con metadati ovunque: prima dei dati tEXt, iTXt (XMP), tIME, pHYs e un chunk privato; dopo i dati un eXIf con GPS e un altro tEXt.
+	 * Parte da un PNG vero del JDK, quindi i pixel sono verificabili.
+	 */
+	public static byte[] pngWithMetadata(int orientation) {
+		byte[] base = png();
+		int afterIhdr = 8 + 12 + 13;
+		int beforeIend = base.length - 12;
+		return concat(
+				Arrays.copyOfRange(base, 0, afterIhdr),
+				chunk("tEXt", ascii("Comment\0SECRET-TEXT")),
+				chunk("iTXt", ascii("XML:com.adobe.xmp\0\0\0\0\0<x:xmpmeta>SECRET-XMP</x:xmpmeta>")),
+				chunk("tIME", new byte[] { 0x07, (byte) 0xEA, 10, 21, 12, 30, 15 }),
+				chunk("pHYs", new byte[] { 0, 0, 0x0B, 0x13, 0, 0, 0x0B, 0x13, 1 }),
+				chunk("prVt", ascii("SECRET-PRIVATE")),
+				Arrays.copyOfRange(base, afterIhdr, beforeIend),
+				chunk("eXIf", exifTiff(false, orientation)),
+				chunk("tEXt", ascii("Comment\0SECRET-TEXT-LATE")),
+				Arrays.copyOfRange(base, beforeIend, base.length));
+	}
+
+	/** WebP esteso (VP8X) con immagine lossless 24x16, un profilo ICC facoltativo, EXIF con GPS, XMP e un chunk sconosciuto. */
+	public static byte[] webpWithMetadata(int orientation, byte[] iccProfile) {
+		byte[] lossless = webpLossless();
+		byte[] vp8l = Arrays.copyOfRange(lossless, 12, lossless.length);       // il chunk VP8L intero (8 di intestazione + dati)
+		int flags = 0x08 | 0x04 | (iccProfile != null ? 0x20 : 0);
+		byte[] vp8x = riffChunk("VP8X", new byte[] { (byte) flags, 0, 0, 0, WIDTH - 1, 0, 0, HEIGHT - 1, 0, 0 });
+		byte[] body = concat(ascii("WEBP"), vp8x, iccProfile != null ? riffChunk("ICCP", iccProfile) : new byte[0], vp8l,
+				riffChunk("EXIF", exifTiff(true, orientation)),
+				riffChunk("XMP ", ascii("<x:xmpmeta>SECRET-XMP</x:xmpmeta>")),
+				riffChunk("JUNK", ascii("SECRET-PRIVATE")));
+		byte[] size = new byte[4];
+		ByteBuffer.wrap(size).order(ByteOrder.LITTLE_ENDIAN).putInt(body.length);
+		return concat(ascii("RIFF"), size, body);
+	}
+
+	/**
+	 * Blocco TIFF/EXIF come lo scrive un telefono: IFD0 con Make, Orientation e puntatore GPS; IFD GPS con riferimento,
+	 * latitudine (gradi/primi/secondi) e metodo di elaborazione testuale. Little o big endian.
+	 */
+	public static byte[] exifTiff(boolean littleEndian, int orientation) {
+		byte[] make = ascii("SECRET-MAKE\0");
+		byte[] method = ascii("SECRET-GPS\0");
+		int gpsAt = 8 + (2 + 3 * 12 + 4) + make.length;
+		int latitudeAt = gpsAt + (2 + 3 * 12 + 4);
+		int methodAt = latitudeAt + 24;
+		ByteBuffer b = ByteBuffer.allocate(methodAt + method.length).order(littleEndian ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
+		byte order = (byte) (littleEndian ? 'I' : 'M');
+		b.put(order).put(order).putShort((short) 42).putInt(8);
+		b.putShort((short) 3);                                                   // IFD0: 3 voci
+		b.putShort((short) 0x010F).putShort((short) 2).putInt(make.length).putInt(8 + (2 + 3 * 12 + 4));
+		b.putShort((short) 0x0112).putShort((short) 3).putInt(1).putShort((short) orientation).putShort((short) 0);
+		b.putShort((short) 0x8825).putShort((short) 4).putInt(1).putInt(gpsAt);
+		b.putInt(0);
+		b.put(make);
+		b.putShort((short) 3);                                                   // IFD GPS: 3 voci
+		b.putShort((short) 0x0001).putShort((short) 2).putInt(2).put((byte) 'N').put((byte) 0).putShort((short) 0);
+		b.putShort((short) 0x0002).putShort((short) 5).putInt(3).putInt(latitudeAt);
+		b.putShort((short) 0x001B).putShort((short) 7).putInt(method.length).putInt(methodAt);
+		b.putInt(0);
+		b.putInt(45).putInt(1).putInt(27).putInt(1).putInt(3000).putInt(100);    // 45 gradi 27 primi 30,00 secondi
+		b.put(method);
+		return b.array();
+	}
+
+	public static byte[] ascii(String text) {
+		return text.getBytes(StandardCharsets.ISO_8859_1);
+	}
+
+	/** Segmento JPEG: 0xFF, marker, lunghezza (comprende i 2 byte della lunghezza), contenuto. */
+	public static byte[] segment(int marker, byte[] payload) {
+		byte[] out = new byte[4 + payload.length];
+		out[0] = (byte) 0xFF;
+		out[1] = (byte) marker;
+		out[2] = (byte) ((payload.length + 2) >> 8);
+		out[3] = (byte) (payload.length + 2);
+		System.arraycopy(payload, 0, out, 4, payload.length);
+		return out;
+	}
+
+	/** Chunk RIFF (little endian) con riempimento a lunghezza pari. */
+	public static byte[] riffChunk(String type, byte[] data) {
+		byte[] out = new byte[8 + data.length + (data.length & 1)];
+		System.arraycopy(ascii(type), 0, out, 0, 4);
+		ByteBuffer.wrap(out, 4, 4).order(ByteOrder.LITTLE_ENDIAN).putInt(data.length);
+		System.arraycopy(data, 0, out, 8, data.length);
+		return out;
+	}
+
 	// ---------- utilita' ----------
 
 	public static byte[] truncate(byte[] data, int length) {
@@ -156,13 +323,18 @@ public final class ImageFixtures {
 		return out.toByteArray();
 	}
 
-	private static byte[] encode(String format, int width, int height) {
+	private static BufferedImage gradient(int width, int height) {
 		BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
 		for (int x = 0; x < width; x++) {
 			for (int y = 0; y < height; y++) {
 				image.setRGB(x, y, new Color(40 + (x * 7) % 200, 60 + (y * 11) % 190, 120).getRGB());
 			}
 		}
+		return image;
+	}
+
+	private static byte[] encode(String format, int width, int height) {
+		BufferedImage image = gradient(width, height);
 		try {
 			ByteArrayOutputStream out = new ByteArrayOutputStream();
 			if (!ImageIO.write(image, format, out)) {

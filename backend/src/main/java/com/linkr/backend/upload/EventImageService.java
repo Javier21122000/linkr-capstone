@@ -16,7 +16,10 @@ import com.linkr.backend.upload.dto.UploadedImageResponse;
 /**
  * Upload delle immagini di copertina degli eventi. Ordine dei controlli:
  *   file presente e non vuoto (400) -> limite per utente (429) -> dimensione (413) -> formato REALE dal contenuto
- *   (415 se non e' JPEG/PNG/WebP, 400 se e' rotto o troppo grande in pixel) -> MIME dichiarato coerente (415) -> salvataggio.
+ *   (415 se non e' JPEG/PNG/WebP, 400 se e' rotto o troppo grande in pixel) -> MIME dichiarato coerente (415)
+ *   -> rimozione dei metadati incorporati (ImageMetadataSanitizer) -> salvataggio.
+ * Si salva SEMPRE e SOLO la versione ripulita (niente GPS, data, modello del telefono, miniature, XMP): l'originale non viene mai scritto
+ * su disco ne' pubblicato. Il limite di 5 MB vale per il file ricevuto; "size" nella risposta e' quello del file salvato.
  * Il nome originale del file non viene mai usato ne' registrato; nei log non finisce nessun contenuto.
  */
 @Service
@@ -60,9 +63,10 @@ public class EventImageService {
 			throw UploadException.unsupported();         // MIME falso: dice una cosa, i byte un'altra
 		}
 
-		String filename = storage.store(content, info.type());
-		log.info("Event image stored: type={} size={} bytes", info.type(), content.length);
-		return new UploadedImageResponse(EventImageStorage.PUBLIC_PATH + filename, filename, info.type().contentType(), content.length);
+		byte[] clean = ImageMetadataSanitizer.sanitize(content, info);
+		String filename = storage.store(clean, info.type());
+		log.info("Event image stored: type={} size={} bytes (received {} bytes)", info.type(), clean.length, content.length);
+		return new UploadedImageResponse(EventImageStorage.PUBLIC_PATH + filename, filename, info.type().contentType(), clean.length);
 	}
 
 	/** Legge al massimo un byte oltre il limite: basta per capire che e' troppo grande senza caricare tutto in memoria. */

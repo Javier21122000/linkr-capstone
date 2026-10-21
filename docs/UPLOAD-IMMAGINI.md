@@ -20,6 +20,7 @@ Nessuna modifica al database: le immagini stanno su disco, in una cartella ester
 
 `imageUrl` e' un percorso relativo alla radice del sito: va copiato **cosi' com'e'** nel campo `imageUrl` di
 `POST /api/events` o `PUT /api/events/{id}`. `contentType` e' quello rilevato dai byte, non quello dichiarato.
+`size` e' la dimensione del file **salvato**, cioe' dopo la rimozione dei metadati (vedi sotto): puo' essere minore di quella inviata.
 
 | Stato | Quando |
 |---|---|
@@ -57,6 +58,32 @@ Non esiste l'elenco della cartella.
 La cartella si crea al primo upload (permessi `700` dove possibile). Se `LINKR_UPLOAD_DIR` punta **dentro** la copia di
 lavoro di Git il backend non parte, con un messaggio esplicito. Nei test la cartella e' sempre temporanea.
 
+## Metadati rimossi (EXIF, GPS, XMP...)
+
+Una foto scattata col telefono contiene la posizione di chi l'ha fatta, data, modello del dispositivo, a volte una miniatura o
+un'immagine secondaria. **Il server non salva mai il file ricevuto**: salva solo la versione ripulita da `ImageMetadataSanitizer`,
+che lavora sul contenitore del file (segmenti JPEG, chunk PNG, chunk RIFF/WebP) **senza ricodificare i pixel**: nessuna perdita di
+qualita' e nessun decoder esposto a file ostili. E' una *lista di ammissione*: cio' che non e' elencato qui non viene copiato.
+
+| Formato | Resta | Sparisce |
+|---|---|---|
+| JPEG | tabelle, frame, scansioni; APP14 "Adobe" (CMYK); profilo colore ICC valido | EXIF (GPS, data, modello, miniatura), XMP, IPTC/Photoshop, JFIF, commenti, **tutto cio' che segue il primo EOI** (immagini secondarie MPF dei telefoni) |
+| PNG | IHDR, PLTE, IDAT, IEND, tRNS, gAMA, cHRM, sRGB, cICP, iCCP (max 256 KB) | tEXt/zTXt/iTXt (anche XMP), eXIf, tIME, pHYs, chunk privati, parti animate (APNG: resta l'immagine statica) |
+| WebP | VP8/VP8L, ALPH, ICCP valido | EXIF, XMP e ogni altro chunk |
+
+- **Orientamento.** Le foto verticali dei telefoni sono "ruotate via EXIF": cancellarlo le mostrerebbe di lato. Dell'EXIF si legge
+  **una sola informazione**, l'orientamento (1-8); se non e' quello neutro la si riscrive in un EXIF minimo costruito dal server
+  (26 byte di TIFF con la sola voce Orientation). Nulla dell'EXIF originale viene copiato. In Chrome le foto JPEG e PNG appaiono
+  con la stessa rotazione di prima; per i WebP Chrome ignora l'orientamento EXIF sia prima sia dopo, quindi il risultato visibile
+  non cambia.
+- **Profilo ICC.** Si conserva perche' serve ai colori (le foto iPhone sono Display P3: senza profilo apparirebbero spente) e non
+  identifica chi ha scattato. Si accetta solo se e' plausibile (dimensione dichiarata coerente, firma `acsp`, al massimo 256 KB).
+- **Il limite di 5 MB vale per il file ricevuto.** Un file di 5 MB con metadati pesanti puo' essere molto piu' piccolo una volta ripulito.
+- **Difesa in profondita'.** Dopo la riscrittura il risultato deve superare di nuovo `ImageInspector` con lo stesso formato e le stesse
+  dimensioni; altrimenti l'upload e' rifiutato (`400 Invalid image`) e non si pubblica nulla.
+- **Immagini gia' presenti nello storage:** *non* vengono toccate. Quelle caricate prima di questa modifica possono ancora contenere
+  metadati (vedi "Limiti residui").
+
 ## Sicurezza
 
 - **Contenuto reale**: il formato si decide dai byte (firma + struttura completa: CRC dei chunk PNG, fine file JPEG,
@@ -71,9 +98,9 @@ lavoro di Git il backend non parte, con un messaggio esplicito. Nei test la cart
 
 ## Limiti residui (noti e accettati per il Capstone)
 
-1. **Metadati EXIF/GPS non rimossi.** Una foto scattata col telefono puo' contenere la posizione di chi l'ha scattata, e il file
-   viene pubblicato com'e'. Rimuoverli richiede di ricodificare l'immagine (e applicare l'orientamento EXIF, altrimenti molte foto
-   si vedrebbero ruotate); il JDK non scrive WebP. Da fare prima di un uso reale: ricodifica con una libreria dedicata.
+1. **Immagini caricate PRIMA della rimozione dei metadati.** Le nuove immagini sono ripulite (vedi sopra); quelle gia' nello
+   storage no. Prima della pubblicazione: o si usa uno storage vuoto, oppure si ripuliscono i file esistenti con una procedura
+   dedicata, da eseguire solo dopo un backup e con l'autorizzazione del proprietario dei dati.
 2. **File orfani.** Un'immagine caricata e mai usata (evento non creato, immagine sostituita, evento cambiato) resta su disco.
    Non c'e' cancellazione automatica. Procedura **manuale e in sola lettura** per elencarli:
    ```bash

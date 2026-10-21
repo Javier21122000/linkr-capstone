@@ -94,34 +94,37 @@ class EventImageUploadIntegrationTest {
 	@Test
 	void validJpegIsStoredUnderARandomNameAndDescribedByTheResponse() throws Exception {
 		byte[] jpeg = ImageFixtures.jpeg(300, 200);
+		byte[] expected = cleaned(jpeg);
 
 		String body = upload(anna, "foto.jpg", "image/jpeg", jpeg).andExpect(status().isCreated())
 				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
 				.andExpect(jsonPath("$.contentType").value("image/jpeg"))
-				.andExpect(jsonPath("$.size").value(jpeg.length))
+				.andExpect(jsonPath("$.size").value(expected.length))
 				.andReturn().getResponse().getContentAsString();
 
-		assertStored(body, ".jpg", jpeg);
+		assertStored(body, ".jpg", expected);
 	}
 
 	@Test
 	void validPngIsStored() throws Exception {
 		byte[] png = ImageFixtures.png(300, 200);
+		byte[] expected = cleaned(png);
 
 		String body = upload(anna, "foto.png", "image/png", png).andExpect(status().isCreated())
-				.andExpect(jsonPath("$.contentType").value("image/png")).andExpect(jsonPath("$.size").value(png.length))
+				.andExpect(jsonPath("$.contentType").value("image/png")).andExpect(jsonPath("$.size").value(expected.length))
 				.andReturn().getResponse().getContentAsString();
 
-		assertStored(body, ".png", png);
+		assertStored(body, ".png", expected);
 	}
 
 	@Test
 	void validWebpLossyAndLosslessAreStored() throws Exception {
 		for (byte[] webp : List.of(ImageFixtures.webpLossy(), ImageFixtures.webpLossless(), ImageFixtures.webpWithExif())) {
+			byte[] expected = cleaned(webp);
 			String body = upload(anna, "foto.webp", "image/webp", webp).andExpect(status().isCreated())
-					.andExpect(jsonPath("$.contentType").value("image/webp")).andExpect(jsonPath("$.size").value(webp.length))
+					.andExpect(jsonPath("$.contentType").value("image/webp")).andExpect(jsonPath("$.size").value(expected.length))
 					.andReturn().getResponse().getContentAsString();
-			assertStored(body, ".webp", webp);
+			assertStored(body, ".webp", expected);
 		}
 	}
 
@@ -155,7 +158,7 @@ class EventImageUploadIntegrationTest {
 		String body = upload(anna, "foto.jpg", "image/png", png).andExpect(status().isCreated())
 				.andExpect(jsonPath("$.contentType").value("image/png")).andReturn().getResponse().getContentAsString();
 
-		assertStored(body, ".png", png);       // il nome diceva .jpg: viene salvato come PNG, che e' cio' che e'
+		assertStored(body, ".png", cleaned(png));       // il nome diceva .jpg: viene salvato come PNG, che e' cio' che e'
 	}
 
 	@Test
@@ -169,12 +172,43 @@ class EventImageUploadIntegrationTest {
 	void exactlyFiveMegabytesIsAcceptedAndOneByteMoreIsRejected() throws Exception {
 		int max = EventImageService.MAX_SIZE_BYTES;
 
-		upload(anna, "limite.png", "image/png", ImageFixtures.pngPaddedTo(max)).andExpect(status().isCreated())
-				.andExpect(jsonPath("$.size").value(max));
+		// il limite vale per il file RICEVUTO; il chunk privato che porta il PNG a 5 MB non viene salvato, quindi "size" e' quello del file ripulito
+		byte[] limit = ImageFixtures.pngPaddedTo(max);
+		upload(anna, "limite.png", "image/png", limit).andExpect(status().isCreated())
+				.andExpect(jsonPath("$.size").value(cleaned(limit).length));
 		upload(anna, "troppo.png", "image/png", ImageFixtures.pngPaddedTo(max + 1)).andExpect(status().isContentTooLarge())
 				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
 				.andExpect(jsonPath("$.title").value("Upload too large"));
 		assertThat(storedNames()).hasSize(1);
+	}
+
+	@Test
+	void aPhoneJpegWithGpsIsStoredAndServedPubliclyWithoutAnyMetadata() throws Exception {
+		byte[] photo = ImageFixtures.jpegWithMetadata(6, true);
+
+		String body = upload(anna, "IMG_0001.JPG", "image/jpeg", photo).andExpect(status().isCreated())
+				.andReturn().getResponse().getContentAsString();
+		String filename = JsonPath.read(body, "$.filename");
+		String url = JsonPath.read(body, "$.imageUrl");
+
+		byte[] onDisk = Files.readAllBytes(IMAGES.resolve(filename));
+		byte[] served = mockMvc.perform(get(url)).andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray();
+		assertThat(served).isEqualTo(onDisk);
+		assertThat((Integer) JsonPath.read(body, "$.size")).isEqualTo(onDisk.length).isLessThan(photo.length);
+		String text = new String(served, StandardCharsets.ISO_8859_1);
+		for (String secret : ImageFixtures.SECRETS) {
+			assertThat(text).doesNotContain(secret);
+		}
+		assertThat(onDisk).isEqualTo(cleaned(photo));     // e l'orientamento (6) e' l'unica informazione EXIF rimasta
+	}
+
+	@Test
+	void aPngAndAWebpWithMetadataAreServedWithoutThem() throws Exception {
+		for (byte[] image : List.of(ImageFixtures.pngWithMetadata(6), ImageFixtures.webpWithMetadata(6, null))) {
+			String url = JsonPath.read(upload(anna, "x", null, image).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString(), "$.imageUrl");
+			String served = new String(mockMvc.perform(get(url)).andReturn().getResponse().getContentAsByteArray(), StandardCharsets.ISO_8859_1);
+			assertThat(served).doesNotContain("SECRET");
+		}
 	}
 
 	// ======================= rifiuti =======================
@@ -298,8 +332,8 @@ class EventImageUploadIntegrationTest {
 
 	@Test
 	void uploadedImagesAreReadablePubliclyWithSafeHeaders() throws Exception {
-		byte[] png = ImageFixtures.png(120, 80);
-		String url = JsonPath.read(upload(anna, "a.png", "image/png", png).andReturn().getResponse().getContentAsString(), "$.imageUrl");
+		byte[] png = cleaned(ImageFixtures.png(120, 80));
+		String url = JsonPath.read(upload(anna, "a.png", "image/png", ImageFixtures.png(120, 80)).andReturn().getResponse().getContentAsString(), "$.imageUrl");
 
 		// senza token
 		mockMvc.perform(get(url)).andExpect(status().isOk())
@@ -322,7 +356,7 @@ class EventImageUploadIntegrationTest {
 				{ "image/webp", ImageFixtures.webpLossless() } }) {
 			byte[] bytes = (byte[]) sample[1];
 			String url = JsonPath.read(upload(anna, "x", (String) sample[0], bytes).andReturn().getResponse().getContentAsString(), "$.imageUrl");
-			mockMvc.perform(get(url)).andExpect(status().isOk()).andExpect(content().contentType((String) sample[0])).andExpect(content().bytes(bytes));
+			mockMvc.perform(get(url)).andExpect(status().isOk()).andExpect(content().contentType((String) sample[0])).andExpect(content().bytes(cleaned(bytes)));
 		}
 	}
 
@@ -418,12 +452,17 @@ class EventImageUploadIntegrationTest {
 				.andExpect(jsonPath("$.title").value("Invalid image"));
 	}
 
-	/** Il file risulta salvato con il nome della risposta, estensione canonica e byte identici. */
+	/** Il file risulta salvato con il nome della risposta, estensione canonica e i byte attesi (quelli DOPO la rimozione dei metadati). */
 	private void assertStored(String responseBody, String extension, byte[] expected) throws IOException {
 		String filename = JsonPath.read(responseBody, "$.filename");
 		assertThat(filename).matches(EventImageStorage.FILENAME_REGEX).endsWith(extension);
 		assertThat(Files.readAllBytes(IMAGES.resolve(filename))).isEqualTo(expected);
 		assertThat(storedNames()).contains(filename).noneMatch(name -> name.startsWith(".upload-"));
+	}
+
+	/** I byte che il server deve salvare per questo file: l'originale senza metadati incorporati. */
+	private static byte[] cleaned(byte[] original) {
+		return ImageMetadataSanitizer.sanitize(original, ImageInspector.inspect(original));
 	}
 
 	private List<String> storedNames() throws IOException {

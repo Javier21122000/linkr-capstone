@@ -12,7 +12,7 @@ Note di progetto sul rinnovo UX di ottobre 2026: cosa è stato deciso, dove vive
 - Gli edifici restano come impronta piatta anche oltre zoom 15 (prima li disegnava il layer 3D). Le strade principali sono meno sature, perché non
   competano con i marker corallo.
 - Mappa solo 2D: `maxPitch: 0` (nemmeno il gesto a due dita inclina), `pixelRatio` limitato a 2.
-- Un errore di tassello, glifo o sprite non è più fatale: la mappa mostra «non disponibile» solo se lo stile non si scarica, e offre **Riprova**.
+- Un errore di tassello, glifo o sprite non impedisce l'avvio: la mappa mostra «non disponibile» solo se lo stile non si scarica. Che cosa succede dopo (recupero, messaggio, **Riprova**) lo decide il controllore di salute descritto qui sotto.
 
 Misure (Chrome con WebGL software, quindi solo relative):
 
@@ -24,6 +24,30 @@ Misure (Chrome con WebGL software, quindi solo relative):
 | richieste MapTiler al primo caricamento | 21 | 20 |
 | byte MapTiler (stile, sprite, glifi, tasselli) | 1442 kB | 1364 kB |
 | tempo medio per frame durante un pan | 78 ms | 58 ms (67 ms con il pannello in vetro) |
+
+## Stabilità della mappa (`lib/mapHealth.ts`, `lib/mapRecovery.ts`, `EventMap.tsx`)
+
+Sintomo: a volte Discover mostrava marker, lista e controlli MapLibre ma uno sfondo uniforme, senza strade né edifici.
+
+**Fatti verificati nel browser** (guasti iniettati con route di Playwright: rete interrotta, 403, 429, 503, risposte lente, perdita del contesto WebGL):
+
+- Quando i tasselli vettoriali falliscono MapLibre emette `error`, ma poi dichiara comunque `load` e `idle`: la mappa risulta «pronta» pur senza cartografia.
+- I tasselli falliti non vengono ritentati da soli, né da `refreshTiles`, `setTiles` o `setUrl`. `setStyle(url, { diff: false })` sulla stessa istanza li ricarica.
+- Il test oggettivo di una mappa vuota è `queryRenderedFeatures().length === 0` con il contenitore visibile.
+- Prima di questo lavoro un errore di tassello non portava a nessuna fase di errore o di recupero: la mappa restava vuota e senza "Riprova". Il pulsante, quando c'era, ricreava la mappa senza reinserire i marker.
+
+**Ipotesi non provate**: l'innesco naturale. In 12 caricamenti naturali la mappa non si è mai svuotata. Le cause plausibili (un 429 o un errore di rete sui tasselli all'avvio, la perdita del contesto WebGL) producono tutte il sintomo osservato, ma non si è stabilito quale sia quella reale. Non si presume che la colpa sia del servizio cartografico.
+
+Comportamento attuale (`data-status` su `.event-map`: `loading`, `ready`, `recovering`, `degraded`, `error`, `missing-key`):
+
+- A ogni `load`/`idle` il controllore verifica che la mappa disegni qualcosa e che nessun errore di cartografia sia rimasto in sospeso. «Pronta» significa questo, non solo `load`.
+- Al massimo **due tentativi automatici** (dopo 1,5 s e 4,5 s; con 429 dopo 5 s e 12 s). Mai un ciclo infinito. Gli `idle` durante l'attesa non accumulano tentativi.
+- Un errore permanente (400, 401, 403) non si ritenta: la fase è subito `degraded` e il messaggio riporta il codice. Non si maschera una chiave rifiutata.
+- Il recupero ricarica stile e tasselli **sulla stessa istanza**: camera, marker, filtri e selezione non si toccano. Un tassello inesistente (404/204) non è un guasto.
+- Dopo i tentativi la mappa resta utilizzabile, con un avviso e **Riprova**. «Riprova» ricrea la mappa solo se non è mai partita o se il browser ha perso il contesto WebGL; in quel caso conserva l'ultima camera (`moveend`) e reinserisce i marker.
+- Perdita del contesto WebGL: fase `recovering`; se non torna entro 5 s, `degraded`.
+- Se la mappa è lenta (oltre 20 s) si continua ad aspettare, ma compare «Riprova».
+- Nessuna richiesta a MapTiler fuori da Discover: il `preconnect` non è più in `index.html` ma lo aggiunge `main.tsx` solo quando la pagina aperta è `/`. Lo stesso controllore serve `EventLocationPicker`.
 
 ## Ambient Map (`components/layout/AmbientMap.tsx`, `AppShell.tsx`)
 
@@ -68,15 +92,51 @@ Si sceglie un luogo una volta sola; il resto si recupera.
 `<ViewOnMapLink>` naviga a `/` con lo stato `{ mapFocus: { eventId, requestedAt } }` (non nell'URL). Discover lo gestisce una volta, lo toglie dalla voce di
 cronologia (Indietro/Avanti non rifanno il focus), seleziona l'evento sulla mappa già aperta e lo inquadra (zoom minimo 13, mai oltre ciò che serve).
 Se un filtro categoria lo nasconde, il filtro viene tolto con un avviso e **Ripristina**; se l'evento non c'è più, un avviso lo dice. Presente nel dettaglio
-evento, in "I miei eventi" e nell'agenda del profilo; Quick Create avvisa quando il filtro attivo nasconde l'uscita appena pubblicata.
+evento, in "Le mie uscite" (eventi creati dall'utente) e nella "Mia agenda" del profilo (eventi a cui partecipa o che ha segnato con "Mi interessa"); Quick Create avvisa quando il filtro attivo nasconde l'uscita appena pubblicata.
+
+## "Le mie uscite" e "La mia agenda"
+
+- **Le mie uscite** (`/profile/events`): gli eventi che l'utente ha creato o organizza (pubblicati, annullati, gestione).
+- **La mia agenda** (profilo, `ProfileParticipations`): gli eventi a cui parteciperà ("Parteciperò") o che ha segnato con "Mi interessa".
+- Cambiano solo i testi: titoli, navigazione, stati vuoti, pulsanti ed etichette accessibili. Nessuna API, nessun dato e nessun URL cambia di significato.
+
+## Il tuo stato su mappa e lista (`ParticipationIndicator.tsx`, `context/MyParticipationsContext.tsx`)
+
+- Sul marker di un evento a cui l'utente ha risposto compare un piccolo simbolo: **cuore** a contorno per "Mi interessa", **spunta** piena per "Parteciperò". Il colore principale del marker resta quello della categoria.
+- Il simbolo è decorativo (`aria-hidden`); lo stato è nel nome accessibile del marker («… (parteciperai)», «… (ti interessa)»). I marker con stato stanno sopra i vicini quando si sovrappongono.
+- Mostra **solo lo stato personale** dell'utente autenticato, preso da `GET /api/users/me/participations`. Da anonimo non c'è nessun simbolo e non si fa nemmeno la richiesta. Se la richiesta fallisce non si mostra nulla: mai un indicatore inventato.
+- Si aggiorna subito dopo una modifica fatta sul dettaglio dell'evento (`EventParticipationPanel` applica la risposta confermata dal servizio) e al ritorno su Discover; il marker viene aggiornato, non ricreato.
+- Stessa informazione, come etichetta, nelle righe della lista e nell'anteprima.
+
+## Chat mobile
+
+Sotto 48rem la conversazione occupa lo spazio tra header dell’app e Bottom Navigation. Header della conversazione e composer sono elementi fissi del flex layout; soltanto `.chat-thread__messages` scorre. L’altezza parte da `100dvh` e viene aggiornata con `visualViewport` quando compare la tastiera virtuale, includendo safe area e spazio della navigazione inferiore.
+
+Il pulsante «Ultimi messaggi» sta in `.chat-thread__jump-layer`, uno strato `absolute` trasparente agli eventi che ha lo stesso `scrollbar-gutter` dell'area messaggi e lo centra con flex. Prima era centrato con `left: 50%` + `transform: translateX(-50%)`: `.content-reveal` anima `transform` con `animation-fill-mode: both`, quindi `translateY(0)` sovrascriveva il `translateX` e il pulsante finiva a destra di metà della propria larghezza (≈ 79 px; centrato solo con "riduci animazioni"). Lo strato spiega anche le scrollbar classiche: il pulsante segue il centro del contenuto, non quello del contenitore.
+
+La textarea cresce automaticamente fino a 144px. Un `ResizeObserver` conserva il fondo soltanto quando l’utente era già sugli ultimi messaggi; la ricezione di un messaggio non interrompe invece la lettura dello storico.
 
 ## Verifiche
 
 ```bash
 cd frontend
-npm test            # 45 test: luoghi MapTiler (risposte reali), fuso di Milano (anche con dispositivo a New York/Tokyo/Auckland), orari, navigazione
+npm test            # 85 test: luoghi MapTiler, fuso di Milano, orari, navigazione, ALT, scroll chat, salute e recupero della mappa, guida
 npm run typecheck
 npm run build
 ```
 
-Le verifiche nel browser (Playwright + Chrome, sessione finta, API in sola lettura e mock fabbricati per le scritture) non fanno parte del repository: nessuna scrive sul database di sviluppo.
+Le verifiche nel browser (Chrome, API in sola lettura) non fanno parte del repository: nessuna scrive sul database di sviluppo.
+
+# Onboarding e assistenza (`lib/guidance.ts`, `context/ProductGuidanceContext.tsx`, `styles/guidance.css`)
+
+**Prima visita.** La pagina si carica normalmente. Quando Discover è davvero pronto (pagina visibile, eventi arrivati o falliti, mappa conclusa: pronta, incompleta, in errore o non configurata) si attende circa un secondo e compare un benvenuto minimo: «Benvenuto su LINKR» / «Scopri cosa succede. Trova le persone giuste. Vivilo insieme.», con **Scopri LINKR** e **Non ora**.
+
+- **Scopri LINKR** avvia il tour contestuale. I passi sono risolti guardando il DOM: compaiono solo i controlli che esistono davvero in quel momento (su mobile e su desktop sono diversi). Ogni passo ha un callout con freccia che punta all'elemento evidenziato, **Avanti**, **Indietro** e **Salta**; tastiera: frecce, Esc, Tab trattenuto nel callout. Il callout non copre l'elemento che spiega (si sposta sul lato libero o nella metà opposta dello schermo).
+- **Non ora** (e Esc) chiude e segna il benvenuto come visto: non ricompare da solo ai refresh successivi.
+- Mai in automatico su Login o Registrazione: il benvenuto aspetta Discover.
+- **Riaprire il tour**: il pulsante «?» (Centro assistenza) offre «Tour dell'interfaccia» e le schermate «Come funziona LINKR».
+- Con `prefers-reduced-motion` non ci sono ingressi animati né transizioni del callout.
+
+**Persistenza.** Riusa `localStorage`, chiave `linkr:onboarding:v1:{anonymous|user:<id>}` = `complete`. Chi ha scelto «Non ora» da anonimo non rivede il benvenuto nemmeno dopo l'accesso sullo stesso browser (era già la sua prima visita). Senza `localStorage` scrivibile non si insiste: nessuna guida automatica. Il completamento è locale al browser e **non viene sincronizzato tra dispositivi**: non si aggiungono API o colonne al backend.
+
+Le illustrazioni delle schermate «Come funziona LINKR» sono componenti grafici CSS originali e provvisori, senza richieste remote; possono essere sostituite da asset editoriali mantenendo invariata la struttura accessibile.

@@ -4,9 +4,18 @@ import type { FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 
 import { FormField } from "../components/auth/FormField";
+import { EventCoverField } from "../components/events/EventCoverField";
 import { EventLocationPicker } from "../components/events/EventLocationPicker";
+import { PlaceAutocomplete } from "../components/events/PlaceAutocomplete";
 import { useAuth } from "../context/AuthContext";
 import { categoryOptions } from "../lib/eventPresentation";
+import {
+  getEventImageUploadError,
+  isAllowedEventImageUrl,
+  prepareEventImageFile,
+  uploadEventImage,
+} from "../lib/eventImages";
+import type { PlaceSuggestion } from "../lib/geocoding";
 import {
   createEvent,
   getCreateEventFailure,
@@ -114,11 +123,7 @@ function parseCoordinate(value: string): number | null {
   return Number.isFinite(coordinate) ? coordinate : null;
 }
 
-function isValidImageUrl(value: string): boolean {
-  return /^https:\/\/\S+$/.test(value);
-}
-
-function validate(values: EventFormValues, originalStartsAt?: string): EventFormErrors {
+function validate(values: EventFormValues, originalStartsAt?: string, hasSelectedImage = false): EventFormErrors {
   const errors: EventFormErrors = {};
   const title = values.title.trim();
   const description = values.description.trim();
@@ -170,11 +175,11 @@ function validate(values: EventFormValues, originalStartsAt?: string): EventForm
 
   const imageUrl = values.imageUrl.trim();
   if (imageUrl.length > 500) errors.imageUrl = "L’URL dell’immagine non può superare 500 caratteri.";
-  else if (imageUrl && !isValidImageUrl(imageUrl)) errors.imageUrl = "Inserisci un URL HTTPS senza spazi.";
+  else if (imageUrl && !isAllowedEventImageUrl(imageUrl)) errors.imageUrl = "Inserisci un URL HTTPS senza spazi.";
 
   const imageAlt = values.imageAlt.trim();
   if (imageAlt.length > 200) errors.imageAlt = "Il testo alternativo non può superare 200 caratteri.";
-  else if (imageUrl && !imageAlt) errors.imageAlt = "Descrivi l’immagine per chi non può vederla.";
+  else if ((imageUrl || hasSelectedImage) && !imageAlt) errors.imageAlt = "Descrivi l’immagine per chi non può vederla.";
 
   if (values.imageCredit.trim().length > 120) errors.imageCredit = "I crediti non possono superare 120 caratteri.";
 
@@ -214,6 +219,7 @@ function EventFormPage({ mode }: { readonly mode: "create" | "edit" }) {
   const { eventId } = useParams<{ eventId: string }>();
   const formRef = useRef<HTMLFormElement>(null);
   const submittingRef = useRef(false);
+  const imageSelectionRevisionRef = useRef(0);
   const isAdmin = user?.role === "ADMIN";
   const isEdit = mode === "edit";
   const draftKey = `${EVENT_DRAFT_KEY_PREFIX}${user?.id ?? "unknown"}`;
@@ -228,6 +234,12 @@ function EventFormPage({ mode }: { readonly mode: "create" | "edit" }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [requestKey, setRequestKey] = useState(0);
   const [originalStartsAt, setOriginalStartsAt] = useState<string>();
+  const [mapFocusRevision, setMapFocusRevision] = useState(0);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imageFileError, setImageFileError] = useState<string>();
+  const [imageStatusMessage, setImageStatusMessage] = useState<string>();
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [validatingImage, setValidatingImage] = useState(false);
 
   useEffect(() => {
     if (!isEdit) return undefined;
@@ -275,11 +287,88 @@ function EventFormPage({ mode }: { readonly mode: "create" | "edit" }) {
     updateValue("longitude", longitude.toFixed(6));
   }
 
+  function selectPlace(suggestion: PlaceSuggestion) {
+    setValues((current) => {
+      const next: EventFormValues = {
+        ...current,
+        venueName: suggestion.venueName,
+        ...(suggestion.address ? { address: suggestion.address } : {}),
+        ...(suggestion.neighbourhood ? { neighbourhood: suggestion.neighbourhood } : {}),
+        latitude: suggestion.latitude.toFixed(6),
+        longitude: suggestion.longitude.toFixed(6),
+      };
+      if (!isEdit) storeDraft(draftKey, next);
+      return next;
+    });
+    setErrors((current) => {
+      const next = { ...current };
+      delete next.venueName;
+      delete next.latitude;
+      delete next.longitude;
+      if (suggestion.address) delete next.address;
+      if (suggestion.neighbourhood) delete next.neighbourhood;
+      return next;
+    });
+    setFormError(null);
+    setMapFocusRevision((current) => current + 1);
+  }
+
+  async function selectImage(file: File) {
+    const revision = imageSelectionRevisionRef.current + 1;
+    imageSelectionRevisionRef.current = revision;
+    setValidatingImage(true);
+    setImageFileError(undefined);
+    setImageStatusMessage("Controllo immagine in corso…");
+    const prepared = await prepareEventImageFile(file);
+    if (imageSelectionRevisionRef.current !== revision) return;
+    setValidatingImage(false);
+    setImageStatusMessage(undefined);
+    if (prepared.error || !prepared.file) {
+      setImageFileError(prepared.error ?? "Non è stato possibile leggere questa immagine.");
+      setSelectedImage(null);
+      return;
+    }
+
+    setSelectedImage(prepared.file);
+    setErrors((current) => {
+      if (!current.imageUrl) return current;
+      const next = { ...current };
+      delete next.imageUrl;
+      return next;
+    });
+    setFormError(null);
+  }
+
+  function removeImage() {
+    imageSelectionRevisionRef.current += 1;
+    setValidatingImage(false);
+    setImageFileError(undefined);
+    setImageStatusMessage(undefined);
+    if (selectedImage) {
+      setSelectedImage(null);
+      return;
+    }
+    updateValue("imageUrl", "");
+  }
+
+  function updateImageUrl(value: string) {
+    imageSelectionRevisionRef.current += 1;
+    setValidatingImage(false);
+    setSelectedImage(null);
+    setImageFileError(undefined);
+    setImageStatusMessage(undefined);
+    updateValue("imageUrl", value);
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (submittingRef.current) return;
+    if (submittingRef.current || validatingImage) return;
+    if (imageFileError) {
+      window.requestAnimationFrame(() => formRef.current?.querySelector<HTMLElement>("#event-cover-file-error")?.focus());
+      return;
+    }
 
-    const validationErrors = validate(values, originalStartsAt);
+    const validationErrors = validate(values, originalStartsAt, Boolean(selectedImage));
     setErrors(validationErrors);
     setFormError(null);
     if (Object.keys(validationErrors).length > 0) {
@@ -289,26 +378,47 @@ function EventFormPage({ mode }: { readonly mode: "create" | "edit" }) {
       return;
     }
 
-    const payload: CreateEventPayload = {
-      title: values.title.trim(),
-      description: values.description.trim(),
-      category: values.category as EventCategory,
-      startsAt: new Date(values.startsAt).toISOString(),
-      ...(values.endsAt ? { endsAt: new Date(values.endsAt).toISOString() } : {}),
-      venueName: values.venueName.trim(),
-      address: values.address.trim(),
-      neighbourhood: values.neighbourhood.trim(),
-      latitude: Number(values.latitude),
-      longitude: Number(values.longitude),
-      ...(values.imageUrl.trim() ? { imageUrl: values.imageUrl.trim() } : {}),
-      ...(values.imageAlt.trim() ? { imageAlt: values.imageAlt.trim() } : {}),
-      ...(values.imageCredit.trim() ? { imageCredit: values.imageCredit.trim() } : {}),
-      type: isAdmin ? values.eventType : "COMMUNITY",
-    };
-
     submittingRef.current = true;
     setSubmitting(true);
     try {
+      let imageUrl = values.imageUrl.trim();
+      if (selectedImage) {
+        setUploadingImage(true);
+        setImageFileError(undefined);
+        setImageStatusMessage("Caricamento foto in corso…");
+        try {
+          const uploadedImage = await authorizedRequest((accessToken) => uploadEventImage(accessToken, selectedImage));
+          imageUrl = uploadedImage.imageUrl;
+          updateValue("imageUrl", uploadedImage.imageUrl);
+          setSelectedImage(null);
+          setImageStatusMessage("Foto caricata. Salvataggio dell’evento in corso…");
+        } catch (error) {
+          setImageFileError(getEventImageUploadError(error));
+          setImageStatusMessage(undefined);
+          window.requestAnimationFrame(() => formRef.current?.querySelector<HTMLElement>("#event-cover-file-error")?.focus());
+          return;
+        } finally {
+          setUploadingImage(false);
+        }
+      }
+
+      const payload: CreateEventPayload = {
+        title: values.title.trim(),
+        description: values.description.trim(),
+        category: values.category as EventCategory,
+        startsAt: new Date(values.startsAt).toISOString(),
+        ...(values.endsAt ? { endsAt: new Date(values.endsAt).toISOString() } : {}),
+        venueName: values.venueName.trim(),
+        address: values.address.trim(),
+        neighbourhood: values.neighbourhood.trim(),
+        latitude: Number(values.latitude),
+        longitude: Number(values.longitude),
+        ...(imageUrl ? { imageUrl } : {}),
+        ...(values.imageAlt.trim() ? { imageAlt: values.imageAlt.trim() } : {}),
+        ...(values.imageCredit.trim() ? { imageCredit: values.imageCredit.trim() } : {}),
+        type: isAdmin ? values.eventType : "COMMUNITY",
+      };
+
       const savedEvent = await authorizedRequest((accessToken) => (
         isEdit && eventId
           ? updateEvent(accessToken, eventId, payload)
@@ -369,7 +479,7 @@ function EventFormPage({ mode }: { readonly mode: "create" | "edit" }) {
 
       <header className="mt-5 max-w-3xl">
         <p className="section-kicker">{isEdit ? "Gestisci evento" : "Crea su LINKR"}</p>
-        <h1 className="mt-3 text-[clamp(2.6rem,8vw,5.5rem)] font-extrabold leading-[0.94] tracking-[-0.06em] text-ink">
+        <h1 className="mt-3 text-[clamp(2.25rem,6vw,4rem)] font-extrabold leading-[0.96] tracking-[-0.055em] text-ink">
           {isEdit ? "Aggiorna il tuo evento." : "Porta le persone fuori, insieme."}
         </h1>
         <p className="mt-5 max-w-2xl text-base leading-7 text-muted sm:text-lg">
@@ -428,27 +538,27 @@ function EventFormPage({ mode }: { readonly mode: "create" | "edit" }) {
                     : <p id="description-hint" className="mt-2 text-xs leading-5 text-muted">Informazioni chiare aiutano le persone a decidere se partecipare.</p>}
                 </div>
 
-                <div className="grid gap-5 sm:grid-cols-2">
-                  <div>
-                    <label className="form-label" htmlFor="category">Categoria</label>
-                    <select
-                      id="category"
-                      name="category"
-                      className="form-input mt-2"
-                      value={values.category}
-                      onChange={(event) => updateValue("category", event.target.value as EventCategory | "")}
-                      aria-invalid={errors.category ? true : undefined}
-                      aria-describedby={errors.category ? "category-error" : undefined}
-                      disabled={submitting}
-                    >
-                      <option value="">Seleziona</option>
-                      {categoryOptions.map((option) => option.value
-                        ? <option key={option.value} value={option.value}>{option.label}</option>
-                        : null)}
-                    </select>
-                    {errors.category ? <p id="category-error" className="field-error mt-2">{errors.category}</p> : null}
-                  </div>
+                <div>
+                  <label className="form-label" htmlFor="category">Categoria</label>
+                  <select
+                    id="category"
+                    name="category"
+                    className="form-input mt-2"
+                    value={values.category}
+                    onChange={(event) => updateValue("category", event.target.value as EventCategory | "")}
+                    aria-invalid={errors.category ? true : undefined}
+                    aria-describedby={errors.category ? "category-error" : undefined}
+                    disabled={submitting}
+                  >
+                    <option value="">Seleziona</option>
+                    {categoryOptions.map((option) => option.value
+                      ? <option key={option.value} value={option.value}>{option.label}</option>
+                      : null)}
+                  </select>
+                  {errors.category ? <p id="category-error" className="field-error mt-2">{errors.category}</p> : null}
+                </div>
 
+                <div className="grid gap-5 sm:grid-cols-2">
                   <FormField
                     id="startsAt"
                     label="Inizio"
@@ -458,18 +568,17 @@ function EventFormPage({ mode }: { readonly mode: "create" | "edit" }) {
                     error={errors.startsAt}
                     disabled={submitting}
                   />
+                  <FormField
+                    id="endsAt"
+                    label="Fine (opzionale)"
+                    type="datetime-local"
+                    value={values.endsAt}
+                    onChange={(event) => updateValue("endsAt", event.target.value)}
+                    error={errors.endsAt}
+                    hint="Al massimo 7 giorni dopo l’inizio."
+                    disabled={submitting}
+                  />
                 </div>
-
-                <FormField
-                  id="endsAt"
-                  label="Fine (opzionale)"
-                  type="datetime-local"
-                  value={values.endsAt}
-                  onChange={(event) => updateValue("endsAt", event.target.value)}
-                  error={errors.endsAt}
-                  hint="Può essere distante al massimo 7 giorni dall’inizio."
-                  disabled={submitting}
-                />
               </div>
             </section>
 
@@ -528,21 +637,21 @@ function EventFormPage({ mode }: { readonly mode: "create" | "edit" }) {
                 </div>
               </div>
               <div className="mt-6 space-y-5">
-                <FormField
-                  id="imageUrl"
-                  label="URL immagine (opzionale)"
-                  type="url"
-                  value={values.imageUrl}
-                  onChange={(event) => updateValue("imageUrl", event.target.value)}
-                  error={errors.imageUrl}
-                  hint="Usa un indirizzo pubblico HTTPS senza spazi. Puoi lasciare il campo vuoto."
-                  maxLength={500}
-                  placeholder="https://…"
-                  disabled={submitting}
+                <EventCoverField
+                  imageUrl={values.imageUrl}
+                  imageAlt={values.imageAlt}
+                  selectedFile={selectedImage}
+                  fileError={imageFileError}
+                  urlError={errors.imageUrl}
+                  statusMessage={imageStatusMessage}
+                  disabled={submitting || validatingImage}
+                  onFileSelect={selectImage}
+                  onRemove={removeImage}
+                  onUrlChange={updateImageUrl}
                 />
                 <FormField
                   id="imageAlt"
-                  label={`Testo alternativo${values.imageUrl.trim() ? "" : " (opzionale)"}`}
+                  label={`Testo alternativo${values.imageUrl.trim() || selectedImage ? "" : " (opzionale)"}`}
                   value={values.imageAlt}
                   onChange={(event) => updateValue("imageAlt", event.target.value)}
                   error={errors.imageAlt}
@@ -575,14 +684,13 @@ function EventFormPage({ mode }: { readonly mode: "create" | "edit" }) {
             </div>
 
             <div className="mt-6">
-              <FormField
+              <PlaceAutocomplete
                 id="venueName"
                 label="Nome del luogo"
                 value={values.venueName}
-                onChange={(event) => updateValue("venueName", event.target.value)}
+                onChange={(value) => updateValue("venueName", value)}
+                onSelect={selectPlace}
                 error={errors.venueName}
-                maxLength={120}
-                placeholder="Es. Giardini Indro Montanelli"
                 disabled={submitting}
               />
             </div>
@@ -615,6 +723,7 @@ function EventFormPage({ mode }: { readonly mode: "create" | "edit" }) {
               <EventLocationPicker
                 latitude={latitude}
                 longitude={longitude}
+                focusRevision={mapFocusRevision}
                 disabled={submitting}
                 onChange={updateCoordinates}
               />
@@ -653,9 +762,9 @@ function EventFormPage({ mode }: { readonly mode: "create" | "edit" }) {
           </aside>
         </div>
 
-        <div className="create-event-actions">
-          <p className="text-xs font-semibold leading-5 text-muted">{isEdit ? "Il dettaglio verrà aggiornato dopo il salvataggio." : "L’evento verrà inviato a LINKR quando premi Pubblica."}</p>
-          <div className="mt-3 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+        <div className="create-event-actions glass glass--strong">
+          <p className="create-event-actions__hint">{isEdit ? "Il dettaglio verrà aggiornato dopo il salvataggio." : "L’evento verrà inviato a LINKR quando premi Pubblica."}</p>
+          <div className="create-event-actions__buttons">
             <Link
               className="button-secondary inline-flex items-center"
               to={returnTo}
@@ -668,9 +777,9 @@ function EventFormPage({ mode }: { readonly mode: "create" | "edit" }) {
             >
               Annulla
             </Link>
-            <button className="button-primary inline-flex items-center gap-2" type="submit" disabled={submitting} aria-busy={submitting}>
-              {submitting ? <LoaderCircle className="animate-spin motion-reduce:animate-none" size={18} aria-hidden="true" /> : null}
-              {submitting ? (isEdit ? "Salvataggio…" : "Pubblicazione…") : (isEdit ? "Salva modifiche" : "Pubblica evento")}
+            <button className="button-primary inline-flex items-center gap-2" type="submit" disabled={submitting || validatingImage || Boolean(imageFileError)} aria-busy={submitting || validatingImage}>
+              {submitting || validatingImage ? <LoaderCircle className="animate-spin motion-reduce:animate-none" size={18} aria-hidden="true" /> : null}
+              {validatingImage ? "Controllo foto…" : uploadingImage ? "Caricamento foto…" : submitting ? (isEdit ? "Salvataggio…" : "Pubblicazione…") : (isEdit ? "Salva modifiche" : "Pubblica evento")}
             </button>
           </div>
         </div>

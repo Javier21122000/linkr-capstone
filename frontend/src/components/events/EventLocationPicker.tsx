@@ -18,14 +18,16 @@ type MapStatus = "loading" | "ready" | "missing-key" | "error";
 interface EventLocationPickerProps {
   readonly latitude: number | null;
   readonly longitude: number | null;
+  readonly focusRevision: number;
   readonly disabled: boolean;
   readonly onChange: (latitude: number, longitude: number) => void;
 }
 
-export function EventLocationPicker({ latitude, longitude, disabled, onChange }: EventLocationPickerProps) {
+export function EventLocationPicker({ latitude, longitude, focusRevision, disabled, onChange }: EventLocationPickerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markerRef = useRef<Marker | null>(null);
+  const handledFocusRevisionRef = useRef(0);
   const onChangeRef = useRef(onChange);
   const disabledRef = useRef(disabled);
   const styleUrl = getMapTilerStyleUrl();
@@ -98,7 +100,7 @@ export function EventLocationPicker({ latitude, longitude, disabled, onChange }:
     }
 
     if (!markerRef.current) {
-      const marker = new Marker({ color: "#b9301d", draggable: !disabled })
+      const marker = new Marker({ color: "#e84d2f", draggable: !disabled })
         .setLngLat([longitude, latitude])
         .addTo(map);
       marker.on("dragend", () => {
@@ -113,6 +115,21 @@ export function EventLocationPicker({ latitude, longitude, disabled, onChange }:
     markerRef.current.setLngLat([longitude, latitude]);
     markerRef.current.setDraggable(!disabled);
   }, [disabled, latitude, longitude]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map
+      || focusRevision === 0
+      || handledFocusRevisionRef.current === focusRevision
+      || latitude === null
+      || longitude === null) return;
+    handledFocusRevisionRef.current = focusRevision;
+    map.easeTo({
+      center: [longitude, latitude],
+      zoom: Math.max(map.getZoom(), 15),
+      duration: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 650,
+    });
+  }, [focusRevision, latitude, longitude]);
 
   const unavailable = status === "missing-key" || status === "error";
 

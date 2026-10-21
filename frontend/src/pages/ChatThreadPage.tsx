@@ -51,7 +51,7 @@ function uniqueMessages(messages: readonly MessageResponse[]): readonly MessageR
 export function ChatThreadPage() {
   const { conversationId = "" } = useParams();
   const { authorizedRequest } = useAuth();
-  const { connectionStatus, subscribe } = useChatRealtime();
+  const { clearConversationUnread, connectionStatus, reconciliationRevision, subscribe } = useChatRealtime();
   const [requestKey, setRequestKey] = useState(0);
   const [state, setState] = useState<ThreadState>({ status: "loading" });
   const [messages, setMessages] = useState<readonly MessageResponse[]>([]);
@@ -67,10 +67,12 @@ export function ChatThreadPage() {
   const pendingScrollRestoreRef = useRef<ScrollSnapshot | null>(null);
   const shouldScrollBottomRef = useRef(false);
   const pendingSendBodyRef = useRef<string | null>(null);
+  const reconciliationRevisionRef = useRef(reconciliationRevision);
 
-  const markRead = useCallback(() => authorizedRequest((accessToken) => (
-    markConversationRead(accessToken, conversationId)
-  )), [authorizedRequest, conversationId]);
+  const markRead = useCallback(async () => {
+    await authorizedRequest((accessToken) => markConversationRead(accessToken, conversationId));
+    clearConversationUnread(conversationId);
+  }, [authorizedRequest, clearConversationUnread, conversationId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -134,6 +136,12 @@ export function ChatThreadPage() {
     }
     if (!message.mine && document.visibilityState === "visible") void markRead().catch(() => undefined);
   }), [conversationId, markRead, subscribe]);
+
+  useEffect(() => {
+    if (reconciliationRevisionRef.current === reconciliationRevision) return;
+    reconciliationRevisionRef.current = reconciliationRevision;
+    setRequestKey((current) => current + 1);
+  }, [reconciliationRevision]);
 
   useEffect(() => {
     function readWhenVisible() {
@@ -276,8 +284,8 @@ export function ChatThreadPage() {
 
   const { conversation, hasMore } = state;
   return (
-    <div className="page-shell page-with-mobile-nav py-5 sm:py-8">
-      <section className="mx-auto flex max-w-3xl flex-col overflow-hidden rounded-2xl border border-line bg-surface" aria-labelledby="chat-person-title">
+    <div className="page-shell page-with-mobile-nav chat-thread-page py-5 sm:py-8">
+      <section className="chat-thread mx-auto flex max-w-3xl flex-col overflow-hidden rounded-2xl border border-line bg-surface" aria-labelledby="chat-person-title">
         <header className="flex items-center gap-3 border-b border-line p-4">
           <Link className="icon-button shrink-0" to="/chats" aria-label="Torna alle chat"><ArrowLeft size={19} aria-hidden="true" /></Link>
           <UserAvatar displayName={conversation.otherUser.displayName} avatarUrl={conversation.otherUser.avatarUrl} className="size-11 text-xs" />
@@ -289,7 +297,7 @@ export function ChatThreadPage() {
 
         {connectionStatus === "disconnected" ? <p className="border-b border-line px-4 py-2 text-center text-xs font-bold text-muted">Realtime non disponibile: invio e cronologia REST restano attivi.</p> : null}
 
-        <div ref={scrollRef} className="h-[min(60dvh,38rem)] overflow-y-auto overscroll-contain bg-canvas/60 px-4 py-5" aria-live="polite">
+        <div ref={scrollRef} className="chat-thread__messages h-[min(60dvh,38rem)] overflow-y-auto overscroll-contain bg-canvas/60 px-4 py-5" aria-live="polite">
           <div className="mb-5 text-center">
             {olderError ? <p className="form-message form-message--error mb-3" role="alert">{olderError}</p> : null}
             {hasMore ? (
@@ -310,7 +318,7 @@ export function ChatThreadPage() {
             <ol className="space-y-3">
               {messages.map((message) => (
                 <li className={`flex ${message.mine ? "justify-end" : "justify-start"}`} key={message.messageId}>
-                  <div className={`max-w-[85%] rounded-2xl px-4 py-3 sm:max-w-[72%] ${message.mine ? "bg-linkr-strong text-white" : "border border-line bg-surface text-ink"}`}>
+                  <div className={`max-w-[85%] rounded-2xl px-4 py-3 sm:max-w-[72%] ${message.mine ? "bg-linkr-action text-white" : "border border-line bg-surface text-ink"}`}>
                     <p className="whitespace-pre-wrap break-words text-sm leading-6">{message.body}</p>
                     <p className={`mt-1 text-[0.68rem] font-bold ${message.mine ? "text-white/75" : "text-muted"}`}>{formatMessageTime(message.createdAt)}</p>
                   </div>

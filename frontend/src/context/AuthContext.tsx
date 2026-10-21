@@ -22,24 +22,87 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-export function AuthProvider({ children }: { readonly children: ReactNode }) {
-  const [session, setSession] = useState<AuthSession | null>(null);
+const SESSION_STORAGE_KEY = "linkr.auth.session";
 
-  const logout = useCallback(() => setSession(null), []);
+function isStoredUser(value: unknown): value is UserResponse {
+  if (typeof value !== "object" || value === null) return false;
+  const user = value as Partial<UserResponse>;
+  return typeof user.id === "string"
+    && typeof user.username === "string"
+    && typeof user.email === "string"
+    && typeof user.displayName === "string"
+    && (typeof user.bio === "string" || user.bio === null)
+    && (typeof user.avatarUrl === "string" || user.avatarUrl === null)
+    && (user.role === "USER" || user.role === "ADMIN")
+    && typeof user.createdAt === "string"
+    && typeof user.discoverable === "boolean";
+}
+
+function readStoredSession(): AuthSession | null {
+  try {
+    const raw = window.sessionStorage.getItem(SESSION_STORAGE_KEY);
+    if (!raw) return null;
+    const value: unknown = JSON.parse(raw);
+    if (typeof value !== "object" || value === null) throw new Error("Invalid stored session");
+    const candidate = value as Partial<AuthSession>;
+    if (typeof candidate.accessToken !== "string"
+      || typeof candidate.expiresAt !== "number"
+      || !Number.isFinite(candidate.expiresAt)
+      || !isStoredUser(candidate.user)
+      || candidate.expiresAt <= Date.now()) {
+      throw new Error("Invalid or expired stored session");
+    }
+    return {
+      accessToken: candidate.accessToken,
+      expiresAt: candidate.expiresAt,
+      user: candidate.user,
+    };
+  } catch {
+    try {
+      window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    } catch {
+      // Storage bloccato dal browser: nessuna sessione persistita.
+    }
+    return null;
+  }
+}
+
+function persistSession(session: AuthSession | null): void {
+  try {
+    if (session) window.sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+    else window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+  } catch {
+    // Se sessionStorage non e' disponibile, l'app continua con una sessione solo in memoria.
+  }
+}
+
+export function AuthProvider({ children }: { readonly children: ReactNode }) {
+  // sessionStorage sopravvive ai refresh ma resta leggibile da JavaScript: una XSS potrebbe quindi sottrarre il JWT.
+  // CSP, escaping React e dipendenze affidabili restano difese necessarie; non viene simulato alcun refresh token.
+  const [session, setSession] = useState<AuthSession | null>(readStoredSession);
+
+  const logout = useCallback(() => {
+    persistSession(null);
+    setSession(null);
+  }, []);
 
   const authenticate = useCallback((response: AuthResponse) => {
     const expiresAt = Date.now() + Math.max(0, response.expiresIn) * 1_000;
     if (!response.accessToken || expiresAt <= Date.now()) {
+      persistSession(null);
       setSession(null);
       return;
     }
 
-    setSession({ accessToken: response.accessToken, expiresAt, user: response.user });
+    const nextSession = { accessToken: response.accessToken, expiresAt, user: response.user };
+    persistSession(nextSession);
+    setSession(nextSession);
   }, []);
 
   const authorizedRequest = useCallback(async <T,>(request: (accessToken: string) => Promise<T>): Promise<T> => {
     if (!session) throw new Error("Authentication is required");
     if (session.expiresAt <= Date.now()) {
+      persistSession(null);
       setSession(null);
       throw new Error("Authentication has expired");
     }
@@ -48,7 +111,11 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
       return await request(session.accessToken);
     } catch (error) {
       if (isUnauthorized(error)) {
-        setSession((current) => current?.accessToken === session.accessToken ? null : current);
+        setSession((current) => {
+          if (current?.accessToken !== session.accessToken) return current;
+          persistSession(null);
+          return null;
+        });
       }
       throw error;
     }
@@ -63,7 +130,7 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
 
     const remaining = session.expiresAt - Date.now();
     if (remaining <= 0) {
-      setSession(null);
+      logout();
       return undefined;
     }
 

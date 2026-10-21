@@ -1,49 +1,67 @@
-import { Compass, LogIn, MessageCircle, UserRound, UsersRound } from "lucide-react";
-import { NavLink } from "react-router";
+import { Compass, Link2, LogIn, MessageCircle, UserRound, UsersRound } from "lucide-react";
 
 import { useAuth } from "../../context/AuthContext";
+import { useChatRealtime } from "../../context/ChatRealtimeContext";
 import { useLinkRequestCount } from "../../context/LinkRequestCountContext";
+import { ChatUnreadBadge } from "../chat/ChatUnreadBadge";
 import { IncomingLinkCountBadge } from "../links/IncomingLinkCountBadge";
+import { NavItem } from "./NavItem";
+
+const ICON_SIZE = 22;
 
 export function MobileNav() {
   const { status, user } = useAuth();
+  const { unreadCount } = useChatRealtime();
   const { incomingCount } = useLinkRequestCount();
   const profileLabel = user ? `@${user.username}` : "Profilo";
-  const profileAccessibleLabel = incomingCount
-    ? `Apri il profilo di ${profileLabel}, ${incomingCount} richieste Link ricevute in attesa`
-    : `Apri il profilo di ${profileLabel}`;
+  const linksAccessibleLabel = incomingCount
+    ? `Link, ${incomingCount} ${incomingCount === 1 ? "richiesta ricevuta in attesa" : "richieste ricevute in attesa"}`
+    : "Link";
+  const chatAccessibleLabel = unreadCount
+    ? `Chat, ${unreadCount} ${unreadCount === 1 ? "messaggio non letto" : "messaggi non letti"}`
+    : "Chat";
 
   return (
-    <nav className="mobile-nav md:hidden" aria-label="Primary navigation" data-authenticated={status === "authenticated"}>
-      <NavLink to="/" end className="mobile-nav__item">
-        <Compass size={21} strokeWidth={2.4} aria-hidden="true" />
+    <nav className="mobile-nav md:hidden" aria-label="Primary navigation">
+      <NavItem to="/" end className="mobile-nav__item">
+        <span className="mobile-nav__icon"><Compass size={ICON_SIZE} strokeWidth={2.2} aria-hidden="true" /></span>
         <span className="mobile-nav__label">Discover</span>
-      </NavLink>
+      </NavItem>
       {status === "anonymous" ? (
-        <NavLink to="/login" className="mobile-nav__item">
-          <LogIn size={21} strokeWidth={2.2} aria-hidden="true" />
+        <NavItem to="/login" className="mobile-nav__item">
+          <span className="mobile-nav__icon"><LogIn size={ICON_SIZE} strokeWidth={2.2} aria-hidden="true" /></span>
           <span className="mobile-nav__label">Accedi</span>
-        </NavLink>
+        </NavItem>
       ) : (
         <>
-          <NavLink to="/people" className="mobile-nav__item">
-            <UsersRound size={21} strokeWidth={2.2} aria-hidden="true" />
+          <NavItem to="/people" className="mobile-nav__item">
+            <span className="mobile-nav__icon"><UsersRound size={ICON_SIZE} strokeWidth={2.2} aria-hidden="true" /></span>
             <span className="mobile-nav__label">Persone</span>
-          </NavLink>
-          <NavLink to="/chats" className="mobile-nav__item">
-            <MessageCircle size={21} strokeWidth={2.2} aria-hidden="true" />
+          </NavItem>
+          <NavItem to="/profile/links" className="mobile-nav__item" aria-label={linksAccessibleLabel}>
+            <span className="mobile-nav__icon">
+              <Link2 size={ICON_SIZE} strokeWidth={2.2} aria-hidden="true" />
+              <span className="mobile-nav__badge"><IncomingLinkCountBadge /></span>
+            </span>
+            <span className="mobile-nav__label">Link</span>
+          </NavItem>
+          <NavItem to="/chats" className="mobile-nav__item" aria-label={chatAccessibleLabel}>
+            <span className="mobile-nav__icon">
+              <MessageCircle size={ICON_SIZE} strokeWidth={2.2} aria-hidden="true" />
+              <span className="mobile-nav__badge"><ChatUnreadBadge /></span>
+            </span>
             <span className="mobile-nav__label">Chat</span>
-          </NavLink>
-          <NavLink
+          </NavItem>
+          <NavItem
             to="/profile"
+            excludePaths={["/profile/links"]}
             className="mobile-nav__item"
-            aria-label={profileAccessibleLabel}
+            aria-label={`Apri il profilo di ${profileLabel}`}
             title={profileLabel}
           >
-            <UserRound size={21} strokeWidth={2.2} className="shrink-0" aria-hidden="true" />
-            <span className="mobile-nav__label">{profileLabel}</span>
-            <IncomingLinkCountBadge />
-          </NavLink>
+            <span className="mobile-nav__icon"><UserRound size={ICON_SIZE} strokeWidth={2.2} aria-hidden="true" /></span>
+            <span className="mobile-nav__label">Profilo</span>
+          </NavItem>
         </>
       )}
     </nav>

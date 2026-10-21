@@ -35,7 +35,7 @@ function formatConversationTime(value: string): string {
 
 export function ChatsPage() {
   const { authorizedRequest } = useAuth();
-  const { connectionStatus, subscribe } = useChatRealtime();
+  const { connectionStatus, conversationActivity, reconciliationRevision, subscribe } = useChatRealtime();
   const [pageNumber, setPageNumber] = useState(0);
   const [requestKey, setRequestKey] = useState(0);
   const [state, setState] = useState<ConversationsState>({ status: "loading" });
@@ -45,6 +45,7 @@ export function ChatsPage() {
   const requestPendingRef = useRef(false);
   const conversationIdsRef = useRef(new Set<string>());
   const seenMessageIdsRef = useRef(new Set<string>());
+  const reconciliationRevisionRef = useRef(reconciliationRevision);
 
   useEffect(() => {
     const requestId = ++requestIdRef.current;
@@ -112,6 +113,37 @@ export function ChatsPage() {
       };
     });
   }), [subscribe]);
+
+  useEffect(() => {
+    if (!conversationActivity) return;
+    setState((current) => {
+      if (current.status !== "success") return current;
+      const items = current.page.items.map((conversation) => {
+        const activity = conversationActivity[conversation.conversationId];
+        if (!activity) return conversation;
+        return {
+          ...conversation,
+          lastMessage: activity.lastMessage ?? conversation.lastMessage,
+          unreadCount: activity.unreadCount,
+        };
+      }).sort((left, right) => {
+        const leftTime = Date.parse(left.lastMessage?.createdAt ?? left.linkedAt);
+        const rightTime = Date.parse(right.lastMessage?.createdAt ?? right.linkedAt);
+        return rightTime - leftTime;
+      });
+      return { status: "success", page: { ...current.page, items } };
+    });
+  }, [conversationActivity]);
+
+  useEffect(() => {
+    if (reconciliationRevisionRef.current === reconciliationRevision) return;
+    reconciliationRevisionRef.current = reconciliationRevision;
+    requestIdRef.current += 1;
+    requestPendingRef.current = false;
+    conversationIdsRef.current.clear();
+    setPageNumber(0);
+    setRequestKey((current) => current + 1);
+  }, [reconciliationRevision]);
 
   function retry() {
     requestIdRef.current += 1;
@@ -187,7 +219,7 @@ export function ChatsPage() {
                               : "Inizia la conversazione"}
                           </span>
                           {conversation.unreadCount > 0 ? (
-                            <span className="grid min-h-6 min-w-6 shrink-0 place-items-center rounded-full bg-linkr-strong px-1.5 text-xs font-extrabold text-white" aria-label={`${conversation.unreadCount} messaggi non letti`}>
+                            <span className="grid min-h-6 min-w-6 shrink-0 place-items-center rounded-full bg-linkr-action px-1.5 text-xs font-extrabold text-white" aria-label={`${conversation.unreadCount} messaggi non letti`}>
                               {conversation.unreadCount > 99 ? "99+" : conversation.unreadCount}
                             </span>
                           ) : null}

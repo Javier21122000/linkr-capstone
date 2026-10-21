@@ -1,0 +1,252 @@
+/*
+ * Layout di pagina Human Signal: dettaglio evento, form evento e pagine social.
+ */
+
+/* ——— Dettaglio evento ——— */
+.event-hero {
+  position: relative;
+  margin: 0;
+}
+
+.event-hero__media {
+  position: relative;
+  height: min(60dvh, 34rem);
+  min-height: 20rem;
+  overflow: hidden;
+  background: var(--color-line);
+}
+
+/* Senza fotografia l'hero è solo un segnaposto: non deve occupare mezzo schermo. */
+.event-hero[data-empty="true"] .event-hero__media {
+  height: 15rem;
+  min-height: 0;
+}
+
+.event-hero__back {
+  position: absolute;
+  z-index: 2;
+  top: 0.9rem;
+  left: 0.9rem;
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 999px;
+  padding: 0 1.1rem 0 0.8rem;
+  color: var(--color-ink);
+  font-size: 0.875rem;
+  font-weight: 800;
+  transition: transform 220ms var(--ease-spring);
+}
+
+.event-hero__back:active {
+  transform: scale(0.96);
+}
+
+/* Mobile: lo sheet occupa tutta la larghezza e dà la forma al bordo inferiore dell'hero. */
+.event-detail__sheet {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  margin: -1.75rem 0 0;
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  background: var(--color-canvas);
+  padding: 1.75rem 1rem 0;
+}
+
+.event-facts {
+  display: grid;
+  gap: 0.6rem;
+  margin: 1.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.event-facts__item {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  border: 1px solid var(--color-line);
+  border-radius: 1.25rem;
+  background: var(--color-surface);
+  padding: 0.8rem 1rem 0.8rem 0.8rem;
+}
+
+.event-facts__icon {
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 0.9rem;
+  background: var(--color-linkr-soft);
+  color: var(--color-linkr-strong);
+}
+
+@media (min-width: 40rem) {
+  .event-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .event-facts__item--wide {
+    grid-column: 1 / -1;
+  }
+
+  .event-hero__media {
+    border-radius: var(--radius-sheet);
+  }
+
+  .event-hero {
+    width: min(100% - 3rem, 44rem);
+    margin: 1.25rem auto 0;
+  }
+
+  .event-detail__sheet {
+    width: min(100% - 3rem, 44rem);
+    margin: 1.5rem auto 0;
+    border-radius: 0;
+    background: transparent;
+    padding: 0;
+  }
+}
+
+@media (min-width: 64rem) {
+  .event-detail {
+    display: grid;
+    width: min(100% - 3rem, 76rem);
+    grid-template-columns: minmax(0, 1.1fr) minmax(24rem, 0.9fr);
+    align-items: start;
+    gap: 3rem;
+    margin: 1.5rem auto 0;
+  }
+
+  .event-hero {
+    position: sticky;
+    top: 6.5rem;
+    width: auto;
+    margin: 0;
+  }
+
+  .event-hero__media {
+    height: min(calc(100dvh - 9rem), 46rem);
+  }
+
+  .event-hero[data-empty="true"] .event-hero__media {
+    height: 24rem;
+  }
+
+  .event-detail__sheet {
+    width: auto;
+    margin: 0;
+  }
+
+  .event-facts {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 80rem) {
+  .event-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ——— Crea / modifica evento ——— */
+.create-event-actions {
+  position: sticky;
+  z-index: var(--z-map-ui);
+  bottom: calc(max(0.75rem, env(safe-area-inset-bottom, 0px)) + 4.5rem + 0.6rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 1.25rem;
+  border-radius: 1.6rem;
+  padding: 0.6rem;
+}
+
+.create-event-actions__hint {
+  display: none;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+  font-weight: 650;
+  line-height: 1.25rem;
+}
+
+.create-event-actions__buttons {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.create-event-actions__buttons > .button-secondary {
+  flex: 0 0 auto;
+}
+
+.create-event-actions__buttons > .button-primary {
+  flex: 1 1 auto;
+  justify-content: center;
+}
+
+@media (min-width: 40rem) {
+  .create-event-actions {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.25rem;
+    padding: 0.6rem 0.6rem 0.6rem 1.25rem;
+  }
+
+  .create-event-actions__hint {
+    display: block;
+  }
+
+  .create-event-actions__buttons > .button-primary {
+    flex: 0 0 auto;
+    min-width: 12rem;
+  }
+}
+
+@media (min-width: 48rem) {
+  .create-event-actions {
+    bottom: 1rem;
+  }
+}
+
+/* Mappa per scegliere il punto: stessi controlli in vetro di Discover. */
+.event-location-picker .maplibregl-ctrl-group {
+  overflow: hidden;
+  border: 1px solid var(--glass-border);
+  border-radius: 1.1rem;
+  background: var(--glass-bg-strong);
+  box-shadow: var(--glass-shadow);
+  -webkit-backdrop-filter: var(--glass-filter);
+  backdrop-filter: var(--glass-filter);
+}
+
+.event-location-picker .maplibregl-ctrl-group button {
+  width: 2.75rem;
+  height: 2.75rem;
+}
+
+.event-location-picker .maplibregl-ctrl-attrib {
+  border-radius: 0.5rem;
+  background: rgb(255 255 255 / 0.82);
+}
+
+/* ——— Chat: su mobile il thread riempie lo spazio tra header e navigazione, con il campo messaggio sempre raggiungibile ——— */
+@media (max-width: 47.999rem) {
+  .page-shell.chat-thread-page {
+    padding-bottom: 0;
+  }
+
+  .chat-thread {
+    height: calc(100dvh - 4.5rem - 1px - env(safe-area-inset-top, 0px) - 1.25rem - max(0.75rem, env(safe-area-inset-bottom, 0px)) - 5.25rem);
+    min-height: 22rem;
+  }
+
+  .chat-thread .chat-thread__messages {
+    height: auto;
+    min-height: 0;
+    flex: 1 1 0;
+  }
+}

@@ -1,11 +1,15 @@
+import { CategoryDisc } from "../events/CategoryIcon";
+import type { EventCategory } from "../../types/event";
+
 interface FilterChipProps {
   readonly label: string;
-  readonly indicatorColor?: string;
+  /** Se presente mostra il disco con l'icona della categoria. */
+  readonly category?: EventCategory;
   readonly selected: boolean;
   readonly onSelect: () => void;
 }
 
-export function FilterChip({ label, indicatorColor, selected, onSelect }: FilterChipProps) {
+export function FilterChip({ label, category, selected, onSelect }: FilterChipProps) {
   return (
     <button
       type="button"
@@ -14,10 +18,8 @@ export function FilterChip({ label, indicatorColor, selected, onSelect }: Filter
       aria-pressed={selected}
       onClick={onSelect}
     >
+      {category && <CategoryDisc category={category} size={14} />}
       {label}
-      {indicatorColor && (
-        <span className="filter-chip__indicator" style={{ backgroundColor: indicatorColor }} aria-hidden="true" />
-      )}
     </button>
   );
 }

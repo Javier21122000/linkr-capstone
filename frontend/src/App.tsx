@@ -5,7 +5,6 @@ import { AppShell } from "./components/layout/AppShell";
 import { CreateEventPage, EditEventPage } from "./pages/CreateEventPage";
 import { ChatsPage } from "./pages/ChatsPage";
 import { ChatThreadPage } from "./pages/ChatThreadPage";
-import { DiscoverPage } from "./pages/DiscoverPage";
 import { DiscoverPeoplePage } from "./pages/DiscoverPeoplePage";
 import { EditInterestsPage } from "./pages/EditInterestsPage";
 import { EventDetailPage } from "./pages/EventDetailPage";
@@ -21,7 +20,8 @@ const router = createBrowserRouter(
   createRoutesFromElements(
     <Route>
       <Route element={<AppShell />}>
-        <Route index element={<DiscoverPage />} />
+        {/* Discover è ospitato da AppShell e resta montato: vedi AppShell.tsx */}
+        <Route index element={null} />
         <Route path="events/:eventId" element={<EventDetailPage />} />
         <Route path="login" element={<LoginPage />} />
         <Route path="register" element={<RegisterPage />} />

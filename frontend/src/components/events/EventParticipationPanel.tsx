@@ -1,5 +1,5 @@
 import axios from "axios";
-import { CheckCircle2, RotateCcw } from "lucide-react";
+import { Bookmark, CheckCircle2, RotateCcw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 
@@ -179,13 +179,16 @@ export function EventParticipationPanel({ eventId, startsAt, endsAt, onParticipa
                   type="button"
                   aria-pressed={selected}
                   data-selected={selected}
+                  data-kind={participationStatus}
                   disabled={busy || (ended && !selected)}
                   onClick={() => {
                     if (selected) void removeParticipation();
                     else void saveParticipation(participationStatus, participation?.visibleToOthers ?? false);
                   }}
                 >
-                  <CheckCircle2 className="participation-choice__icon" size={18} aria-hidden="true" />
+                  {participationStatus === "INTERESTED"
+                    ? <Bookmark className="participation-choice__icon" size={18} fill={selected ? "currentColor" : "none"} aria-hidden="true" />
+                    : <CheckCircle2 className="participation-choice__icon" size={18} aria-hidden="true" />}
                   <span>{participationStatus === "INTERESTED" ? "Mi interessa" : "Parteciperò"}</span>
                 </button>
               );

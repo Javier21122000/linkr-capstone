@@ -1,0 +1,709 @@
+/*
+ * Discover — mappa immersiva (Human Signal).
+ *
+ * Mobile  (< 48rem)  : mappa a tutto schermo, header e Bottom Navigation sovrapposti, lista come sheet.
+ * Tablet  (48–64rem) : mappa sotto l'header, lista come pannello laterale apribile.
+ * Desktop (≥ 64rem)  : pannello eventi fisso a sinistra + mappa ampia a destra.
+ */
+.discover {
+  /* Offset verticali condivisi dai controlli sovrapposti alla mappa. */
+  --discover-top: calc(env(safe-area-inset-top, 0px) + 4.2rem);
+  --discover-controls-top: calc(var(--discover-top) + 3.5rem + 0.6rem);
+  --discover-bottom: calc(max(0.75rem, env(safe-area-inset-bottom, 0px)) + 4.5rem + 0.6rem);
+  --discover-preview-bottom: calc(var(--discover-bottom) + 3.5rem);
+
+  position: relative;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.discover-map-stage,
+.event-map,
+.event-map__canvas {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.discover-map-stage {
+  isolation: isolate;
+  overflow: hidden;
+  background: #e9ebe6;
+}
+
+.event-map {
+  z-index: var(--z-map);
+}
+
+.event-map__canvas {
+  background: #e9ebe6;
+}
+
+.event-map__canvas[aria-hidden="true"] {
+  opacity: 0.34;
+}
+
+/* ——— Stati della mappa ——— */
+.event-map__loading {
+  position: absolute;
+  z-index: 3;
+  top: calc(var(--discover-controls-top) + 3rem);
+  left: 50%;
+  display: inline-flex;
+  min-height: 2.25rem;
+  align-items: center;
+  gap: 0.5rem;
+  transform: translateX(-50%);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  background: var(--glass-bg-strong);
+  padding: 0.45rem 0.8rem;
+  box-shadow: var(--glass-shadow);
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+  -webkit-backdrop-filter: var(--glass-filter);
+  backdrop-filter: var(--glass-filter);
+}
+
+.event-map__loading-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--color-linkr);
+  animation: map-loading-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes map-loading-pulse {
+  50% {
+    opacity: 0.35;
+    transform: scale(0.78);
+  }
+}
+
+.event-map__fallback {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  padding: 7rem 1.5rem 10rem;
+  text-align: center;
+}
+
+.discover-map-message {
+  position: absolute;
+  z-index: 24;
+  top: 50%;
+  left: 50%;
+  width: min(calc(100% - 2rem), 22rem);
+  transform: translate(-50%, -50%);
+  border-radius: var(--radius-sheet);
+  padding: 1.5rem 1.25rem;
+  text-align: center;
+}
+
+.discover-map-message--compact {
+  top: calc(var(--discover-controls-top) + 5.6rem);
+  width: auto;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  padding: 0.55rem 0.9rem;
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+/* ——— Filtri categoria (vetro flottante) ——— */
+.discover-filter-bar {
+  position: absolute;
+  z-index: var(--z-map-ui);
+  top: var(--discover-top);
+  right: 0.75rem;
+  left: 0.75rem;
+  display: flex;
+  gap: 0.2rem;
+  overflow-x: auto;
+  border-radius: 999px;
+  padding: 0.35rem;
+  scroll-padding-inline: 0.5rem;
+}
+
+.discover-filter-bar .filter-chip {
+  border-color: transparent;
+  background: transparent;
+  padding-inline: 0.75rem;
+}
+
+.discover-filter-bar .filter-chip[data-selected="true"] {
+  border-color: var(--color-ink);
+  background: var(--color-ink);
+  box-shadow: 0 4px 12px rgb(24 24 22 / 0.22);
+}
+
+@media (hover: hover) {
+  .discover-filter-bar .filter-chip:not([data-selected="true"]):hover {
+    border-color: transparent;
+    background: rgb(255 255 255 / 0.7);
+  }
+}
+
+/* ——— Controlli mappa (vetro flottante) ——— */
+.map-controls {
+  position: absolute;
+  z-index: var(--z-map-ui);
+  top: var(--discover-controls-top);
+  right: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-radius: 1.6rem;
+  padding: 0.15rem;
+}
+
+.map-controls__divider {
+  width: 1.5rem;
+  height: 1px;
+  background: var(--color-line);
+}
+
+/* ——— Mostra lista ——— */
+.map-list-trigger {
+  position: absolute;
+  z-index: var(--z-map-overlay);
+  bottom: var(--discover-bottom);
+  left: 50%;
+  display: inline-flex;
+  min-height: 2.9rem;
+  align-items: center;
+  gap: 0.55rem;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  padding: 0.35rem 0.4rem 0.35rem 1rem;
+  color: var(--color-ink);
+  font-size: 0.875rem;
+  font-weight: 850;
+  white-space: nowrap;
+  transition: transform 220ms var(--ease-spring);
+}
+
+.map-list-trigger:active {
+  transform: translateX(-50%) scale(0.96);
+}
+
+.map-list-trigger span {
+  display: grid;
+  min-width: 2.1rem;
+  height: 2.1rem;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--color-linkr-action);
+  color: white;
+  font-size: 0.78rem;
+}
+
+/* ——— Anteprima evento ——— */
+.event-preview {
+  position: absolute;
+  z-index: var(--z-map-overlay);
+  right: 0.75rem;
+  bottom: var(--discover-preview-bottom);
+  left: 0.75rem;
+  display: flex;
+  max-width: 32rem;
+  align-items: center;
+  gap: 0.8rem;
+  margin-inline: auto;
+  border-radius: 1.6rem;
+  background: rgb(255 255 255 / 0.92);
+  padding: 0.6rem 0.75rem 0.6rem 0.6rem;
+}
+
+.event-preview__image {
+  width: 5rem;
+  height: 5rem;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border-radius: 1.1rem;
+  background: var(--color-line);
+}
+
+/* Link "stretched": l'intera card è cliccabile, il titolo resta il nome accessibile. */
+.event-preview__link {
+  color: inherit;
+}
+
+.event-preview__link::after {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  content: "";
+}
+
+.event-preview__link:focus-visible {
+  outline: none;
+}
+
+.event-preview:has(.event-preview__link:focus-visible) {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 3px;
+}
+
+.event-preview__go {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--color-linkr-action);
+  color: white;
+  transition: background-color 160ms ease, transform 220ms var(--ease-spring);
+}
+
+@media (hover: hover) {
+  .event-preview:hover .event-preview__go {
+    background: var(--color-linkr-strong);
+    transform: translate(1px, -1px);
+  }
+}
+
+.event-preview__close {
+  position: absolute;
+  z-index: 1;
+  top: -1.1rem;
+  right: -0.45rem;
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--color-ink);
+}
+
+.event-preview__close-disc {
+  display: grid;
+  width: 1.9rem;
+  height: 1.9rem;
+  place-items: center;
+  border-radius: 999px;
+  transition: transform 200ms var(--ease-spring);
+}
+
+.event-preview__close:active .event-preview__close-disc {
+  transform: scale(0.9);
+}
+
+/* ——— Lista eventi: sheet (mobile/tablet) e pannello fisso (desktop) ——— */
+.event-list-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.event-list-panel--sheet {
+  position: absolute;
+  z-index: var(--z-sheet);
+  right: 0.5rem;
+  bottom: calc(var(--discover-bottom) - 0.35rem);
+  left: 0.5rem;
+  height: min(68dvh, 42rem);
+  max-height: calc(100dvh - var(--discover-top) - var(--discover-bottom));
+  border-radius: var(--radius-sheet);
+  background: rgb(250 249 246 / 0.95);
+}
+
+.event-list-panel--sheet::before {
+  width: 2.75rem;
+  height: 0.3rem;
+  flex: 0 0 auto;
+  margin: 0.55rem auto 0;
+  border-radius: 999px;
+  background: #c8c7c1;
+  content: "";
+}
+
+.event-list-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid var(--color-line);
+  padding: 0.8rem 1.1rem 0.9rem;
+}
+
+.event-list-panel__body {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.35rem 0.5rem calc(1rem + env(safe-area-inset-bottom, 0px));
+}
+
+.event-list-panel__message {
+  padding: 2.5rem 1rem;
+}
+
+.event-list-item {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-height: 6.75rem;
+  align-items: center;
+  gap: 0.85rem;
+  border-radius: 1.25rem;
+  padding: 0.65rem 0.75rem 0.65rem 0.65rem;
+  transition: background-color 200ms ease, box-shadow 200ms ease, transform 220ms var(--ease-spring);
+}
+
+.event-list-item + .event-list-item {
+  margin-top: 0.15rem;
+}
+
+@media (hover: hover) {
+  .event-list-item:not([data-selected="true"]):hover {
+    background: rgb(24 24 22 / 0.045);
+  }
+}
+
+.event-list-item[data-selected="true"] {
+  background: var(--color-linkr-soft);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--color-linkr) 60%, transparent);
+}
+
+.event-list-item:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: -3px;
+}
+
+.event-list-item:active {
+  transform: scale(0.99);
+}
+
+.event-list-item__image {
+  width: 5.25rem;
+  height: 5.25rem;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border-radius: 1.1rem;
+  background: var(--color-line);
+}
+
+/* ——— Marker evento ——— */
+.event-marker {
+  position: absolute;
+  width: 3rem;
+  height: 3.6rem;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--color-ink);
+}
+
+/* Finché la basemap non è pronta i marker restano nascosti: niente pin sospesi su sfondo vuoto. */
+.event-marker {
+  transition: opacity 260ms ease;
+}
+
+.event-map:not([data-status="ready"]) .event-marker {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* MapLibre posiziona il <button> con `transform`: si animano solo i figli. */
+.event-marker__pin {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 2.75rem;
+  height: 3.35rem;
+  translate: -50% 0;
+  transform-origin: center bottom;
+  filter: drop-shadow(0 4px 5px rgb(24 24 22 / 0.26));
+  transition: scale 240ms var(--ease-spring);
+  animation: event-marker-in 340ms var(--ease-spring) backwards;
+}
+
+.event-marker__pin::after {
+  position: absolute;
+  bottom: 0.2rem;
+  left: 50%;
+  width: 0.85rem;
+  height: 0.85rem;
+  translate: -50% 0;
+  rotate: 45deg;
+  border-right: 2.5px solid var(--event-category-color, #747872);
+  border-bottom: 2.5px solid var(--event-category-color, #747872);
+  background: color-mix(in srgb, var(--event-category-color, #747872) 14%, white);
+  content: "";
+}
+
+.event-marker__bubble {
+  --marker-color: var(--event-category-color, #747872);
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  place-items: center;
+  overflow: hidden;
+  border: 2.5px solid var(--marker-color);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--marker-color) 14%, white);
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 0.9);
+  color: color-mix(in srgb, var(--marker-color) 58%, var(--color-ink));
+  transition: background-color 200ms ease, border-color 200ms ease, box-shadow 200ms ease, color 200ms ease;
+}
+
+.event-marker__photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 220ms ease;
+}
+
+.event-marker__photo[data-loaded="true"] {
+  opacity: 1;
+}
+
+.event-marker__label {
+  position: absolute;
+  z-index: 5;
+  top: 0.55rem;
+  left: calc(50% + 2.1rem);
+  display: none;
+  max-width: clamp(6rem, calc(50vw - 3.25rem), 12rem);
+  overflow: hidden;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  background: var(--glass-bg-strong);
+  padding: 0.35rem 0.7rem;
+  box-shadow: var(--glass-shadow);
+  color: var(--color-ink);
+  font-size: 0.75rem;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  -webkit-backdrop-filter: var(--glass-filter);
+  backdrop-filter: var(--glass-filter);
+}
+
+@media (hover: hover) {
+  .event-marker:hover {
+    z-index: 3;
+  }
+
+  .event-marker:hover .event-marker__pin {
+    scale: 1.1;
+  }
+
+  .event-marker:hover .event-marker__label {
+    display: block;
+  }
+}
+
+.event-marker[data-selected="true"] {
+  z-index: 4;
+}
+
+.event-marker[data-selected="true"] .event-marker__pin {
+  scale: 1.22;
+}
+
+.event-marker[data-selected="true"] .event-marker__pin::after {
+  border-color: var(--color-linkr);
+  background: var(--color-linkr);
+}
+
+.event-marker[data-selected="true"] .event-marker__bubble {
+  border-color: white;
+  background: var(--color-linkr);
+  box-shadow: 0 0 0 3px var(--color-linkr);
+  color: white;
+}
+
+.event-marker[data-selected="true"] .event-marker__label,
+.event-marker:focus-visible .event-marker__label {
+  display: block;
+}
+
+.event-marker:focus-visible {
+  z-index: 3;
+  outline: none;
+}
+
+.event-marker:focus-visible .event-marker__bubble {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 4px;
+}
+
+@keyframes event-marker-in {
+  from {
+    opacity: 0;
+    scale: 0.55;
+  }
+}
+
+/* ——— Attribuzioni cartografiche ——— */
+.maptiler-logo-attribution {
+  position: absolute;
+  z-index: 5;
+  top: calc(var(--discover-controls-top) + 1.9rem);
+  left: 0.75rem;
+  display: block;
+  width: 4.3rem;
+  border-radius: 0.4rem;
+  background: rgb(255 255 255 / 0.82);
+  padding: 0.2rem;
+}
+
+.maptiler-logo-attribution img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.event-map .maplibregl-ctrl-top-left {
+  top: var(--discover-controls-top);
+  left: 0.75rem;
+}
+
+.event-map .maplibregl-ctrl-attrib {
+  max-width: calc(100vw - 6.5rem);
+  border-radius: 0.5rem;
+  background: rgb(255 255 255 / 0.82);
+  font-size: 0.62rem;
+  line-height: 1.1rem;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+/* ——— Tablet e desktop: l'header torna in flusso, niente Bottom Navigation ——— */
+@media (min-width: 48rem) {
+  .discover {
+    --discover-top: 0.75rem;
+    --discover-controls-top: 0.75rem;
+    --discover-bottom: 1rem;
+    --discover-preview-bottom: 4.75rem;
+
+    height: calc(100vh - 4.5rem - 1px);
+    height: calc(100dvh - 4.5rem - 1px);
+  }
+
+  .discover-filter-bar {
+    right: auto;
+    left: 0.75rem;
+    max-width: calc(100% - 5.5rem);
+  }
+
+  .event-map__loading {
+    top: 5.25rem;
+  }
+
+  .discover-map-message--compact {
+    top: 8rem;
+  }
+
+  .event-list-panel--sheet {
+    top: 0.75rem;
+    right: 0.75rem;
+    bottom: 0.75rem;
+    left: auto;
+    width: min(27rem, calc(100% - 1.5rem));
+    height: auto;
+    max-height: none;
+  }
+
+  .event-list-panel--sheet::before {
+    display: none;
+  }
+
+  .event-map .maplibregl-ctrl-top-left {
+    top: auto;
+    bottom: 0.75rem;
+  }
+
+  .maptiler-logo-attribution {
+    top: auto;
+    bottom: 2.9rem;
+  }
+
+  .event-map .maplibregl-ctrl-attrib {
+    max-width: min(26rem, calc(100vw - 4rem));
+  }
+}
+
+@media (min-width: 64rem) {
+  .discover {
+    --discover-preview-bottom: 5.25rem;
+
+    display: grid;
+    height: calc(100vh - 5rem - 1px);
+    height: calc(100dvh - 5rem - 1px);
+    grid-template-columns: minmax(22rem, 26rem) minmax(0, 1fr);
+    gap: 0.75rem;
+    padding: 0 0.75rem 0.75rem;
+  }
+
+  .discover-map-stage {
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-sheet);
+  }
+
+  .event-list-panel--panel {
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-sheet);
+    background: var(--color-surface);
+  }
+
+  .event-list-panel--panel .event-list-panel__header {
+    padding: 1.25rem 1.25rem 1rem;
+  }
+}
+
+/* Smartphone in orizzontale: lo spazio verticale è poco, preview e lista si spostano ai lati. */
+@media (max-width: 47.999rem) and (max-height: 30rem) {
+  .discover {
+    --discover-top: calc(env(safe-area-inset-top, 0px) + 3.6rem);
+    --discover-bottom: calc(max(0.5rem, env(safe-area-inset-bottom, 0px)) + 4.5rem + 0.4rem);
+  }
+
+  .map-list-trigger {
+    right: 0.5rem;
+    left: auto;
+    transform: none;
+  }
+
+  .map-list-trigger:active {
+    transform: scale(0.96);
+  }
+
+  .event-preview {
+    right: auto;
+    bottom: var(--discover-bottom);
+    left: 0.5rem;
+    width: min(calc(100% - 12rem), 28rem);
+    margin: 0;
+  }
+
+  .event-preview__image {
+    width: 3.75rem;
+    height: 3.75rem;
+  }
+
+  .event-list-panel--sheet {
+    top: 0.5rem;
+    height: auto;
+    max-height: none;
+  }
+
+  .event-list-panel__header {
+    padding: 0.55rem 0.75rem;
+  }
+}

@@ -1,0 +1,52 @@
+/*
+ * Liquid Glass — primitiva unica.
+ * Usare solo su elementi "di controllo" sovrapposti alla mappa o ai contenuti
+ * (navigazione, filtri, controlli, anteprime). Testi lunghi e form restano opachi.
+ */
+.glass {
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  box-shadow: var(--glass-shadow);
+  -webkit-backdrop-filter: var(--glass-filter);
+  backdrop-filter: var(--glass-filter);
+}
+
+.glass--strong {
+  background: var(--glass-bg-strong);
+}
+
+.glass--dark {
+  border-color: rgb(255 255 255 / 0.16);
+  background: var(--glass-bg-dark);
+  color: white;
+  box-shadow:
+    var(--shadow-glass),
+    inset 0 1px 0 rgb(255 255 255 / 0.18);
+}
+
+/* Browser senza backdrop-filter: superficie quasi opaca, nessuna perdita di leggibilità. */
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .glass,
+  .glass--strong {
+    background: var(--glass-fallback);
+  }
+
+  .glass--dark {
+    background: var(--glass-fallback-dark);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .glass,
+  .glass--strong {
+    background: var(--glass-fallback);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .glass--dark {
+    background: var(--glass-fallback-dark);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}

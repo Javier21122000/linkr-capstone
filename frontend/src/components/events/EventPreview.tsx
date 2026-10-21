@@ -1,8 +1,9 @@
-import { ArrowUpRight, CalendarDays, Clock3, MapPin, X } from "lucide-react";
+import { ArrowUpRight, MapPin, X } from "lucide-react";
 import { Link } from "react-router";
 
-import { formatEventDate, formatEventTimeRange } from "../../lib/eventPresentation";
+import { categoryLabels, formatEventDate, formatEventTimeRange } from "../../lib/eventPresentation";
 import type { EventSummary } from "../../types/event";
+import { CategoryDisc } from "./CategoryIcon";
 import { EventImage } from "./EventImage";
 
 interface EventPreviewProps {
@@ -12,29 +13,37 @@ interface EventPreviewProps {
 
 export function EventPreview({ event, onClose }: EventPreviewProps) {
   return (
-    <article className="event-preview content-reveal" aria-labelledby="selected-event-title">
+    <article className="event-preview glass glass--strong content-reveal" aria-labelledby="selected-event-title">
       <div className="event-preview__image">
-        <EventImage imageUrl={event.imageUrl} imageAlt={event.imageAlt} category={event.category} className="size-full object-cover" />
+        <EventImage imageUrl={event.imageUrl} imageAlt={event.imageAlt} category={event.category} compact className="size-full object-cover" />
       </div>
 
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.68rem] font-extrabold uppercase tracking-[0.1em] text-linkr-strong">
-          <span className="inline-flex items-center gap-1"><CalendarDays size={13} aria-hidden="true" /> {formatEventDate(event.startsAt)}</span>
-          <span className="inline-flex items-center gap-1"><Clock3 size={13} aria-hidden="true" /> {formatEventTimeRange(event.startsAt, event.endsAt)}</span>
-        </div>
+        <p className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-[0.08em] text-muted">
+          <CategoryDisc category={event.category} size={12} className="category-disc--sm" />
+          {categoryLabels[event.category]}
+        </p>
         <h2 id="selected-event-title" className="mt-1 truncate text-base font-extrabold tracking-[-0.03em] text-ink sm:text-lg">
-          {event.title}
+          <Link className="event-preview__link" to={`/events/${event.id}`}>
+            {event.title}
+          </Link>
         </h2>
-        <p className="mt-1 flex items-center gap-1 truncate text-xs font-semibold text-muted">
+        <p className="mt-0.5 truncate text-sm font-extrabold text-linkr-strong">
+          {formatEventDate(event.startsAt)} · {formatEventTimeRange(event.startsAt, event.endsAt)}
+        </p>
+        <p className="mt-0.5 flex items-center gap-1 truncate text-[0.8125rem] font-semibold text-muted">
           <MapPin size={13} className="shrink-0" aria-hidden="true" /> {event.venueName} · {event.neighbourhood}
         </p>
-        <Link className="event-preview__link" to={`/events/${event.id}`}>
-          Apri evento <ArrowUpRight size={16} aria-hidden="true" />
-        </Link>
       </div>
 
+      <span className="event-preview__go" aria-hidden="true">
+        <ArrowUpRight size={19} strokeWidth={2.4} />
+      </span>
+
       <button className="event-preview__close" type="button" onClick={onClose} aria-label="Chiudi anteprima evento">
-        <X size={17} aria-hidden="true" />
+        <span className="event-preview__close-disc glass glass--strong">
+          <X size={15} strokeWidth={2.6} aria-hidden="true" />
+        </span>
       </button>
     </article>
   );

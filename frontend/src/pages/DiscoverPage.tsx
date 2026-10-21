@@ -1,11 +1,14 @@
 import { List, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { CategoryFilterBar } from "../components/events/CategoryFilterBar";
 import { EventList } from "../components/events/EventList";
 import { EventMap } from "../components/events/EventMap";
 import { EventPreview } from "../components/events/EventPreview";
-import { FilterChip } from "../components/ui/FilterChip";
-import { categoryColors, categoryOptions } from "../lib/eventPresentation";
+import { EmptyEventsIllustration } from "../components/ui/EmptyEventsIllustration";
+import { EmptyState } from "../components/ui/EmptyState";
+import { GlassSurface } from "../components/ui/GlassSurface";
+import { categoryOptions } from "../lib/eventPresentation";
 import { getEvents, getEventsErrorMessage, isRequestCancelled } from "../lib/events";
 import type { EventCategory, EventSummary } from "../types/event";
 
@@ -15,6 +18,15 @@ type EventsState =
   | { readonly status: "error"; readonly message: string };
 
 const NO_EVENTS: readonly EventSummary[] = [];
+
+function areSameEvents(a: readonly EventSummary[], b: readonly EventSummary[]): boolean {
+  return a.length === b.length && a.every((event, index) => JSON.stringify(event) === JSON.stringify(b[index]));
+}
+
+interface DiscoverPageProps {
+  /** Discover resta montato anche quando si naviga altrove: `false` = nascosto, stato e mappa conservati. */
+  readonly active: boolean;
+}
 const DESKTOP_DISCOVERY_QUERY = "(min-width: 64rem)";
 
 function useDesktopDiscoveryLayout(): boolean {
@@ -31,7 +43,7 @@ function useDesktopDiscoveryLayout(): boolean {
   return isDesktop;
 }
 
-export function DiscoverPage() {
+export function DiscoverPage({ active }: DiscoverPageProps) {
   const [activeCategory, setActiveCategory] = useState<EventCategory | null>(null);
   const [requestKey, setRequestKey] = useState(0);
   const [eventsState, setEventsState] = useState<EventsState>({ status: "loading" });
@@ -39,9 +51,17 @@ export function DiscoverPage() {
   const [listOpen, setListOpen] = useState(false);
   const listTriggerRef = useRef<HTMLButtonElement>(null);
   const isDesktop = useDesktopDiscoveryLayout();
+  const categoryRef = useRef(activeCategory);
+  const eventsStatusRef = useRef(eventsState.status);
+  const wasActiveRef = useRef(active);
+  const refreshControllerRef = useRef<AbortController | null>(null);
+
+  categoryRef.current = activeCategory;
+  eventsStatusRef.current = eventsState.status;
 
   useEffect(() => {
     const controller = new AbortController();
+    refreshControllerRef.current?.abort();
     setEventsState({ status: "loading" });
 
     void getEvents(activeCategory ?? undefined, controller.signal)
@@ -54,6 +74,39 @@ export function DiscoverPage() {
 
     return () => controller.abort();
   }, [activeCategory, requestKey]);
+
+  // Al ritorno su Discover i dati si aggiornano in silenzio: la mappa non si svuota e la vista resta dov'era.
+  useEffect(() => {
+    const becameActive = active && !wasActiveRef.current;
+    wasActiveRef.current = active;
+    if (!becameActive) return;
+
+    if (eventsStatusRef.current === "error") {
+      setRequestKey((current) => current + 1);
+      return;
+    }
+    if (eventsStatusRef.current !== "success") return;
+
+    const category = categoryRef.current;
+    const controller = new AbortController();
+    refreshControllerRef.current?.abort();
+    refreshControllerRef.current = controller;
+
+    void getEvents(category ?? undefined, controller.signal)
+      .then((fresh) => {
+        if (categoryRef.current !== category) return;
+        setEventsState((current) => (
+          current.status === "success" && areSameEvents(current.events, fresh)
+            ? current
+            : { status: "success", events: fresh }
+        ));
+      })
+      .catch(() => {
+        // Il refresh è opportunistico: in caso di errore restano visibili i dati già caricati.
+      });
+  }, [active]);
+
+  useEffect(() => () => refreshControllerRef.current?.abort(), []);
 
   const events = eventsState.status === "success" ? eventsState.events : NO_EVENTS;
   const selectedEvent = events.find((event) => event.id === selectedEventId) ?? null;
@@ -81,28 +134,35 @@ export function DiscoverPage() {
   }
 
   return (
-    <div className="discover-map-page">
+    <div className="discover" data-layout={isDesktop ? "split" : "overlay"}>
+      {isDesktop && (
+        <EventList
+          variant="panel"
+          events={events}
+          selectedEventId={selectedEventId}
+          autoScrollToSelection
+          loading={eventsState.status === "loading"}
+          errorMessage={eventsState.status === "error" ? eventsState.message : undefined}
+          activeCategoryLabel={activeCategory ? selectedLabel : undefined}
+          onSelectEvent={selectFromList}
+          onRetry={() => setRequestKey((current) => current + 1)}
+          onShowAll={activeCategory ? () => selectCategory(null) : undefined}
+        />
+      )}
+
       <section className="discover-map-stage" aria-labelledby="discover-title">
         <h1 id="discover-title" className="sr-only">Scopri eventi a Milano</h1>
+
+        {/* I filtri precedono la mappa nel DOM: la tastiera li raggiunge prima dei marker (posizione: CSS assoluto). */}
+        <CategoryFilterBar activeCategory={activeCategory} onSelect={selectCategory} />
 
         <EventMap
           events={events}
           selectedEventId={selectedEventId}
-          desktopListOpen={isDesktop && listOpen}
+          active={active}
+          fitKey={activeCategory ?? "all"}
           onSelectEvent={selectFromMap}
         />
-
-        <div className="discover-filter-bar scrollbar-none" aria-label="Filtra gli eventi per categoria">
-          {categoryOptions.map((option) => (
-            <FilterChip
-              key={option.value ?? "all"}
-              label={option.label}
-              indicatorColor={option.value ? categoryColors[option.value] : undefined}
-              selected={activeCategory === option.value}
-              onSelect={() => selectCategory(option.value)}
-            />
-          ))}
-        </div>
 
         <p className="sr-only" aria-live="polite">
           {eventsState.status === "loading" && "Caricamento eventi in corso"}
@@ -111,36 +171,44 @@ export function DiscoverPage() {
         </p>
 
         {eventsState.status === "loading" && (
-          <div className="discover-map-message discover-map-message--compact" role="status">
+          <GlassSurface tone="strong" className="discover-map-message discover-map-message--compact" role="status">
             Cerco eventi a Milano…
-          </div>
+          </GlassSurface>
         )}
 
-        {eventsState.status === "error" && !listOpen && (
-          <div className="discover-map-message" role="alert">
-            <p className="font-extrabold text-ink">Eventi non disponibili</p>
-            <p className="mt-1 text-xs leading-5 text-muted">{eventsState.message}</p>
-            <button className="button-primary mt-3 inline-flex items-center gap-2" type="button" onClick={() => setRequestKey((current) => current + 1)}>
-              <RotateCcw size={16} aria-hidden="true" /> Riprova
-            </button>
-          </div>
+        {!isDesktop && eventsState.status === "error" && !listOpen && (
+          <GlassSurface tone="strong" className="discover-map-message" role="alert">
+            <EmptyState
+              title="Eventi non disponibili"
+              description={eventsState.message}
+              action={(
+                <button className="button-primary inline-flex items-center gap-2" type="button" onClick={() => setRequestKey((current) => current + 1)}>
+                  <RotateCcw size={16} aria-hidden="true" /> Riprova
+                </button>
+              )}
+            />
+          </GlassSurface>
         )}
 
-        {eventsState.status === "success" && events.length === 0 && !listOpen && (
-          <div className="discover-map-message" role="status">
-            <p className="font-extrabold text-ink">Nessun evento in questa categoria</p>
-            {activeCategory && (
-              <button className="mt-2 min-h-11 rounded-full px-3 text-sm font-extrabold text-linkr-strong" type="button" onClick={() => selectCategory(null)}>
-                Mostra tutti gli eventi
-              </button>
-            )}
-          </div>
+        {!isDesktop && eventsState.status === "success" && events.length === 0 && !listOpen && (
+          <GlassSurface tone="strong" className="discover-map-message" role="status">
+            <EmptyState
+              illustration={<EmptyEventsIllustration className="w-44" />}
+              title="Nessun evento vicino"
+              description={activeCategory ? "Non ci sono eventi in questa categoria." : "Non ci sono eventi da mostrare adesso."}
+              action={activeCategory && (
+                <button className="button-secondary inline-flex items-center" type="button" onClick={() => selectCategory(null)}>
+                  Mostra tutti gli eventi
+                </button>
+              )}
+            />
+          </GlassSurface>
         )}
 
-        {!listOpen && eventsState.status === "success" && events.length > 0 && (
+        {!isDesktop && !listOpen && eventsState.status === "success" && events.length > 0 && (
           <button
             ref={listTriggerRef}
-            className="map-list-trigger"
+            className="map-list-trigger glass glass--strong"
             type="button"
             onClick={() => setListOpen(true)}
             aria-haspopup="dialog"
@@ -153,16 +221,19 @@ export function DiscoverPage() {
           <EventPreview event={selectedEvent} onClose={() => setSelectedEventId(null)} />
         )}
 
-        {listOpen && (
+        {!isDesktop && listOpen && active && (
           <EventList
+            variant="sheet"
             events={events}
             selectedEventId={selectedEventId}
-            autoScrollToSelection={isDesktop}
+            autoScrollToSelection={false}
             loading={eventsState.status === "loading"}
             errorMessage={eventsState.status === "error" ? eventsState.message : undefined}
+            activeCategoryLabel={activeCategory ? selectedLabel : undefined}
             onSelectEvent={selectFromList}
             onClose={closeList}
             onRetry={() => setRequestKey((current) => current + 1)}
+            onShowAll={activeCategory ? () => selectCategory(null) : undefined}
           />
         )}
       </section>

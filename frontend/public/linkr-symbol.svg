@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <title>LINKR</title>
+  <path d="M9 37C9 22 17 16 28 17" stroke="#181816" stroke-width="7" stroke-linecap="round"/>
+  <path d="M39 11C39 26 31 32 20 31" stroke="#E84D2F" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="9" cy="37" r="5.5" fill="#181816"/>
+  <circle cx="39" cy="11" r="5.5" fill="#E84D2F"/>
+</svg>

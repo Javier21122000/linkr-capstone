@@ -13,6 +13,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -33,6 +35,7 @@ import com.linkr.backend.participation.EventEndedException;
 import com.linkr.backend.participation.ParticipationNotFoundException;
 import com.linkr.backend.people.DiscoveryRequiredException;
 import com.linkr.backend.people.ParticipationRequiredException;
+import com.linkr.backend.upload.UploadException;
 import com.linkr.backend.user.UserNotFoundException;
 
 /**
@@ -101,6 +104,31 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 	public ProblemDetail handleParticipationRequired(ParticipationRequiredException ex) {
 		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
 		problem.setTitle("Participation required");
+		return problem;
+	}
+
+	/** Errori degli upload: codice e titolo li decide l'eccezione, con messaggi che non ripetono mai il nome o il contenuto del file. */
+	@ExceptionHandler(UploadException.class)
+	public ProblemDetail handleUpload(UploadException ex) {
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(ex.getStatus(), ex.getMessage());
+		problem.setTitle(ex.getTitle());
+		return problem;
+	}
+
+	/** Richiesta multipart troppo grande: rifiutata dal parser PRIMA di arrivare al controller (limiti in application.properties). */
+	@Override
+	protected ResponseEntity<Object> handleMaxUploadSizeExceededException(MaxUploadSizeExceededException ex,
+			HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONTENT_TOO_LARGE, "The upload is too large.");
+		problem.setTitle("Upload too large");
+		return handleExceptionInternal(ex, problem, headers, HttpStatus.CONTENT_TOO_LARGE, request);
+	}
+
+	/** Richiesta che non e' un multipart valido (es. corpo JSON, parti illeggibili): 400 e non un errore interno. */
+	@ExceptionHandler(MultipartException.class)
+	public ProblemDetail handleMultipart(MultipartException ex) {
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "The request must be a valid multipart/form-data upload.");
+		problem.setTitle("Invalid upload");
 		return problem;
 	}
 

@@ -15,6 +15,7 @@ import com.linkr.backend.event.dto.EventDetailResponse;
 import com.linkr.backend.event.dto.EventRequest;
 import com.linkr.backend.event.dto.UserEventsResponse;
 import com.linkr.backend.participation.EventParticipationRepository;
+import com.linkr.backend.upload.EventImageStorage;
 import com.linkr.backend.user.User;
 import com.linkr.backend.user.UserNotFoundException;
 import com.linkr.backend.user.UserRepository;
@@ -47,16 +48,18 @@ public class EventManagementService {
 	private final UserRepository userRepository;
 	private final EventParticipationRepository participationRepository;
 	private final EventMapper eventMapper;
+	private final EventImageStorage imageStorage;
 	private final EntityManager entityManager;
 	private final Clock clock;
 
 	public EventManagementService(EventRepository eventRepository, UserRepository userRepository,
-			EventParticipationRepository participationRepository, EventMapper eventMapper, EntityManager entityManager,
-			Clock clock) {
+			EventParticipationRepository participationRepository, EventMapper eventMapper, EventImageStorage imageStorage,
+			EntityManager entityManager, Clock clock) {
 		this.eventRepository = eventRepository;
 		this.userRepository = userRepository;
 		this.participationRepository = participationRepository;
 		this.eventMapper = eventMapper;
+		this.imageStorage = imageStorage;
 		this.entityManager = entityManager;
 		this.clock = clock;
 	}
@@ -211,6 +214,12 @@ public class EventManagementService {
 		if (r.imageUrl() != null && !r.imageUrl().isBlank() && (r.imageAlt() == null || r.imageAlt().isBlank())) {
 			errors.put("imageAlt", "is required when imageUrl is set");
 		}
+		// Un'immagine "interna" deve essere un file caricato davvero (il formato del nome e' gia' garantito da EventRequest).
+		EventImageStorage.filenameOf(r.imageUrl()).ifPresent(filename -> {
+			if (!imageStorage.exists(filename)) {
+				errors.put("imageUrl", "must reference an image uploaded through the upload endpoint");
+			}
+		});
 		if (!errors.isEmpty()) {
 			throw new InvalidEventException(errors);
 		}

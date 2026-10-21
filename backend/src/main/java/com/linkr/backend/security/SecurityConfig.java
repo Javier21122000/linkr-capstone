@@ -16,7 +16,7 @@ import org.springframework.security.web.SecurityFilterChain;
 
 /**
  * Regole di accesso dell'API.
- *  - Pubblici: GET /api/health, GET /api/events e /api/events/{id}, GET /api/interests, POST /api/auth/register e /api/auth/login.
+ *  - Pubblici: GET /api/health, GET /api/events e /api/events/{id}, GET /api/interests, GET /api/uploads/event-images/{file}, POST /api/auth/register e /api/auth/login.
  *  - /ws (solo l'handshake HTTP): pubblico, il JWT si verifica nel frame STOMP CONNECT.
  *  - /api/admin/** solo ADMIN (nessun endpoint admin esiste ancora: la regola e' pronta per il futuro).
  *  - Tutto il resto richiede un JWT valido nell'header "Authorization: Bearer ...".
@@ -36,6 +36,9 @@ public class SecurityConfig {
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers(HttpMethod.GET, "/api/health", "/api/events", "/api/events/*", "/api/interests").permitAll()
+						// Lettura pubblica delle immagini caricate (un solo segmento: nessuna cartella). L'upload (POST) richiede il JWT.
+						.requestMatchers(HttpMethod.GET, "/api/uploads/event-images/*").permitAll()
+						.requestMatchers(HttpMethod.HEAD, "/api/uploads/event-images/*").permitAll()
 						.requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login").permitAll()
 						.requestMatchers("/error").permitAll()
 						// Handshake del WebSocket: il browser non puo' inviare header, quindi l'autenticazione avviene nel frame

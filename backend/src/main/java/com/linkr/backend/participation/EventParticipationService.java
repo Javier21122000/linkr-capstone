@@ -3,12 +3,14 @@ package com.linkr.backend.participation;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.linkr.backend.event.dto.EventSummaryResponse;
 import com.linkr.backend.event.Event;
 import com.linkr.backend.event.EventMapper;
 import com.linkr.backend.event.EventNotFoundException;
@@ -84,11 +86,15 @@ public class EventParticipationService {
 	 */
 	@Transactional(readOnly = true)
 	public UserParticipationsResponse list(UUID userId) {
-		return new UserParticipationsResponse(
-				participationRepository.findByUserWithEvent(userId, List.of(EventStatus.PUBLISHED, EventStatus.CANCELLED)).stream()
-						.map(p -> new UserParticipationResponse(p.getStatus(), p.isVisibleToOthers(),
-								toLocal(p.getUpdatedAt()), eventMapper.toSummary(p.getEvent())))
-						.toList());
+		List<EventParticipation> rows = participationRepository.findByUserWithEvent(userId, List.of(EventStatus.PUBLISHED, EventStatus.CANCELLED));
+		// Un solo passaggio per i riepiloghi (e una sola lettura dell'origine esterna), nello stesso ordine delle partecipazioni.
+		List<EventSummaryResponse> summaries = eventMapper.toSummaries(rows.stream().map(EventParticipation::getEvent).toList());
+		List<UserParticipationResponse> response = new ArrayList<>(rows.size());
+		for (int i = 0; i < rows.size(); i++) {
+			EventParticipation p = rows.get(i);
+			response.add(new UserParticipationResponse(p.getStatus(), p.isVisibleToOthers(), toLocal(p.getUpdatedAt()), summaries.get(i)));
+		}
+		return new UserParticipationsResponse(response);
 	}
 
 	private void requireUser(UUID userId) {

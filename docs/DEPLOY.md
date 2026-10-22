@@ -44,14 +44,15 @@ File `/etc/linkr/linkr.env`, permessi `600`, proprietario `linkr`. Mai nel repos
 | `SERVER_ADDRESS` | `127.0.0.1` (l'API non deve essere raggiungibile senza passare dal proxy) |
 | `LINKR_DB_EXPECTED_NAME` | solo se il database non si chiama `linkr_db` (altrimenti Flyway non migra: e' una protezione voluta) |
 | `LINKR_JWT_EXPIRATION` | opzionale, default `2h`. **Non esiste refresh token**: allo scadere si rifa' il login |
+| `LINKR_TICKETMASTER_ENABLED` / `LINKR_TICKETMASTER_API_KEY` / `LINKR_TICKETMASTER_IMPORT_ENABLED` | opzionali. Lasciare **spente/vuote** in produzione finche' non c'e' una decisione: dry-run e importazione sono comandi admin manuali (vedi [`TICKETMASTER.md`](TICKETMASTER.md)); l'importazione ha un interruttore suo, spento di base. Mai nel frontend |
 
 Non impostare `SPRING_PROFILES_ACTIVE=dev`.
 
 ## 2. Database
 
-- [ ] PostgreSQL con utente e database dedicati; `linkr_db` creato **vuoto**: Flyway applica V1-V8 all'avvio (`ddl-auto=validate`).
+- [ ] PostgreSQL con utente e database dedicati; `linkr_db` creato **vuoto**: Flyway applica V1-V9 all'avvio (`ddl-auto=validate`).
 - [ ] Backup giornaliero (`pg_dump`) **e** della cartella immagini, provato con un ripristino.
-- [ ] Nessuna nuova migrazione e' stata aggiunta in questa release.
+- [ ] Unica migrazione recente: `V9__create_event_source.sql` (tabella `event_source`, additiva e vuota; serve all'integrazione Ticketmaster, vedi [`TICKETMASTER.md`](TICKETMASTER.md) §8). Su un database gia' esistente Flyway la applica da sola al primo avvio: fare il backup prima.
 
 ## 3. Build
 

@@ -156,10 +156,8 @@ public class EventManagementService {
 	@Transactional(readOnly = true)
 	public UserEventsResponse myEvents(UUID userId) {
 		return new UserEventsResponse(
-				eventRepository.findByCreatedByAndStatusInOrderByStartsAtDescTitleAsc(userId,
-						List.of(EventStatus.PUBLISHED, EventStatus.CANCELLED)).stream()
-						.map(eventMapper::toSummary)
-						.toList());
+				eventMapper.toSummaries(eventRepository.findByCreatedByAndStatusInOrderByStartsAtDescTitleAsc(userId,
+						List.of(EventStatus.PUBLISHED, EventStatus.CANCELLED))));
 	}
 
 	// ---------- regole ----------

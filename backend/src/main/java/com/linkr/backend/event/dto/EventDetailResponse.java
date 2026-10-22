@@ -34,5 +34,7 @@ public record EventDetailResponse(
 		EventStatus status,
 		EventType type,
 		EventCreatorResponse creator,
-		boolean canEdit) {
+		boolean canEdit,
+		/** Origine esterna con il link alla pagina ufficiale, o null se l'evento e' stato creato in LINKR. */
+		EventSourceResponse source) {
 }

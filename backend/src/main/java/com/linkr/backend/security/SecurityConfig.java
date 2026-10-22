@@ -18,7 +18,7 @@ import org.springframework.security.web.SecurityFilterChain;
  * Regole di accesso dell'API.
  *  - Pubblici: GET /api/health, GET /api/events e /api/events/{id}, GET /api/interests, GET /api/uploads/event-images/{file}, POST /api/auth/register e /api/auth/login.
  *  - /ws (solo l'handshake HTTP): pubblico, il JWT si verifica nel frame STOMP CONNECT.
- *  - /api/admin/** solo ADMIN (nessun endpoint admin esiste ancora: la regola e' pronta per il futuro).
+ *  - /api/admin/** solo ADMIN (oggi: POST /api/admin/import/ticketmaster/dry-run, vedi docs/TICKETMASTER.md).
  *  - Tutto il resto richiede un JWT valido nell'header "Authorization: Bearer ...".
  * Sessioni disattivate (stateless) e CSRF non necessario: non usiamo cookie.
  */

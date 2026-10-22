@@ -77,6 +77,7 @@ Cosa manca al backend per modificare il profilo: [`docs/PROFILO-API.md`](docs/PR
 
 Checklist ordinata (variabili, database, build, reverse proxy con HTTPS e CSP, verifiche dopo la pubblicazione): [`docs/DEPLOY.md`](docs/DEPLOY.md).
 Upload e rimozione dei metadati delle immagini: [`docs/UPLOAD-IMMAGINI.md`](docs/UPLOAD-IMMAGINI.md).
+Integrazione Ticketmaster (spenta di base; dry-run e importazione manuale riservati agli admin, ognuno con il suo interruttore): [`docs/TICKETMASTER.md`](docs/TICKETMASTER.md).
 
 ## Session security
 

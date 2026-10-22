@@ -35,6 +35,8 @@ import com.linkr.backend.participation.EventEndedException;
 import com.linkr.backend.participation.ParticipationNotFoundException;
 import com.linkr.backend.people.DiscoveryRequiredException;
 import com.linkr.backend.people.ParticipationRequiredException;
+import com.linkr.backend.ticketmaster.ImportAlreadyRunningException;
+import com.linkr.backend.ticketmaster.InvalidImportParameterException;
 import com.linkr.backend.upload.UploadException;
 import com.linkr.backend.user.UserNotFoundException;
 
@@ -129,6 +131,22 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 	public ProblemDetail handleMultipart(MultipartException ex) {
 		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "The request must be a valid multipart/form-data upload.");
 		problem.setTitle("Invalid upload");
+		return problem;
+	}
+
+	/** Parametri del dry-run Ticketmaster fuori dai limiti configurati. */
+	@ExceptionHandler(InvalidImportParameterException.class)
+	public ProblemDetail handleInvalidImportParameter(InvalidImportParameterException ex) {
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+		problem.setTitle("Invalid parameters");
+		return problem;
+	}
+
+	/** Un dry-run Ticketmaster e' gia' in corso: non se ne avviano due insieme. */
+	@ExceptionHandler(ImportAlreadyRunningException.class)
+	public ProblemDetail handleImportAlreadyRunning(ImportAlreadyRunningException ex) {
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+		problem.setTitle("Import already running");
 		return problem;
 	}
 

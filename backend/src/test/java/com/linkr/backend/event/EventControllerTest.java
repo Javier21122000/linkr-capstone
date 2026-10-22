@@ -23,6 +23,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.linkr.backend.event.dto.EventDetailResponse;
+import com.linkr.backend.event.dto.EventSourceResponse;
 import com.linkr.backend.event.dto.EventSummaryResponse;
 
 // Questi test provano solo il controller/CORS: la sicurezza e' provata in AuthIntegrationTest.
@@ -102,7 +103,7 @@ class EventControllerTest {
 		when(eventService.getEvent(ID)).thenReturn(new EventDetailResponse(ID, "Courtyard Sessions", "Long text",
 				EventCategory.MUSIC, START, START.plusHours(3), "Cortile 68 (demo venue)", "Demo address",
 				"Isola", 45.4878, 9.189, "https://example.com/i.jpg", "alt", "Unsplash demo image", true,
-				EventStatus.PUBLISHED, EventType.OFFICIAL, null, false));
+				EventStatus.PUBLISHED, EventType.OFFICIAL, null, false, null));
 
 		mockMvc.perform(get("/api/events/{id}", ID))
 				.andExpect(status().isOk())
@@ -145,9 +146,25 @@ class EventControllerTest {
 				.andExpect(jsonPath("$.trace").doesNotExist());
 	}
 
+	@Test
+	void importedEventsExposeTheirSourceInListAndDetailAndOthersHaveNone() throws Exception {
+		EventSourceResponse source = new EventSourceResponse("TICKETMASTER", "https://www.ticketmaster.it/event/123");
+		EventSummaryResponse imported = new EventSummaryResponse(ID, "Concerto", EventCategory.MUSIC, START, null, "Sede", "Milano",
+				45.46, 9.19, null, null, false, EventStatus.PUBLISHED, EventType.OFFICIAL, source);
+		when(eventService.findEvents(null, null, null)).thenReturn(List.of(imported, summary()));
+
+		mockMvc.perform(get("/api/events"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$[0].source.provider").value("TICKETMASTER"))
+				.andExpect(jsonPath("$[0].source.url").value("https://www.ticketmaster.it/event/123"))
+				.andExpect(jsonPath("$[0].type").value("OFFICIAL"))
+				.andExpect(jsonPath("$[0].imageUrl").doesNotExist())
+				.andExpect(jsonPath("$[1].source").doesNotExist());
+	}
+
 	private EventSummaryResponse summary() {
 		return new EventSummaryResponse(ID, "Courtyard Sessions", EventCategory.MUSIC, START, null,
-				"Cortile 68 (demo venue)", "Isola", 45.4878, 9.189, null, null, true, EventStatus.PUBLISHED, EventType.OFFICIAL);
+				"Cortile 68 (demo venue)", "Isola", 45.4878, 9.189, null, null, true, EventStatus.PUBLISHED, EventType.OFFICIAL, null);
 	}
 
 }

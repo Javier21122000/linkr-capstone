@@ -22,5 +22,7 @@ public record EventSummaryResponse(
 		String imageAlt,
 		boolean demo,
 		EventStatus status,
-		EventType type) {
+		EventType type,
+		/** Origine esterna (es. Ticketmaster) o null se l'evento e' stato creato in LINKR. */
+		EventSourceResponse source) {
 }

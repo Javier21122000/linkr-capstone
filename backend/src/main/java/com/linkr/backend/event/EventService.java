@@ -84,9 +84,7 @@ public class EventService {
 			spec = spec.and(EventSpecifications.hasCategory(category));
 		}
 
-		return eventRepository.findAll(spec, ORDER).stream()
-				.map(eventMapper::toSummary)
-				.toList();
+		return eventMapper.toSummaries(eventRepository.findAll(spec, ORDER));
 	}
 
 	public EventDetailResponse getEvent(UUID id) {

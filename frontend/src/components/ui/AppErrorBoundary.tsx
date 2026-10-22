@@ -1,6 +1,7 @@
 import { Component } from "react";
 import type { ErrorInfo, ReactNode } from "react";
 
+import { bootStore } from "../../lib/bootStore";
 import { ErrorScreen } from "./ErrorScreen";
 
 interface AppErrorBoundaryProps {
@@ -27,6 +28,8 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
 
   componentDidCatch(error: unknown, info: ErrorInfo) {
     console.error("Unhandled render error", error, info.componentStack);
+    // Lo splash di avvio non deve coprire la schermata di errore.
+    bootStore.mark({ forced: true });
   }
 
   render() {

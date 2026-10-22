@@ -749,7 +749,8 @@
 }
 
 .event-map:is([data-status="loading"], [data-status="error"], [data-status="missing-key"]) .event-marker {
-  opacity: 0;
+  /* !important: MapLibre scrive `opacity` inline sul marker (occlusione), che altrimenti vincerebbe e lascerebbe i pin sospesi sul vuoto. */
+  opacity: 0 !important;
   pointer-events: none;
 }
 

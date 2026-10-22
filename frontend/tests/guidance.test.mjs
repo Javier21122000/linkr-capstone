@@ -21,15 +21,33 @@ test("prima visita: non completato; dopo «Non ora» non si ripresenta", () => {
   assert.equal(isOnboardingComplete(storage, null), true);
 });
 
-test("chi lo ha chiuso da anonimo non lo rivede dopo l'accesso; un altro utente su un browser pulito sì", () => {
-  const storage = memory();
-  markOnboardingComplete(storage, null);
-  assert.equal(isOnboardingComplete(storage, "u1"), true);
-  const clean = memory();
-  assert.equal(isOnboardingComplete(clean, "u1"), false);
-  markOnboardingComplete(clean, "u1");
-  assert.equal(isOnboardingComplete(clean, "u1"), true);
-  assert.equal(isOnboardingComplete(clean, "u2"), false);
+test("il benvenuto non dipende dall'accesso: vale per il browser, prima e dopo login e logout", () => {
+  // Visto da anonimo: non si ripresenta dopo l'accesso.
+  const anonymous = memory();
+  markOnboardingComplete(anonymous, null);
+  assert.equal(isOnboardingComplete(anonymous, "u1"), true);
+  // Visto da autenticato: non si ripresenta dopo il logout (da anonimo) né con un altro utente sullo stesso browser.
+  const authenticated = memory();
+  assert.equal(isOnboardingComplete(authenticated, "u1"), false);
+  markOnboardingComplete(authenticated, "u1");
+  assert.equal(isOnboardingComplete(authenticated, "u1"), true);
+  assert.equal(isOnboardingComplete(authenticated, null), true, "dopo il logout");
+  assert.equal(isOnboardingComplete(authenticated, "u2"), true, "altro utente, stesso browser");
+  // Un browser pulito lo mostra, da anonimo come da autenticato.
+  assert.equal(isOnboardingComplete(memory(), null), false);
+  assert.equal(isOnboardingComplete(memory(), "u1"), false);
+});
+
+test("chi lo aveva completato con la vecchia regola (solo chiave per utente) lo ha ancora completato", () => {
+  const legacy = memory({ [onboardingKey("u1")]: "complete" });
+  assert.equal(isOnboardingComplete(legacy, "u1"), true);
+});
+
+test("se la scrittura della chiave per utente fallisce resta scritta quella del dispositivo", () => {
+  const writes = [];
+  const flaky = { getItem: () => null, setItem(key) { writes.push(key); if (key !== onboardingKey(null)) throw new Error("full"); } };
+  assert.doesNotThrow(() => markOnboardingComplete(flaky, "u1"));
+  assert.deepEqual(writes, [onboardingKey(null), onboardingKey("u1")]);
 });
 
 test("senza storage (o con storage che lancia) non si insiste con guide automatiche", () => {
@@ -46,7 +64,7 @@ test("Discover è pronto solo quando è visibile, gli eventi sono arrivati e la 
   assert.equal(isDiscoverReady({ ...ready, eventsLoading: true }), false);
   for (const mapStatus of ["loading", "recovering"]) assert.equal(isDiscoverReady({ ...ready, mapStatus }), false);
   for (const mapStatus of ["degraded", "error", "missing-key"]) assert.equal(isDiscoverReady({ ...ready, mapStatus }), true);
-  assert.equal(WELCOME_DELAY_MS, 1000);
+  assert.ok(WELCOME_DELAY_MS >= 240 && WELCOME_DELAY_MS <= 600, "il benvenuto segue la dissolvenza dello splash, senza ritardi artificiali");
 });
 
 const desktop = { width: 1280, height: 800, insetTop: 0, insetBottom: 0 };

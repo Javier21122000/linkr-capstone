@@ -27,14 +27,17 @@ import {
   planSelectionFraming,
 } from "../../lib/mapCamera";
 import { nextRetryDelay } from "../../lib/mapHealth";
+import { coversMap, hasRenderedOnce, mapLoadingMessage } from "../../lib/mapLoading";
 import { attachMapRecovery, recoverableFrom } from "../../lib/mapRecovery";
 import type { MapHealthState, MapRecovery } from "../../lib/mapRecovery";
 import { getStyleSwapOptions } from "../../lib/mapStyle";
 import { prefersReducedMotion } from "../../lib/motion";
 import type { EventSummary } from "../../types/event";
 import type { ParticipationStatus } from "../../types/participation";
+import { useLeaving } from "../../hooks/useLeaving";
 import { LinkrSymbol } from "../ui/BrandMark";
 import { IconButton } from "../ui/IconButton";
+import { LinkrSplash } from "../ui/LinkrSplash";
 import { EventMarkerPin } from "./EventMarkerPin";
 
 setWorkerUrl(workerUrl);
@@ -447,6 +450,15 @@ export function EventMap({ events, eventsReady, viewKey, selection, active, onSe
     onStatusChangeRef.current?.(status);
   }, [status]);
 
+  // Overlay LINKR: solo finché la mappa non ha mai disegnato (primo caricamento, o "Riprova" dopo un errore iniziale). Quando è pronta
+  // svanisce in 240 ms; dopo, un recupero o una camera che si muove non la coprono mai (restano la pillola e l'avviso qui sotto).
+  const [renderedOnce, setRenderedOnce] = useState(false);
+  useEffect(() => {
+    if (hasRenderedOnce(status)) setRenderedOnce(true);
+  }, [status]);
+  const overlay = useLeaving(coversMap(status, renderedOnce) ? true : null, 240);
+  const slow = health.phase === "slow";
+
   return (
     <div className="event-map" data-status={status} data-picking={pick !== null ? "true" : undefined}>
       <div
@@ -461,7 +473,7 @@ export function EventMap({ events, eventsReady, viewKey, selection, active, onSe
         createPortal(<EventMarkerPin event={event} selected={event.id === selectedEventId} participation={participations.get(event.id)} />, element, event.id),
       )}
 
-      {!unavailable && (
+      {!unavailable && !coversMap(status, renderedOnce) && (
         <div className="map-controls" data-map-inset="right">
           <div className="map-controls__zoom glass" role="group" aria-label="Zoom della mappa">
             <IconButton variant="bare" label="Ingrandisci la mappa" onClick={() => zoomBy("in")}>
@@ -487,7 +499,13 @@ export function EventMap({ events, eventsReady, viewKey, selection, active, onSe
         </div>
       )}
 
-      {(status === "loading" || status === "recovering") && (
+      {overlay.shown ? (
+        <LinkrSplash variant="panel" leaving={overlay.leaving} message={mapLoadingMessage(status, slow)}>
+          {slow ? <button className="button-secondary" type="button" onClick={retry}>Riprova</button> : null}
+        </LinkrSplash>
+      ) : null}
+
+      {(status === "loading" || status === "recovering") && renderedOnce && (
         <div className="event-map__loading" role="status">
           <span className="event-map__loading-dot" aria-hidden="true" />
           {status === "recovering" ? "Ricarico la mappa…" : health.phase === "slow" ? "La mappa sta impiegando più del previsto…" : "Caricamento mappa"}

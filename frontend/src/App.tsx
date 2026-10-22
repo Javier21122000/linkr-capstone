@@ -8,6 +8,8 @@ import { EventDetailPage } from "./pages/EventDetailPage";
 import { LoginPage } from "./pages/LoginPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { RegisterPage } from "./pages/RegisterPage";
+import { BootSplash } from "./components/ui/BootSplash";
+import { bootStore } from "./lib/bootStore";
 import { RouteErrorPage } from "./pages/RouteErrorPage";
 
 /**
@@ -53,8 +55,15 @@ const router = createBrowserRouter(
   ),
 );
 
+// Lo splash di avvio aspetta che il router abbia scaricato e inizializzato la prima pagina (anche una pagina `lazy` aperta da un link diretto).
+if (router.state.initialized) bootStore.mark({ routerReady: true });
+else router.subscribe((state) => { if (state.initialized) bootStore.mark({ routerReady: true }); });
+
 export function App() {
   return (
-    <RouterProvider router={router} />
+    <>
+      <RouterProvider router={router} />
+      <BootSplash />
+    </>
   );
 }

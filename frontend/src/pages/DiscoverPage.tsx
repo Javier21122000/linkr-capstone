@@ -12,11 +12,14 @@ import { useLeaving } from "../hooks/useLeaving";
 import { EmptyEventsIllustration } from "../components/ui/EmptyEventsIllustration";
 import { EmptyState } from "../components/ui/EmptyState";
 import { GlassSurface } from "../components/ui/GlassSurface";
+import { LinkrSplash } from "../components/ui/LinkrSplash";
 import { useMyParticipations } from "../context/MyParticipationsContext";
 import { HelpButton, useProductGuidance } from "../context/ProductGuidanceContext";
 import { categoryLabels, categoryOptions } from "../lib/eventPresentation";
 import { getEvents, getEventsErrorMessage, isRequestCancelled, toEventSummary } from "../lib/events";
+import { bootStore } from "../lib/bootStore";
 import { isDiscoverReady } from "../lib/guidance";
+import { mapLoadingMessage } from "../lib/mapLoading";
 import { readInterestFilterRequest } from "../lib/interestFilter";
 import { hasValidCoordinates } from "../lib/map";
 import type { MapPickState } from "../lib/map";
@@ -32,10 +35,7 @@ function MapPlaceholder() {
   return (
     <div className="event-map" data-status="loading">
       <div className="event-map__canvas" aria-hidden="true" />
-      <div className="event-map__loading" role="status">
-        <span className="event-map__loading-dot" aria-hidden="true" />
-        Caricamento mappa
-      </div>
+      <LinkrSplash variant="panel" message={mapLoadingMessage("loading", false)} />
     </div>
   );
 }
@@ -117,6 +117,11 @@ export function DiscoverPage({ active }: DiscoverPageProps) {
     notifyDiscoverReady(discoverReady);
     return () => notifyDiscoverReady(false);
   }, [discoverReady, notifyDiscoverReady]);
+
+  // Lo splash di avvio aspetta la prima risposta degli eventi (elenco o errore); la mappa ha il suo overlay e non lo trattiene.
+  useEffect(() => {
+    if (eventsState.status !== "loading") bootStore.mark({ discoverSettled: true });
+  }, [eventsState.status]);
 
   // Si carica l'elenco completo una sola volta: la categoria è un filtro locale. Cambiare filtro è quindi istantaneo e
   // sincrono, senza richieste in volo che possano arrivare fuori ordine e senza dati di una categoria sotto la chiave di un'altra.

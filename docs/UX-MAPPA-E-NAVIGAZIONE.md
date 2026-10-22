@@ -129,14 +129,31 @@ Le verifiche nel browser (Chrome, API in sola lettura) non fanno parte del repos
 
 # Onboarding e assistenza (`lib/guidance.ts`, `context/ProductGuidanceContext.tsx`, `styles/guidance.css`)
 
-**Prima visita.** La pagina si carica normalmente. Quando Discover è davvero pronto (pagina visibile, eventi arrivati o falliti, mappa conclusa: pronta, incompleta, in errore o non configurata) si attende circa un secondo e compare un benvenuto minimo: «Benvenuto su LINKR» / «Scopri cosa succede. Trova le persone giuste. Vivilo insieme.», con **Scopri LINKR** e **Non ora**.
+**Prima visita (anonima o autenticata, è lo stesso).** Sequenza: splash → onboarding (SCOPRI / CONNETTITI / VIVI) → app. Appena lo splash di avvio ha il via libera (vedi sotto) e si è su Discover, dopo la sua dissolvenza (≈ 0,3 s) compare l'onboarding a tre schermate, con **Scopri come funziona** (avvia il tour) ed **Esplora Milano**. Non aspetta la mappa: mentre si legge, la mappa si carica dietro.
 
 - **Scopri LINKR** avvia il tour contestuale. I passi sono risolti guardando il DOM: compaiono solo i controlli che esistono davvero in quel momento (su mobile e su desktop sono diversi). Ogni passo ha un callout con freccia che punta all'elemento evidenziato, **Avanti**, **Indietro** e **Salta**; tastiera: frecce, Esc, Tab trattenuto nel callout. Il callout non copre l'elemento che spiega (si sposta sul lato libero o nella metà opposta dello schermo).
 - **Non ora** (e Esc) chiude e segna il benvenuto come visto: non ricompare da solo ai refresh successivi.
-- Mai in automatico su Login o Registrazione: il benvenuto aspetta Discover.
+- Mai in automatico su Login o Registrazione (né su altre pagine): compare solo su Discover, anche se ci si arriva dopo l'accesso.
 - **Riaprire il tour**: il pulsante «?» (Centro assistenza) offre «Tour dell'interfaccia» e le schermate «Come funziona LINKR».
 - Con `prefers-reduced-motion` non ci sono ingressi animati né transizioni del callout.
 
-**Persistenza.** Riusa `localStorage`, chiave `linkr:onboarding:v1:{anonymous|user:<id>}` = `complete`. Chi ha scelto «Non ora» da anonimo non rivede il benvenuto nemmeno dopo l'accesso sullo stesso browser (era già la sua prima visita). Senza `localStorage` scrivibile non si insiste: nessuna guida automatica. Il completamento è locale al browser e **non viene sincronizzato tra dispositivi**: non si aggiungono API o colonne al backend.
+**Persistenza.** Riusa `localStorage`. La chiave `linkr:onboarding:v1:anonymous` = `complete` è quella **del dispositivo** e la scrive ogni completamento, anche da autenticati (che scrivono in più `linkr:onboarding:v1:user:<id>`, letta solo per chi aveva già completato con la vecchia regola). Quindi l'onboarding non dipende dal login: chi lo ha visto da anonimo non lo rivede dopo l'accesso, chi lo ha visto da autenticato non lo rivede dopo il logout né con un altro account sullo stesso browser. Senza `localStorage` scrivibile non si insiste: nessuna guida automatica. Il completamento è locale al browser e **non viene sincronizzato tra dispositivi**: non si aggiungono API o colonne al backend.
 
 Le illustrazioni delle schermate «Come funziona LINKR» sono componenti grafici CSS originali e provvisori, senza richieste remote; possono essere sostituite da asset editoriali mantenendo invariata la struttura accessibile.
+
+
+# Splash di avvio e caricamento della mappa (`lib/appBoot.ts`, `lib/mapLoading.ts`, `components/ui/LinkrSplash.tsx`, `components/ui/BootSplash.tsx`, `styles/splash.css`)
+
+**Splash.** `LinkrSplash` è il componente riutilizzabile (sfondo bianco caldo, simbolo nero, puntino corallo, scritta LINKR; solo SVG e CSS). Il simbolo è **temporaneo**: vive in `SplashSymbol` (un anello e un puntino) e si sostituisce con il logo definitivo cambiando solo quella funzione (e, se ha altre parti animate, i nomi `linkr-splash__ring`/`__dot` in `splash.css`).
+
+- Compare **una volta per caricamento della pagina**, mai nelle navigazioni interne, e se ne va con una dissolvenza di 240 ms **appena l'app è pronta**: il router ha inizializzato la prima pagina (anche una pagina `lazy`) e, se si atterra su Discover, la prima richiesta degli eventi si è conclusa (con un elenco o con un errore). Nessun ritardo artificiale: con onboarding già completato dura quanto la richiesta degli eventi.
+- Non copre mai un errore: dopo 4 s compare «Il server si sta avviando…» (utile col backend gratuito che si risveglia) e dopo 8 s lascia comunque spazio all'app, che mostra il suo stato di caricamento o di errore. Un errore di rendering lo chiude subito.
+- Il browser scarica prima il JavaScript: fino a quel momento si vede solo il fondo caldo della pagina (nessuno splash HTML duplicato).
+- `prefers-reduced-motion`: nessun disegno, dissolvenza o impulso; lo splash sparisce subito. L'unica animazione che si ripete è l'impulso del puntino (opacity/transform).
+
+**Mappa in caricamento.** La mappa di Discover resta montata tra le pagine (una sola istanza MapLibre): tornare su Discover non ricrea nulla e non mostra overlay. L'overlay LINKR (`LinkrSplash variant="panel"`, stesso aspetto, statico) copre la mappa **solo finché non ha mai disegnato**: da `loading`/`recovering` (inclusi i due tentativi automatici) fino a `ready` (evento `load` + `idle`, nessun errore di tasselli, `queryRenderedFeatures` non vuoto: la logica di `mapRecovery.ts`, invariata). Quando è pronta svanisce in 240 ms e i marker compaiono con lei. Non copre mai per una selezione, un filtro, un movimento della camera o un recupero successivo (resta la pillola «Ricarico la mappa…»).
+
+- Dopo 20 s (`slow` di `mapRecovery.ts`) l'overlay dice «La mappa sta impiegando più del previsto…» e offre **Riprova**. Un timeout non dichiara mai pronta la mappa.
+- Errore (stile non scaricabile, WebGL assente, chiave mancante): schermata «Mappa non disponibile» con il messaggio e **Riprova**; con «Riprova» l'overlay ritorna finché la mappa non disegna.
+- Cartografia incompleta dopo i tentativi (`degraded`): si vede la mappa con l'avviso e **Riprova**, come prima (marker e lista restano usabili).
+- Correzione collegata: la regola CSS che nasconde i marker finché la mappa non è pronta non funzionava (MapLibre scrive `opacity` inline sul marker): ora usa `!important`.

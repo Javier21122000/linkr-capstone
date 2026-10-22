@@ -5,8 +5,8 @@
 
 /** Stessa chiave della persistenza già esistente: `complete` = il benvenuto non si ripresenta da solo. */
 export const ONBOARDING_KEY_PREFIX = "linkr:onboarding:v1:";
-/** Dopo che Discover è pronto si aspetta un istante: l'utente guarda la mappa prima di essere interrotto. */
-export const WELCOME_DELAY_MS = 1_000;
+/** Dopo che lo splash di avvio ha il via libera si aspetta il tempo della sua dissolvenza: splash → onboarding, mai sovrapposti. */
+export const WELCOME_DELAY_MS = 320;
 
 export interface StorageLike {
   getItem(key: string): string | null;
@@ -18,8 +18,10 @@ export function onboardingKey(userId: string | null): string {
 }
 
 /**
- * Il benvenuto è già stato visto? Chi ha scelto "Non ora" (o ha fatto il tour) da anonimo non lo rivede nemmeno dopo l'accesso sullo
- * stesso browser: era già la sua prima visita. Senza storage disponibile non si insiste: nessuna guida automatica.
+ * Il benvenuto è già stato visto su questo browser? Non dipende dall'accesso: la chiave "anonymous" è quella del dispositivo e la scrive
+ * ogni completamento (vedi `markOnboardingComplete`), quindi chi lo ha visto da anonimo non lo rivede dopo il login e chi lo ha visto
+ * da autenticato non lo rivede dopo il logout. La chiave per utente resta letta solo per chi lo aveva già completato con la vecchia regola.
+ * Senza storage disponibile non si insiste: nessuna guida automatica.
  */
 export function isOnboardingComplete(storage: StorageLike | null, userId: string | null): boolean {
   if (!storage) return true;
@@ -32,7 +34,9 @@ export function isOnboardingComplete(storage: StorageLike | null, userId: string
 
 export function markOnboardingComplete(storage: StorageLike | null, userId: string | null): void {
   try {
-    storage?.setItem(onboardingKey(userId), "complete");
+    // Prima la chiave del dispositivo: è quella che conta anche se la seconda scrittura fallisse.
+    storage?.setItem(onboardingKey(null), "complete");
+    if (userId !== null) storage?.setItem(onboardingKey(userId), "complete");
   } catch {
     // Storage non scrivibile: la guida resta comunque utilizzabile nella sessione corrente.
   }

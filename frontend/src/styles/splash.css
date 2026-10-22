@@ -1,0 +1,143 @@
+/*
+ * Splash LINKR e overlay di caricamento della mappa (componente `LinkrSplash`).
+ * Sfondo bianco caldo (--color-canvas), simbolo nero, un solo accento corallo. Solo SVG e CSS: nessuna immagine, nessun JavaScript per animare.
+ * Si anima solo `opacity`/`transform`/`stroke-dashoffset`, una volta sola; l'unica ripetizione è l'impulso del puntino, che costa quasi nulla.
+ */
+.linkr-splash {
+  position: fixed;
+  inset: 0;
+  /* Sopra ogni cosa, dialoghi compresi: all'avvio non c'è ancora nulla da proteggere sotto. */
+  z-index: calc(var(--z-dialog) + 10);
+  display: grid;
+  place-items: center;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  opacity: 1;
+  transition: opacity 240ms var(--ease-out-soft);
+}
+
+/* L'overlay della mappa sta dentro `.event-map` e copre solo lo spazio della mappa. */
+.linkr-splash[data-variant="panel"] {
+  position: absolute;
+  z-index: 6;
+}
+
+.linkr-splash[data-leaving] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.linkr-splash__content {
+  display: grid;
+  justify-items: center;
+  gap: 0.85rem;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.linkr-splash__symbol {
+  width: 4.5rem;
+  height: 4.5rem;
+  overflow: visible;
+}
+
+.linkr-splash[data-variant="panel"] .linkr-splash__symbol {
+  width: 3.5rem;
+  height: 3.5rem;
+}
+
+.linkr-splash__ring {
+  stroke: currentColor;
+}
+
+.linkr-splash__dot {
+  fill: var(--color-linkr);
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.linkr-splash__word {
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.32em;
+  /* Il tracking aggiunge spazio dopo l'ultima lettera: lo si toglie per centrare davvero. */
+  margin-right: -0.32em;
+}
+
+.linkr-splash__message {
+  max-width: 18rem;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.linkr-splash__action {
+  margin-top: 0.25rem;
+}
+
+/* Ingresso dello splash di avvio: l'anello si disegna, il puntino compare, la scritta sale. L'overlay della mappa è statico (subentra allo
+   splash senza ripetere l'animazione). */
+.linkr-splash[data-variant="screen"] .linkr-splash__ring {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: splash-ring 560ms var(--ease-out-soft) 60ms forwards;
+}
+
+.linkr-splash[data-variant="screen"] .linkr-splash__word {
+  opacity: 0;
+  animation: splash-word 360ms var(--ease-out-soft) 300ms forwards;
+}
+
+.linkr-splash__message {
+  animation: splash-word 360ms var(--ease-out-soft) both;
+}
+
+/* Il puntino compare e poi batte piano: dice che l'attesa è viva. Solo opacity/transform, nessun layout. */
+.linkr-splash[data-variant="screen"] .linkr-splash__dot {
+  opacity: 0;
+  animation:
+    splash-dot 320ms var(--ease-spring) 440ms forwards,
+    splash-pulse 1.6s ease-in-out 1s infinite;
+}
+
+.linkr-splash[data-variant="panel"] .linkr-splash__dot {
+  animation: splash-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes splash-ring {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes splash-dot {
+  from { opacity: 0; transform: scale(0.2); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes splash-word {
+  from { opacity: 0; transform: translateY(0.35rem); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes splash-pulse {
+  50% { opacity: 0.45; transform: scale(0.8); }
+}
+
+/* Con "riduci animazioni" tutto compare già al suo posto: nessun disegno, nessuna dissolvenza, nessun impulso. */
+@media (prefers-reduced-motion: reduce) {
+  .linkr-splash,
+  .linkr-splash[data-leaving] {
+    transition: none;
+  }
+
+  .linkr-splash .linkr-splash__ring,
+  .linkr-splash .linkr-splash__dot,
+  .linkr-splash .linkr-splash__word,
+  .linkr-splash .linkr-splash__message {
+    animation: none !important;
+    opacity: 1 !important;
+    stroke-dashoffset: 0 !important;
+    transform: none !important;
+  }
+}

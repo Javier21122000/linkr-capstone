@@ -2,9 +2,11 @@ import { ArrowLeft, ArrowRight, BookOpen, Building2, Flag, HelpCircle, LockKeyho
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent, ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useLocation } from "react-router";
 
 import { CutoutWord } from "../components/editorial/CutoutWord";
 import { OnboardingPhoto } from "../components/editorial/scenes";
+import { useBootReady } from "../hooks/useBootReady";
 import { LinkrSymbol } from "../components/ui/BrandMark";
 import { isOnboardingComplete, markOnboardingComplete, placeTourCard, tourStartDelay, WELCOME_DELAY_MS } from "../lib/guidance";
 import type { Rect, TourPlacement } from "../lib/guidance";
@@ -17,7 +19,7 @@ interface ProductGuidanceValue {
   readonly openOnboarding: () => void;
   /** Avvia il tour sui soli elementi presenti adesso; senza nessun elemento non fa nulla. */
   readonly openTour: () => void;
-  /** Discover lo chiama quando è davvero pronto (visibile, eventi arrivati, mappa finita di caricare): è il momento del benvenuto. */
+  /** Discover lo chiama quando è davvero pronto (visibile, eventi arrivati, mappa finita di caricare): è il momento in cui può partire il tour. */
   readonly notifyDiscoverReady: (ready: boolean) => void;
 }
 
@@ -306,6 +308,8 @@ function Tour({ steps, step, onStep, onClose }: { readonly steps: readonly TourS
 export function ProductGuidanceProvider({ children }: { readonly children: ReactNode }) {
   const { user } = useAuth();
   const userId = user?.id ?? null;
+  const bootReady = useBootReady();
+  const onDiscover = useLocation().pathname === "/";
   const [layer, setLayer] = useState<Layer>(null);
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [tourStepList, setTourSteps] = useState<readonly TourStepDefinition[]>([]);
@@ -314,10 +318,10 @@ export function ProductGuidanceProvider({ children }: { readonly children: React
   /** "Scopri come funziona": l'onboarding è chiuso e il tour parte appena Discover è pronto. */
   const [tourPending, setTourPending] = useState(false);
 
-  // Benvenuto alla prima visita: non appena la pagina si apre (e su Login o Registrazione mai), ma quando Discover è davvero pronto
-  // e dopo un istante in cui l'utente guarda la mappa. Se nel frattempo si apre un altro dialogo o si cambia pagina, si rinuncia.
+  // Benvenuto alla prima visita (anonima o autenticata, è lo stesso): subito dopo lo splash di avvio, su Discover (su Login o Registrazione mai).
+  // Non aspetta la mappa: mentre si legge, la mappa si carica dietro. Se nel frattempo si apre un altro dialogo o si cambia pagina, si rinuncia.
   useEffect(() => {
-    if (!discoverReady || isOnboardingComplete(getStorage(), userId)) return undefined;
+    if (!bootReady || !onDiscover || isOnboardingComplete(getStorage(), userId)) return undefined;
     const timeoutId = window.setTimeout(() => {
       if (isOnboardingComplete(getStorage(), userId)) return;
       if (document.querySelector("[role='dialog'][aria-modal='true']")) return;
@@ -325,7 +329,7 @@ export function ProductGuidanceProvider({ children }: { readonly children: React
       setLayer((current) => (current === null ? "welcome" : current));
     }, WELCOME_DELAY_MS);
     return () => window.clearTimeout(timeoutId);
-  }, [discoverReady, userId]);
+  }, [bootReady, onDiscover, userId]);
 
   const startTour = useCallback(() => {
     const available = resolveTourSteps();

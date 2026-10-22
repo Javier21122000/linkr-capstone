@@ -6,9 +6,9 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
-/** Avvia il seed della community demo all'avvio. Stesse condizioni del seeder: profilo "dev" + linkr.demo.community.enabled=true. */
+/** Avvia il seed della community demo all'avvio. Stesse condizioni del seeder: profilo "dev" o "demo" + linkr.demo.community.enabled=true. */
 @Component
-@Profile("dev")
+@Profile({"dev", "demo"})
 @ConditionalOnProperty(name = "linkr.demo.community.enabled", havingValue = "true")
 public class CommunityDemoRunner implements ApplicationRunner {
 

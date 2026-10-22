@@ -31,7 +31,7 @@ import com.linkr.backend.participation.ParticipationStatus;
 
 /**
  * Community dimostrativa: 15 personaggi, 36 uscite, partecipazioni, Link accettati e qualche messaggio, tutti inventati.
- * Esiste SOLO con il profilo "dev" E con linkr.demo.community.enabled=true (spento di default, mai in produzione).
+ * Esiste SOLO con il profilo "dev" o "demo" E con linkr.demo.community.enabled=true (spento di default: il profilo di produzione standard non lo attiva).
  *
  * Isolamento (tutto in una transazione, mai DELETE):
  *  - gli account demo hanno id fissi, username "demo_*" ed email "@demo.linkr.invalid" (dominio riservato, non esiste): un utente reale
@@ -44,7 +44,7 @@ import com.linkr.backend.participation.ParticipationStatus;
  *  - idempotente: id fissi + ON CONFLICT. Un evento demo gia' terminato viene spostato nel futuro (le partecipazioni restano).
  */
 @Component
-@Profile("dev")
+@Profile({"dev", "demo"})
 @ConditionalOnProperty(name = "linkr.demo.community.enabled", havingValue = "true")
 public class CommunityDemoSeeder {
 

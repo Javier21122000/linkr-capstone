@@ -2,15 +2,15 @@
 
 Ambiente dimostrativo sociale: **15 personaggi inventati, 36 uscite, 187 partecipazioni, 8 Link accettati, 8 messaggi**. Tutto è inventato e marcato DEMO. Nessuna migrazione Flyway.
 
-## Come attivarla (sviluppo)
+## Come attivarla (sviluppo o demo pubblica)
 
 Servono **entrambe** le condizioni, altrimenti non viene nemmeno creato il bean:
 
-1. profilo Spring `dev` (`SPRING_PROFILES_ACTIVE=dev`);
+1. profilo Spring `dev` oppure `demo` (`SPRING_PROFILES_ACTIVE=dev` in locale, `demo` su Render: stessi seeder);
 2. `LINKR_DEMO_COMMUNITY_ENABLED=true` (proprietà `linkr.demo.community.enabled`, `false` di default).
 
 Parte all'avvio dell'applicazione e scrive nel database a cui l'app è collegata (`LINKR_DB_URL`). Per spegnerla basta togliere la variabile: i dati già creati restano.
-In produzione il profilo `dev` non va impostato (vedi `DEPLOY.md`): il seed non può partire.
+Senza uno dei due profili (produzione standard) il seed non può partire. Per la demo pubblica su Render si imposta `demo` (vedi `DEPLOY.md`); il profilo `dev` non va usato online.
 
 ## Come si riconoscono gli account demo
 

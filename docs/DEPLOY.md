@@ -1,134 +1,204 @@
-# Pubblicare LINKR Lite — checklist
+# Pubblicare LINKR su Render — procedura per il Capstone
 
-Scelta per un Capstone: **una sola macchina, un solo dominio**, nessun container obbligatorio.
+Tutto su Render, tre servizi nella stessa regione (consigliata **Frankfurt**, la più vicina a Milano):
 
 ```
-Browser ──https──> Caddy (HTTPS automatico, file statici di frontend/dist)
-                     ├── /api/*  ──> Spring Boot 127.0.0.1:8080 ──> PostgreSQL (stessa macchina)
-                     └── /ws     ──> Spring Boot (WebSocket STOMP)      └──> cartella immagini (volume persistente)
+Browser ──https──> Static Site  (frontend/dist, rewrite /* -> /index.html)
+   │
+   ├──https──> Web Service Docker (Spring Boot)  /api/*  ──> PostgreSQL (rete interna di Render)
+   └──wss────>                                   /ws
 ```
 
-Stesso dominio per sito e API significa: **niente CORS da gestire**, `VITE_API_BASE_URL` vuota, WebSocket sullo stesso host.
-Un PaaS (Render, Railway, Fly) va bene lo stesso se frontend e API restano dietro lo stesso dominio; evitare Kubernetes e servizi gestiti separati.
+Frontend e API hanno **domini diversi** (`*.onrender.com`): il browser fa chiamate cross-origin, quindi servono `CORS_ALLOWED_ORIGINS` sul backend e `VITE_API_BASE_URL` sul frontend. Non c'è nessun proxy: REST, immagini e WebSocket vanno direttamente al backend.
 
-## 0. Prima di tutto (blocca la pubblicazione)
+> La versione precedente di questo documento (una sola macchina con Caddy e systemd) è nella cronologia di Git.
 
-- [ ] **Test backend sul database di test.** Servono utente e password di PostgreSQL nell'ambiente (non nel repository). Da una copia,
-      per non far riavviare l'app di sviluppo (devtools ricompila `backend/target`):
-      ```bash
-      set -a; source .env; set +a                      # carica LINKR_DB_USERNAME / LINKR_DB_PASSWORD, senza stamparli
-      rsync -a --exclude target backend/ /tmp/linkr-build/ && cd /tmp/linkr-build
-      JAVA_HOME=$(/usr/libexec/java_home -v 21) ./mvnw test   # usa SOLO linkr_test_db (URL fisso nei test)
-      ```
-      Atteso: tutto verde. Il database `linkr_test_db` deve esistere con lo stesso utente.
-- [ ] **Giro completo con utenti di prova** (richiede autorizzazione a scrivere nel database di sviluppo): registrazione → login →
-      refresh → evento da form completo e da Quick Create con foto JPEG/PNG → modifica → partecipazione → Discover People →
-      richiesta Link → accettazione → chat con messaggi non letti → logout.
-- [ ] Decidere cosa fare con gli orari: oggi data e ora si interpretano **nel fuso del dispositivo** ma si mostrano in `Europe/Rome`.
-      Per chi e' in Italia coincide; chi crea un evento da un altro fuso lo vedrebbe spostato (es. New York: "20:30" diventa 02:30 a Milano).
-- [ ] Decidere se il database di produzione parte con eventi demo. Il seeder gira **solo** con il profilo `dev`: in produzione Discover e' vuoto finche' nessuno crea eventi.
+## 0. Prima di cominciare
 
-## 1. Segreti e variabili (backend)
+- [ ] Account Render con il repository GitHub collegato (il branch `main` deve contenere `backend/Dockerfile`).
+- [ ] Chiave MapTiler **pubblica** (finisce nel bundle). Nel pannello MapTiler aggiungi l'origine del sito (`https://<nome-frontend>.onrender.com`) ai referrer consentiti e imposta un tetto di richieste: se la chiave è limitata a `localhost`, mappa e ricerca luoghi non funzionano online.
+- [ ] Un segreto JWT nuovo: `openssl rand -base64 48` (almeno 32 caratteri; non riusare quello locale; non metterlo in nessun file del repository).
+- [ ] Scegli i **nomi** dei servizi prima di crearli: l'URL è `https://<nome>.onrender.com` (se il nome è già preso Render aggiunge un suffisso casuale; controlla l'URL reale dopo la creazione). Qui: `linkr-api` e `linkr-web`.
 
-File `/etc/linkr/linkr.env`, permessi `600`, proprietario `linkr`. Mai nel repository.
+## 1. PostgreSQL
+
+Dashboard → **New → PostgreSQL**.
+
+| Campo | Valore |
+|---|---|
+| Name | `linkr-db` |
+| Database | `linkr_db` (importante: il backend rifiuta di migrare un database con un altro nome; vedi `LINKR_DB_EXPECTED_NAME`) |
+| User | `linkr` |
+| Region | Frankfurt (la stessa degli altri servizi) |
+| Instance type | Free |
+
+A creazione finita, nella pagina del database (**Info → Connections**) annota *Hostname interno*, *Port*, *Database*, *Username*, *Password*. Per il backend si usa l'**host interno** (`dpg-…-a`, senza `.render.com`): è raggiungibile solo dai servizi Render della stessa regione e non richiede SSL.
+
+L'URL JDBC si costruisce a mano, **non** si incolla quello `postgresql://…` di Render:
+
+```
+LINKR_DB_URL = jdbc:postgresql://<hostname-interno>:5432/linkr_db
+```
+
+Utente e password vanno nelle due variabili separate. Il database parte **vuoto**: Flyway applica V1–V9 al primo avvio del backend (`ddl-auto=validate`).
+
+## 2. Backend (Web Service Docker)
+
+Dashboard → **New → Web Service → Build and deploy from a Git repository** → il repository.
+
+| Campo | Valore |
+|---|---|
+| Name | `linkr-api` |
+| Language / Runtime | **Docker** |
+| Branch | `main` |
+| Region | Frankfurt |
+| Root Directory | *(vuoto)* |
+| Dockerfile Path | `./backend/Dockerfile` |
+| Docker Build Context Directory | `./backend` |
+| Instance type | Free |
+| Health Check Path (Advanced) | `/api/health` |
+
+Se nei log di build compare "Dockerfile not found": imposta Root Directory `backend`, Dockerfile Path `./Dockerfile` e contesto `.`. I due modi si escludono a vicenda.
+
+### Variabili d'ambiente del backend
+
+Si inseriscono nel pannello **Environment** del servizio (mai in file del repository). `PORT` la imposta Render; il backend la legge (`server.port=${PORT:8080}`).
+
+| Variabile | Valore | Note |
+|---|---|---|
+| `LINKR_DB_URL` | `jdbc:postgresql://<host-interno>:5432/linkr_db` | vedi §1 |
+| `LINKR_DB_USERNAME` | utente del database | |
+| `LINKR_DB_PASSWORD` | password del database | |
+| `LINKR_JWT_SECRET` | segreto generato in §0 | cambiarlo invalida tutte le sessioni |
+| `CORS_ALLOWED_ORIGINS` | `https://linkr-web.onrender.com` | origine **esatta** del frontend, senza `/` finale. Serve anche al WebSocket (controlla l'`Origin`). Si imposta dopo il §3 |
+| `SPRING_PROFILES_ACTIVE` | `demo` | attiva i seeder degli eventi demo (vedi sotto) |
+| `LINKR_DEMO_COMMUNITY_ENABLED` | `true` | community demo: 15 personaggi, 36 uscite, partecipazioni, Link |
+
+Facoltative: `LINKR_JWT_EXPIRATION` (default `2h`, non esiste refresh token) e `LINKR_DB_EXPECTED_NAME` (solo se il database non si chiama `linkr_db`).
+**Non** impostare nulla di `LINKR_TICKETMASTER_*`: l'integrazione è spenta di base e non blocca l'avvio.
+
+Il `Dockerfile` imposta già, senza segreti: `JAVA_OPTS` (heap al 65% della memoria del container, GC seriale), `SPRING_JPA_SHOW_SQL=false`, `SERVER_FORWARD_HEADERS_STRATEGY=framework` e `LINKR_UPLOAD_DIR=/data/uploads`. Sono sovrascrivibili dal pannello.
+
+### Profilo `demo`
+
+I seeder `DemoEventSeeder` (eventi demo di Milano) e `CommunityDemoSeeder` (community) si attivano con i profili `dev` **o** `demo`. Con il profilo di produzione standard (nessun profilo) non partono mai. Sono idempotenti (id fissi e `ON CONFLICT`): a ogni avvio non duplicano nulla e spostano nel futuro gli eventi demo già terminati. Gli account demo non possono fare login (nessuna password esiste): chi presenta si **registra** dal sito. Dettagli in [`COMMUNITY-DEMO.md`](COMMUNITY-DEMO.md).
+
+Per una produzione "vera" (senza contenuti demo) basta togliere `SPRING_PROFILES_ACTIVE` e `LINKR_DEMO_COMMUNITY_ENABLED`; i dati già creati restano.
+
+## 3. Frontend (Static Site)
+
+Dashboard → **New → Static Site** → lo stesso repository.
+
+| Campo | Valore |
+|---|---|
+| Name | `linkr-web` |
+| Branch | `main` |
+| Root Directory | `frontend` |
+| Build Command | `npm ci && npm run build` (`npm run build` da solo non installa le dipendenze) |
+| Publish Directory | `dist` |
+
+`npm run build` esegue prima il typecheck e poi `vite build`.
+
+### Variabili d'ambiente del frontend
+
+Vite le **incorpora nel bundle durante la build**: cambiarle richiede un nuovo deploy del sito.
 
 | Variabile | Valore |
 |---|---|
-| `LINKR_DB_URL` | `jdbc:postgresql://localhost:5432/linkr_db` |
-| `LINKR_DB_USERNAME` / `LINKR_DB_PASSWORD` | utente dedicato, **non** `postgres`, solo su questo database |
-| `LINKR_JWT_SECRET` | nuovo, almeno 32 byte: `openssl rand -base64 48`. Cambiarlo invalida tutte le sessioni |
-| `CORS_ALLOWED_ORIGINS` | `https://tuodominio.it` — serve anche con lo stesso dominio: il WebSocket controlla l'`Origin` con questa lista |
-| `LINKR_UPLOAD_DIR` | es. `/var/lib/linkr/uploads` — **fuori** dal repository, sul disco persistente |
-| `SPRING_JPA_SHOW_SQL` | `false` (nel file di configurazione e' `true`) |
-| `SERVER_FORWARD_HEADERS_STRATEGY` | `framework` (dietro il proxy Spring deve sapere che la richiesta e' https) |
-| `SERVER_ADDRESS` | `127.0.0.1` (l'API non deve essere raggiungibile senza passare dal proxy) |
-| `LINKR_DB_EXPECTED_NAME` | solo se il database non si chiama `linkr_db` (altrimenti Flyway non migra: e' una protezione voluta) |
-| `LINKR_JWT_EXPIRATION` | opzionale, default `2h`. **Non esiste refresh token**: allo scadere si rifa' il login |
-| `LINKR_TICKETMASTER_ENABLED` / `LINKR_TICKETMASTER_API_KEY` / `LINKR_TICKETMASTER_IMPORT_ENABLED` | opzionali. Lasciare **spente/vuote** in produzione finche' non c'e' una decisione: dry-run e importazione sono comandi admin manuali (vedi [`TICKETMASTER.md`](TICKETMASTER.md)); l'importazione ha un interruttore suo, spento di base. Mai nel frontend |
+| `VITE_API_BASE_URL` | `https://linkr-api.onrender.com` — URL assoluto con `https://`, senza percorso |
+| `VITE_MAPTILER_KEY` | la chiave pubblica MapTiler |
+| `NODE_VERSION` | `24.15.0` (la versione con cui è stato provato; Vite 8 richiede Node ≥ 20.19 / 22.12) |
 
-Non impostare `SPRING_PROFILES_ACTIVE=dev`.
+`VITE_MAP_STYLE` resta vuota. Il WebSocket usa la stessa `VITE_API_BASE_URL`: `https://…` diventa `wss://…/ws`, `http://…` diventa `ws://…/ws` (nessuna impostazione a parte).
 
-## 2. Database
+### Rewrite per il routing React
 
-- [ ] PostgreSQL con utente e database dedicati; `linkr_db` creato **vuoto**: Flyway applica V1-V9 all'avvio (`ddl-auto=validate`).
-- [ ] Backup giornaliero (`pg_dump`) **e** della cartella immagini, provato con un ripristino.
-- [ ] Unica migrazione recente: `V9__create_event_source.sql` (tabella `event_source`, additiva e vuota; serve all'integrazione Ticketmaster, vedi [`TICKETMASTER.md`](TICKETMASTER.md) §8). Su un database gia' esistente Flyway la applica da sola al primo avvio: fare il backup prima.
+Senza questa regola un refresh su `/people`, `/events/123` o `/profile` risponde 404, perché sul server esiste solo `index.html`. Nel sito → **Redirects/Rewrites → Add Rule**:
 
-## 3. Build
+| Source | Destination | Action |
+|---|---|---|
+| `/*` | `/index.html` | **Rewrite** |
+
+Render non applica la regola dove esiste già un file (`/assets/…`, `/demo/…`, `/favicon.svg`), quindi gli asset statici restano serviti normalmente. La regola non si può versionare nel repository senza un Blueprint (`render.yaml`), che qui non si usa: il database richiede un URL JDBC composto a mano.
+
+### Chiudere il cerchio con CORS
+
+Con l'URL definitivo del frontend, torna sul backend → **Environment** → imposta `CORS_ALLOWED_ORIGINS=https://linkr-web.onrender.com`. Render riavvia il servizio da solo. Gli URL di anteprima o un secondo dominio vanno aggiunti separati da virgola.
+
+## 4. Smoke test (5 minuti, dopo il deploy)
+
+Nei log del backend (**Logs**): `Database check passed`, le migrazioni Flyway, `Started BackendApplication`. Il primo avvio su Free può impiegare 1–2 minuti.
 
 ```bash
-# frontend (il valore di VITE_MAPTILER_KEY entra nel bundle: cambiarla richiede una nuova build)
-cd frontend && VITE_MAPTILER_KEY=... npm ci && npm run build      # -> frontend/dist
-# facoltativo: VITE_MAP_STYLE=full usa lo stile MapTiler completo invece della cartografia essenziale di LINKR (vedi docs/UX-MAPPA-E-NAVIGAZIONE.md)
-# backend (Java 21)
-cd backend && JAVA_HOME=$(/usr/libexec/java_home -v 21) ./mvnw -DskipTests package   # -> target/backend-0.0.1-SNAPSHOT.jar (~60 MB, senza devtools)
-```
-`VITE_API_BASE_URL`: lasciare **vuota** con lo stesso dominio. Se l'API fosse su un altro dominio va impostata (REST, immagini e WebSocket la seguono)
-e `CORS_ALLOWED_ORIGINS` deve contenere l'origine del sito.
+API=https://linkr-api.onrender.com
+WEB=https://linkr-web.onrender.com
 
-## 4. MapTiler
+curl -s $API/api/health                       # {"status":"UP","application":"LINKR","service":"backend"}
+curl -s $API/api/events | head -c 300         # eventi demo (JSON)
 
-- [ ] La chiave e' **pubblica** (finisce nel bundle e nelle richieste del browser). Nel pannello MapTiler: restringerla all'origine
-      `https://tuodominio.it` (HTTP referrer) e impostare un tetto di richieste, altrimenti chiunque puo' consumare la quota.
-- [ ] Controllare che geocoding e mappa funzionino dal dominio vero: se la chiave e' limitata a localhost, entrambi falliranno li'.
+# CORS: il preflight dal sito deve rispondere 200 con Access-Control-Allow-Origin = $WEB
+curl -si -X OPTIONS $API/api/events -H "Origin: $WEB" -H "Access-Control-Request-Method: GET" | head -n 12
 
-## 5. Reverse proxy (Caddy) — esempio, **non eseguito** in questa macchina
+# WebSocket: handshake dal sito -> 101 Switching Protocols (da un'altra origine: 403)
+curl -si -m 5 $API/ws -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Sec-WebSocket-Version: 13" \
+     -H "Sec-WebSocket-Key: x3JJHMbDL1EzLkh9GBhXDw==" -H "Origin: $WEB" | head -n 3
 
-```caddyfile
-tuodominio.it {
-	encode zstd gzip
-
-	handle /api/* {
-		reverse_proxy 127.0.0.1:8080          # le immagini hanno gia' le loro intestazioni (CSP sandbox, nosniff): NON aggiungerne qui
-	}
-	handle /ws {
-		reverse_proxy 127.0.0.1:8080          # WebSocket: Caddy lo gestisce senza altre opzioni
-	}
-	handle {
-		root * /srv/linkr/frontend/dist
-		@hashed path /assets/*
-		header @hashed Cache-Control "public, max-age=31536000, immutable"
-		header Strict-Transport-Security "max-age=31536000"
-		header X-Content-Type-Options "nosniff"
-		header Referrer-Policy "strict-origin-when-cross-origin"
-		header Permissions-Policy "camera=(self), microphone=(), geolocation=()"
-		header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://api.maptiler.com; worker-src 'self' blob:; child-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
-		try_files {path} /index.html          # senza questo un refresh su /events/123 da' 404
-		file_server
-	}
-}
+curl -sI $WEB/people | head -n 1              # HTTP/2 200 (rewrite attiva), non 404
+curl -s -o /dev/null -w "%{http_code}\n" -X POST $API/api/events -H "Content-Type: application/json" -d '{}'   # 401
 ```
 
-La CSP e' stata **provata in Chrome sul bundle di produzione** (mappa, marker, anteprima, Quick Create, dettaglio, crea evento con anteprima
-della foto): nessuna violazione. `img-src https:` e' necessario perche' un evento puo' usare l'URL https di un'immagine esterna;
-`style-src 'unsafe-inline'` serve a MapLibre e agli stili inline di React. Dopo il deploy riaprire le stesse schermate con la console aperta.
+Nel browser (console aperta, nessun errore CORS/CSP):
 
-## 6. Avvio del backend (systemd)
+- [ ] Discover mostra la mappa e i marker; la copertina di un evento demo si vede.
+- [ ] Refresh diretto su `/people` e su `/events/<id>`: la pagina si apre (con sessione attiva resta loggato).
+- [ ] Registrazione → login → profilo.
+- [ ] Partecipa a due o tre eventi; attiva Discovery; **Discover People** mostra persone.
+- [ ] Richiesta Link a un personaggio demo; con due browser, un secondo utente accetta e la chat consegna i messaggi in tempo reale (DevTools → Network → WS: `wss://…/ws`).
+- [ ] Crea un evento con una foto JPEG/PNG e controlla che l'immagine si veda.
 
-```ini
-[Service]
-User=linkr
-EnvironmentFile=/etc/linkr/linkr.env
-ExecStart=/usr/lib/jvm/java-21/bin/java -Xmx512m -jar /opt/linkr/backend.jar
-Restart=on-failure
+## 5. Piano gratuito: limiti da conoscere per la demo
+
+Verificati sulla [documentazione Render](https://render.com/docs/free) il 22/10/2026:
+
+- **Web Service Free va in sleep dopo 15 minuti senza traffico** e si risveglia in circa un minuto (qui anche JVM, Flyway e seed). Il client ha un timeout di 10 s (`frontend/src/lib/api.ts`): se apri l'app a freddo, le prime chiamate falliscono o la mappa resta vuota.
+  **Procedura demo:** 10 minuti prima di presentare apri `$API/api/health` e naviga l'app finché Discover mostra gli eventi. Un piano a pagamento per il backend elimina lo sleep (prezzo da verificare sul sito Render).
+- **Filesystem effimero**: le foto caricate dagli utenti spariscono a ogni riavvio, deploy o sleep (un disco persistente non è disponibile sul Free). La pagina mostra un'immagine rotta. Le copertine e gli avatar demo non sono toccati: stanno nel frontend (`/demo/…`). Non basare la demo su foto caricate prima. Con un disco a pagamento: montalo su `/data`; l'utente del container non è root, quindi verifica che `/data/uploads` sia scrivibile.
+- **PostgreSQL Free scade 30 giorni dopo la creazione** e non ha backup: va bene per il Capstone, non come servizio permanente.
+- **Auto-deploy**: ogni push su `main` ridistribuisce i servizi. Prima della presentazione disattivalo (Settings → Build & Deploy → Auto-Deploy: Off) per non avere un deploy a metà demo.
+- Il JWT dura 2 ore e non c'è refresh token: fai il login poco prima di presentare.
+- Memoria del Free: limitata (indicativamente 512 MB). Il backend è configurato per restarci (`JAVA_OPTS`); se Render segnala "out of memory" nei log, abbassa `-XX:MaxRAMPercentage` in `JAVA_OPTS`.
+
+## 6. Limiti accettati e miglioramenti rinviabili
+
+- Nessuna protezione dai tentativi ripetuti su login e registrazione (esiste solo il limite di upload per utente, in memoria).
+- Un solo processo: limite upload e broker WebSocket sono in memoria; un riavvio li azzera e chi è connesso si riconnette.
+- `/api/health` verifica solo che il processo risponda, non il database.
+- JWT in `sessionStorage` (leggibile da JavaScript). Difesa principale contro l'XSS: la CSP qui sotto.
+- Le immagini caricate e mai usate restano su disco (vedi [`UPLOAD-IMMAGINI.md`](UPLOAD-IMMAGINI.md)).
+- I test backend sul database di test e un giro completo con utenti reali non fanno parte di questa procedura (vedi §7 per i test).
+- Decisione aperta sugli orari: data e ora si interpretano nel fuso del dispositivo ma si mostrano in `Europe/Rome`. Per chi è in Italia coincide.
+
+### Intestazioni di sicurezza (facoltativo)
+
+Static Site → **Headers**, percorso `/*`. La CSP seguente è stata provata sul bundle di produzione con frontend e API sullo stesso dominio; **con il backend su un altro dominio non è stata provata**: `connect-src` deve elencare l'API (HTTPS e WSS). Provala con la console aperta e, se blocca qualcosa, toglila: non è indispensabile per il Capstone.
+
+```
+Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://linkr-api.onrender.com wss://linkr-api.onrender.com https://api.maptiler.com; worker-src 'self' blob:; child-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+X-Content-Type-Options: nosniff
+Referrer-Policy: strict-origin-when-cross-origin
+Permissions-Policy: camera=(self), microphone=(), geolocation=()
 ```
 
-## 7. Verifiche dopo il deploy (5 minuti)
+`img-src https:` serve perché un evento può usare l'URL https di un'immagine esterna; `style-src 'unsafe-inline'` serve a MapLibre e agli stili inline di React.
 
-- [ ] `curl -s https://tuodominio.it/api/health` → `{"status":"UP",...}` (verifica solo che il processo risponda, non il database).
-- [ ] `curl -sI https://tuodominio.it/api/events` → `200`, `X-Content-Type-Options`, e `Strict-Transport-Security` se arriva dal proxy.
-- [ ] Browser: Discover mostra la mappa; registrazione; login; **refresh della pagina resta loggato**; logout.
-- [ ] Crea un evento con una foto scattata col telefono, poi scaricare l'immagine pubblicata e controllare che non abbia EXIF/GPS
-      in locale (`exiftool file.jpg`: non caricarla su siti esterni, la pubblicheresti altrove). Aprirla da telefono: stessa rotazione di prima.
-- [ ] Due browser: un messaggio di chat compare in tempo reale (WebSocket su `wss://`) e il badge dei non letti si aggiorna.
-- [ ] Un POST senza token → `401`; `https://tuodominio.it/api/uploads/event-images/../../etc/passwd` → `400/404`.
-- [ ] Riavviare il servizio: le immagini sono ancora li' e il login funziona (il segreto JWT non e' cambiato).
+## 7. Test backend sul database di test (facoltativo, in locale)
 
-## 8. Limiti da conoscere (accettati per il Capstone)
+Servono utente e password di PostgreSQL nell'ambiente (non nel repository) e il database `linkr_test_db` con lo stesso utente. Da una copia, per non far riavviare un'app di sviluppo in esecuzione (devtools ricompila `backend/target`):
 
-- **Nessuna protezione dai tentativi ripetuti** su login e registrazione (esiste solo il limite di upload per utente, in memoria).
-  Con un sito pubblico aggiungere un limite sul proxy (es. plugin rate-limit di Caddy su `/api/auth/*`) o accettare il rischio.
-- Un solo processo: il limite upload e il broker WebSocket sono in memoria; un riavvio li azzera e chi e' connesso si riconnette.
-- `/api/health` non controlla il database.
-- JWT in `sessionStorage` (leggibile da JavaScript): la CSP sopra e' la difesa principale contro l'XSS.
-- Le immagini caricate e mai usate restano su disco (vedi `docs/UPLOAD-IMMAGINI.md`).
+```bash
+set -a; source .env; set +a                      # carica LINKR_DB_USERNAME / LINKR_DB_PASSWORD, senza stamparli
+rsync -a --exclude target backend/ /tmp/linkr-build/ && cd /tmp/linkr-build
+JAVA_HOME=$(/usr/libexec/java_home -v 21) ./mvnw test   # usa SOLO linkr_test_db (URL fisso nei test)
+```
+
+Atteso: tutto verde. Il jar di produzione si costruisce con `./mvnw -DskipTests package` (è quello che fa il `Dockerfile`).

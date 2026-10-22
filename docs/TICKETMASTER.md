@@ -154,7 +154,7 @@ Flyway la applica da solo al primo avvio del backend contro il database a cui e'
 
 Senza database (girano ovunque): normalizzatore, parser, client (stati HTTP, retry, timeout reali su localhost, JSON malformato, redazione della chiave nei messaggi e nei log),
 servizio, autorizzazione ADMIN con i filtri di sicurezza veri, configurazione da `application.properties`, assenza di attivita' all'avvio e di scheduler.
-Con `linkr_test_db` (servono `LINKR_DB_USERNAME`/`LINKR_DB_PASSWORD`, come in `docs/DEPLOY.md` §0): `TicketmasterDryRunIntegrationTest` (zero scritture: contenuti e contatori INSERT/UPDATE/DELETE
+Con `linkr_test_db` (servono `LINKR_DB_USERNAME`/`LINKR_DB_PASSWORD`, come in `docs/DEPLOY.md` §7): `TicketmasterDryRunIntegrationTest` (zero scritture: contenuti e contatori INSERT/UPDATE/DELETE
 di ogni tabella identici prima e dopo; demo, community e partecipazioni invariati), `TicketmasterDisabledByDefaultIntegrationTest`, `EventSourceMigrationTest`, `FlywayV9UpgradeTest`.
 I test non possono mai chiamare Ticketmaster: l'integrazione e' fissata a spenta in `@IntegrationTest` e i test che la accendono usano un client finto.
 

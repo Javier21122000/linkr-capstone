@@ -1,0 +1,26 @@
+# Fuori dal contesto di build: niente segreti, niente artefatti locali, niente file dell'editor.
+target/
+.git/
+.gitignore
+.idea/
+.vscode/
+.DS_Store
+*.iml
+*.log
+
+# Segreti e configurazioni locali (non devono mai entrare in un'immagine)
+.env
+.env.*
+application-local.properties
+application-local.yml
+*.pem
+*.key
+
+# Immagini caricate e dump
+uploads/
+*.sql.gz
+*.dump
+
+# Il Dockerfile stesso non serve dentro l'immagine
+Dockerfile
+.dockerignore

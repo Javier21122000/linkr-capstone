@@ -75,7 +75,7 @@ Cosa manca al backend per modificare il profilo: [`docs/PROFILO-API.md`](docs/PR
 
 ## Deploy
 
-Checklist ordinata (variabili, database, build, reverse proxy con HTTPS e CSP, verifiche dopo la pubblicazione): [`docs/DEPLOY.md`](docs/DEPLOY.md).
+Procedura per Render (PostgreSQL, backend Docker, Static Site, variabili, CORS, smoke test, limiti del piano gratuito): [`docs/DEPLOY.md`](docs/DEPLOY.md).
 Upload e rimozione dei metadati delle immagini: [`docs/UPLOAD-IMMAGINI.md`](docs/UPLOAD-IMMAGINI.md).
 Integrazione Ticketmaster (spenta di base; dry-run e importazione manuale riservati agli admin, ognuno con il suo interruttore): [`docs/TICKETMASTER.md`](docs/TICKETMASTER.md).
 
@@ -85,7 +85,7 @@ The frontend keeps the authenticated session in `sessionStorage`, so a valid JWT
 when the browser session ends or the user logs out. Expired sessions are discarded and no password or refresh token is
 stored. Because `sessionStorage` is readable by JavaScript, a successful XSS attack could still steal the JWT; preventing
 script injection and maintaining an appropriate Content Security Policy remain required protections. A Content Security Policy
-tested against the production bundle is in [`docs/DEPLOY.md`](docs/DEPLOY.md).
+(tested on the single-domain bundle, untested with a separate API domain) is in [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
 ## 📌 Status
 

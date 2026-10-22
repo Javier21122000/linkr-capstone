@@ -25,7 +25,7 @@ import com.linkr.backend.demo.DemoArt;
 import com.linkr.backend.event.EventCategory;
 
 /**
- * Inserisce eventi DIMOSTRATIVI a Milano. Attivo SOLO con il profilo "dev".
+ * Inserisce eventi DIMOSTRATIVI a Milano. Attivo SOLO con i profili "dev" e "demo" (il profilo di produzione standard non lo attiva).
  *
  * Come funziona (idempotente):
  *  - ogni evento ha un UUID fisso, quindi riavviare l'app non crea duplicati;
@@ -39,7 +39,7 @@ import com.linkr.backend.event.EventCategory;
  * non hanno organizzatori e la descrizione dice esplicitamente che non sono reali.
  */
 @Component
-@Profile("dev")
+@Profile({"dev", "demo"})
 public class DemoEventSeeder implements ApplicationRunner {
 
 	private static final Logger log = LoggerFactory.getLogger(DemoEventSeeder.class);

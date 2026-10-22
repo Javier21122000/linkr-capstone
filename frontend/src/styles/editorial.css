@@ -1,0 +1,359 @@
+/*
+ * COMPONENTI EDITORIALI (collage, lettering ritagliato, sticker, retino) — parte della variante Urban Editorial Pop.
+ *
+ * Reversibile come urban-editorial.css: ogni decorazione porta la classe `.ed-deco`, nascosta nel tema base e mostrata solo con
+ * `<html data-variant="urban-editorial">`. Togliendo l'attributo (o l'@import in index.css) restano i titoli e i testi normali.
+ * Regole: le decorazioni non ricevono clic (`pointer-events: none`), non stanno sopra testo o pulsanti, e il movimento è sempre opzionale.
+ * Le illustrazioni sono SVG inline originali (components/editorial): nessuna immagine da scaricare.
+ */
+
+/* Gancio inerte (unico selettore fuori dalla variante): nel tema base nessuna decorazione si vede. */
+.ed-deco {
+  display: none;
+}
+
+html[data-variant="urban-editorial"] .ed-deco {
+  display: block;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ——— Lettering ritagliato (lettera di riscatto) ——— */
+html[data-variant="urban-editorial"] .ed-cutout {
+  display: inline-block;
+  position: relative;
+}
+
+/* Il testo vero resta nel DOM per lettori di schermo e ricerca; a vista ci sono solo le lettere ritagliate. */
+html[data-variant="urban-editorial"] .ed-cutout__plain {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+html[data-variant="urban-editorial"] .ed-cutout__tiles {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--cut-size, 2.6rem);
+  line-height: 1;
+  /* L'ombra sta sul gruppo (non sulle lettere) perché `clip-path` taglierebbe un box-shadow. */
+  filter: drop-shadow(1px 2px 1px rgb(24 24 22 / 0.28));
+}
+
+html[data-variant="urban-editorial"] .ed-cutout__tile {
+  display: inline-grid;
+  min-width: 0.78em;
+  margin-inline: -0.025em;
+  padding: 0.1em 0.13em 0.07em;
+  place-items: center;
+  translate: 0 var(--tile-lift, 0);
+  rotate: var(--tile-rotate, 0deg);
+  font-family: var(--font-display);
+  font-weight: 900;
+  line-height: 1;
+}
+
+/* Quattro bordi di carta strappata (poligoni leggermente irregolari). */
+html[data-variant="urban-editorial"] .ed-cutout__tile[data-edge="0"] { clip-path: polygon(3% 6%, 38% 0, 71% 5%, 100% 2%, 96% 48%, 100% 94%, 62% 100%, 30% 96%, 0 100%, 4% 52%); }
+html[data-variant="urban-editorial"] .ed-cutout__tile[data-edge="1"] { clip-path: polygon(0 3%, 44% 7%, 100% 0, 97% 40%, 100% 100%, 55% 94%, 6% 100%, 3% 55%); }
+html[data-variant="urban-editorial"] .ed-cutout__tile[data-edge="2"] { clip-path: polygon(6% 0, 52% 4%, 94% 0, 100% 46%, 95% 100%, 48% 95%, 0 100%, 5% 44%); }
+html[data-variant="urban-editorial"] .ed-cutout__tile[data-edge="3"] { clip-path: polygon(0 8%, 33% 0, 66% 6%, 100% 3%, 98% 62%, 100% 97%, 70% 92%, 34% 100%, 3% 94%); }
+
+html[data-variant="urban-editorial"] .ed-cutout__tile[data-tile="paper-serif"] { background: var(--ed-paper-light, #fbf8ef); color: var(--ed-ink); }
+html[data-variant="urban-editorial"] .ed-cutout__tile[data-tile="ink-sans"] { background: var(--ed-ink); color: #fbf8ef; font-family: var(--font-sans); font-weight: 800; }
+html[data-variant="urban-editorial"] .ed-cutout__tile[data-tile="yellow-italic"] { background: var(--ed-yellow); color: #8f2414; font-style: italic; font-weight: 800; }
+html[data-variant="urban-editorial"] .ed-cutout__tile[data-tile="coral-serif"] { background: var(--color-linkr); color: #fbf8ef; }
+html[data-variant="urban-editorial"] .ed-cutout__tile[data-tile="pink-serif"] { background: #f3b4a6; color: var(--ed-ink); font-weight: 800; }
+html[data-variant="urban-editorial"] .ed-cutout__tile[data-tile="ink-serif"] { background: #fbf8ef; color: var(--ed-ink); font-weight: 900; }
+html[data-variant="urban-editorial"] .ed-cutout__tile[data-tile="paper-italic"] { background: #e7dfcc; color: #a92b18; font-style: italic; font-weight: 800; }
+html[data-variant="urban-editorial"] .ed-cutout__tile[data-tile="yellow-sans"] { background: #fbf8ef; color: #181816; font-family: var(--font-sans); font-weight: 800; }
+
+/* ——— Retino ——— */
+html[data-variant="urban-editorial"] .ed-halftone {
+  --dot: 1.6px;
+  --halftone-ink: var(--ed-ink);
+  position: absolute;
+  width: 6rem;
+  aspect-ratio: 1;
+  background: radial-gradient(circle at center, var(--halftone-ink) 0 var(--dot), transparent calc(var(--dot) + 0.4px)) 0 0 / 0.65rem 0.65rem;
+}
+
+html[data-variant="urban-editorial"] .ed-halftone--coral { --halftone-ink: var(--color-linkr); }
+html[data-variant="urban-editorial"] .ed-halftone--yellow { --halftone-ink: #d9ad1f; }
+
+html[data-variant="urban-editorial"] .ed-halftone--fade {
+  -webkit-mask-image: radial-gradient(circle at 30% 30%, #000 0 25%, transparent 72%);
+  mask-image: radial-gradient(circle at 30% 30%, #000 0 25%, transparent 72%);
+}
+
+html[data-variant="urban-editorial"] .ed-halftone--circle {
+  border-radius: 50%;
+  -webkit-mask-image: radial-gradient(circle at 35% 35%, #000 0 22%, transparent 78%);
+  mask-image: radial-gradient(circle at 35% 35%, #000 0 22%, transparent 78%);
+}
+
+html[data-variant="urban-editorial"] .ed-halftone--band {
+  width: 100%;
+  aspect-ratio: auto;
+  height: 1.6rem;
+  -webkit-mask-image: linear-gradient(90deg, #000, transparent);
+  mask-image: linear-gradient(90deg, #000, transparent);
+}
+
+/* ——— Illustrazioni e sticker ——— */
+html[data-variant="urban-editorial"] .ed-illustration {
+  overflow: visible;
+}
+
+html[data-variant="urban-editorial"] .ed-sticker {
+  position: absolute;
+  filter: drop-shadow(1px 2px 1px rgb(24 24 22 / 0.3));
+}
+
+/* Nastro adesivo: striscia semitrasparente con i bordi seghettati ai due capi. */
+html[data-variant="urban-editorial"] .ed-sticker--tape {
+  width: 4.4rem;
+  height: 1.35rem;
+  background: rgb(246 207 77 / 0.82);
+  clip-path: polygon(0 0, 4% 14%, 0 28%, 4% 42%, 0 57%, 4% 71%, 0 86%, 4% 100%, 96% 100%, 100% 86%, 96% 71%, 100% 57%, 96% 42%, 100% 28%, 96% 14%, 100% 0);
+  filter: none;
+}
+
+/* ——— Scene collage ——— */
+html[data-variant="urban-editorial"] .ed-scene {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+html[data-variant="urban-editorial"] .ed-scene > .ed-illustration {
+  position: absolute;
+  height: auto;
+}
+
+/* ——— SCOPRI PERSONE: testata con collage ——— */
+/* Mobile: titolo a sinistra, collage fotografico a destra, introduzione a tutta larghezza sotto. */
+html[data-variant="urban-editorial"] .ed-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(8rem, 37vw, 11.5rem);
+  grid-template-areas: "head scene" "intro intro";
+  align-items: center;
+  column-gap: 0.75rem;
+}
+
+html[data-variant="urban-editorial"] .ed-hero__head { grid-area: head; min-width: 0; }
+/* Il PNG ha già trasparenza, carta strappata, retino e frecce: nessuna cornice, ombra o sfondo, solo proporzioni (width/height dell'<img>). */
+html[data-variant="urban-editorial"] .ed-hero__art { grid-area: scene; align-self: start; width: 100%; margin-top: -0.2rem; }
+html[data-variant="urban-editorial"] .ed-hero__art img { display: block; width: 100%; height: auto; }
+html[data-variant="urban-editorial"] .ed-hero__intro { grid-area: intro; }
+
+@media (min-width: 48rem) {
+  html[data-variant="urban-editorial"] .ed-hero {
+    grid-template-columns: minmax(0, 1fr) clamp(16rem, 30vw, 22rem);
+    grid-template-areas: "head scene" "intro scene";
+    column-gap: 2rem;
+    align-items: start;
+  }
+
+  html[data-variant="urban-editorial"] .ed-hero__art { margin-top: -0.6rem; }
+}
+
+/* ——— PROFILO PUBBLICO ——— */
+html[data-variant="urban-editorial"] .ed-scene--profile {
+  position: absolute;
+  z-index: 0;
+  top: 0.6rem;
+  right: -0.3rem;
+  width: clamp(6.5rem, 30vw, 9.5rem);
+  height: auto;
+  aspect-ratio: 8 / 7;
+  rotate: 4deg;
+  opacity: 0.95;
+}
+
+html[data-variant="urban-editorial"] .ed-scene--profile .ed-scene__main { inset: 0; width: 100%; }
+html[data-variant="urban-editorial"] .ed-scene--profile .ed-scene__dots { right: 38%; bottom: -34%; width: 90%; opacity: 0.7; }
+
+html[data-variant="urban-editorial"] [data-editorial="profile"] article.surface-card > :not(.ed-scene) {
+  position: relative;
+  z-index: 1;
+}
+
+/* Il nome non scorre mai sotto il collage. */
+html[data-variant="urban-editorial"] .ed-profile-head > :last-child { padding-right: clamp(0rem, 20vw, 6.5rem); }
+
+/* Avatar: un foglio giallo strappato appena sotto, leggermente ruotato, come una foto incollata. */
+html[data-variant="urban-editorial"] .ed-avatar-frame {
+  position: relative;
+  isolation: isolate;
+}
+
+html[data-variant="urban-editorial"] .ed-avatar-frame::before {
+  position: absolute;
+  z-index: -1;
+  inset: -0.35rem -0.5rem -0.55rem -0.3rem;
+  background: var(--ed-yellow);
+  clip-path: polygon(4% 8%, 32% 0, 66% 5%, 97% 1%, 100% 38%, 95% 70%, 100% 97%, 62% 100%, 30% 95%, 0 100%, 5% 55%);
+  content: "";
+  rotate: -5deg;
+}
+
+html[data-variant="urban-editorial"] .ed-handle {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* La virgoletta aperta è decorazione: il contenuto alternativo vuoto la toglie ai lettori di schermo. */
+html[data-variant="urban-editorial"] [data-editorial="profile"] article.surface-card > p.whitespace-pre-line::before {
+  display: block;
+  height: 1.3rem;
+  color: var(--color-linkr);
+  content: "“" / "";
+  font-size: 3.4rem;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 0.9;
+}
+
+/* ——— ONBOARDING ——— */
+html[data-variant="urban-editorial"] .onboarding-dialog {
+  border: 0;
+  background: var(--ed-grain), var(--ed-paper);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* Le lettere sono più larghe di ~0.8em: la parola più lunga (10 lettere) si restringe per entrare nella larghezza utile. */
+html[data-variant="urban-editorial"] .ob-word {
+  rotate: -1.5deg;
+  letter-spacing: 0;
+}
+
+html[data-variant="urban-editorial"] .ob-word .ed-cutout {
+  --cut-size: min(3.6rem, calc((min(100vw, 28rem) - 3.4rem) / (var(--letters, 6) * 0.82)));
+}
+
+/*
+ * Collage fotografico: stessa altezza massima per i due verticali (SCOPRI e VIVI); quello orizzontale (CONNETTITI) è largo quanto la scheda,
+ * fino ai bordi della scheda (la parte esterna è trasparente). `aspect-ratio` riserva lo spazio prima che l'immagine arrivi (nessun layout shift).
+ */
+html[data-variant="urban-editorial"] .ob-stage > .ed-photo {
+  --photo-h: clamp(10.5rem, 44dvh, 25rem);
+  flex: 0 1 auto;
+  max-width: 100%;
+}
+
+/* Scheda centrale (≥ 768 px): l'altezza della scheda è limitata a 46rem, quindi anche la foto. */
+@media (min-width: 48rem) {
+  html[data-variant="urban-editorial"] .ob-stage > .ed-photo { --photo-h: clamp(9rem, 40dvh, 21rem); }
+}
+
+/* Telefoni bassi: la barra dell'ultima schermata è più alta, la foto cede un po' di spazio. */
+@media (max-width: 47.999rem) and (max-height: 48rem) {
+  html[data-variant="urban-editorial"] .ob-stage > .ed-photo { --photo-h: clamp(9rem, 34dvh, 25rem); }
+}
+
+html[data-variant="urban-editorial"] .ed-photo--discover,
+html[data-variant="urban-editorial"] .ed-photo--live {
+  height: var(--photo-h);
+  aspect-ratio: 1153 / 1364;
+}
+
+html[data-variant="urban-editorial"] .ed-photo--connect {
+  width: calc(100% + 2.8rem);
+  max-width: 34rem;
+  aspect-ratio: 3 / 2;
+}
+
+html[data-variant="urban-editorial"] .ed-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+html[data-variant="urban-editorial"] .ob-headline {
+  font-weight: 900;
+}
+
+/* Spunte di carta: i puntini di avanzamento sono sottili strisce d'inchiostro. */
+html[data-variant="urban-editorial"] .ob-bar .guidance-progress span {
+  height: 0.28rem;
+  border-radius: 0;
+  background: rgb(24 24 22 / 0.2);
+}
+
+html[data-variant="urban-editorial"] .ob-bar .guidance-progress span[data-current] { background: var(--ed-ink); }
+
+html[data-variant="urban-editorial"] .ob-next span { white-space: nowrap; }
+
+html[data-variant="urban-editorial"] .ob-secondary { border-color: var(--ed-ink); }
+
+html[data-variant="urban-editorial"] .ob-next {
+  background: var(--ed-ink);
+  box-shadow: 3px 3px 0 var(--color-linkr);
+}
+
+/* ——— DISCOVER: pochissimi dettagli ——— */
+/* Il numero di eventi come titolo di rivista, con un tratto di evidenziatore sotto. */
+html[data-variant="urban-editorial"] .ed-count {
+  position: relative;
+  z-index: 0;
+  display: inline-block;
+}
+
+html[data-variant="urban-editorial"] .ed-count::after {
+  position: absolute;
+  z-index: -1;
+  right: -0.12em;
+  bottom: 0.04em;
+  left: -0.1em;
+  height: 0.4em;
+  background: var(--ed-yellow);
+  content: "";
+  rotate: -1deg;
+}
+
+/* Un megafono a retino nell'intestazione del pannello (solo desktop, dove il pannello è fisso): sta nell'intestazione, non sulla lista. */
+html[data-variant="urban-editorial"] .event-list-panel__header {
+  position: relative;
+}
+
+html[data-variant="urban-editorial"] .event-list-panel--panel .ed-header-art {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.7rem;
+  width: 4.4rem;
+  height: auto;
+  rotate: 8deg;
+}
+
+html[data-variant="urban-editorial"] .event-list-panel--sheet .ed-header-art { display: none; }
+
+/* Anteprima evento: un pezzo di nastro adesivo sull'angolo della foto. */
+html[data-variant="urban-editorial"] .event-preview__image {
+  position: relative;
+}
+
+html[data-variant="urban-editorial"] .event-preview__image::after {
+  position: absolute;
+  top: -0.3rem;
+  left: -0.55rem;
+  width: 1.9rem;
+  height: 0.7rem;
+  background: rgb(246 207 77 / 0.85);
+  clip-path: polygon(0 0, 8% 25%, 0 50%, 8% 75%, 0 100%, 100% 100%, 92% 75%, 100% 50%, 92% 25%, 100% 0);
+  content: "";
+  pointer-events: none;
+  rotate: -35deg;
+}
+
+/* ——— Movimento ridotto: le animazioni delle scene non partono ——— */
+@media (prefers-reduced-motion: reduce) {
+  html[data-variant="urban-editorial"] .ed-sticker {
+    transition: none;
+  }
+}

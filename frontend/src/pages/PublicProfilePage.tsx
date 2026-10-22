@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 
 import { UserAvatar } from "../components/auth/UserAvatar";
+import { EditorialHeading } from "../components/editorial/EditorialHeading";
+import { ProfileArt } from "../components/editorial/scenes";
 import { EmptyState } from "../components/ui/EmptyState";
 import { useAuth } from "../context/AuthContext";
 import { getAuthRequestErrorMessage } from "../lib/auth";
@@ -113,14 +115,14 @@ export function PublicProfilePage() {
         {profile ? (
           <>
             <article className="surface-card content-reveal mt-6 p-5 sm:p-7">
-              {/* Spazio riservato a un'illustrazione collage originale (nascosto nel tema base). */}
-              <div className="ed-slot" data-slot="profile-hero" aria-hidden="true" />
-              <div className="flex flex-col items-start gap-5 sm:flex-row sm:items-center">
-                <UserAvatar displayName={profile.displayName} avatarUrl={profile.avatarUrl} className="size-24 text-2xl sm:size-28 sm:text-3xl" />
+              <ProfileArt />
+              <div className="ed-profile-head flex flex-col items-start gap-5 sm:flex-row sm:items-center">
+                <div className="ed-avatar-frame shrink-0">
+                  <UserAvatar displayName={profile.displayName} avatarUrl={profile.avatarUrl} className="size-24 text-2xl sm:size-28 sm:text-3xl" />
+                </div>
                 <div className="min-w-0">
-                  <p className="section-kicker">Profilo</p>
-                  <h1 id="public-profile-title" className="mt-2 break-words text-3xl font-extrabold tracking-[-0.05em] text-ink sm:text-4xl">{profile.displayName}</h1>
-                  <p className="mt-1 break-words font-semibold text-muted">@{profile.username}</p>
+                  <EditorialHeading id="public-profile-title" kicker="Profilo" size="title" className="mt-2 break-words text-3xl font-extrabold tracking-[-0.05em] text-ink sm:text-4xl">{profile.displayName}</EditorialHeading>
+                  <p className="ed-handle mt-1 break-words font-semibold text-muted">@{profile.username}</p>
                   {statusLabel ? (
                     <span className={`mt-3 inline-flex min-h-9 items-center gap-2 rounded-full px-3 py-1 text-xs font-extrabold ${profile.linkStatus === "ACCEPTED" ? "bg-[#edf8f3] text-success" : "bg-linkr-soft text-linkr-strong"}`}>
                       <Link2 size={15} aria-hidden="true" /> {statusLabel}

@@ -9,6 +9,7 @@ import type { ParticipationStatus } from "../../types/participation";
 import { EmptyEventsIllustration } from "../ui/EmptyEventsIllustration";
 import { EmptyState } from "../ui/EmptyState";
 import { IconButton } from "../ui/IconButton";
+import { EditorialIllustration } from "../editorial/EditorialIllustration";
 import { CategoryDisc } from "./CategoryIcon";
 import { EventImage } from "./EventImage";
 import { ParticipationChip } from "./ParticipationIndicator";
@@ -102,12 +103,13 @@ export function EventList({
         <div className="min-w-0">
           <p className="section-kicker">Discover Milano</p>
           <h2 id="event-list-title" className="mt-1 text-2xl font-extrabold tracking-[-0.045em] text-ink">
-            {loading ? "Cerco eventi" : errorMessage ? "Eventi" : `${events.length} ${events.length === 1 ? "evento" : "eventi"}`}
+            {loading ? "Cerco eventi" : errorMessage ? "Eventi" : <><span className="ed-count">{events.length}</span> {events.length === 1 ? "evento" : "eventi"}</>}
           </h2>
           {activeCategoryLabel && !loading && !errorMessage && (
             <p className="mt-0.5 text-sm font-bold text-muted">Categoria: {activeCategoryLabel}</p>
           )}
         </div>
+        {!isSheet && <EditorialIllustration kind="megaphone" className="ed-header-art" />}
         {isSheet && onClose && (
           <IconButton className="shrink-0" label="Torna alla mappa" onClick={onClose}>
             <X size={19} aria-hidden="true" />

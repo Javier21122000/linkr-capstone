@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { isDiscoverReady, isOnboardingComplete, markOnboardingComplete, onboardingKey, placeTourCard, WELCOME_DELAY_MS } from "../src/lib/guidance.ts";
+import { tourStartDelay, TOUR_READY_TIMEOUT_MS, TOUR_START_DELAY_MS, isDiscoverReady, isOnboardingComplete, markOnboardingComplete, onboardingKey, placeTourCard, WELCOME_DELAY_MS } from "../src/lib/guidance.ts";
 
 const memory = (initial = {}) => {
   const data = { ...initial };
@@ -113,4 +113,11 @@ test("il callout non esce mai dalla finestra, qualunque sia la posizione dell'el
       assert.ok(placement.top >= 12 && placement.top + 190 <= 800 - 12 + 1, `x=${x} y=${y} top=${placement.top}`);
     }
   }
+});
+
+test("dopo l'onboarding il tour aspetta Discover solo se la mappa c'è e non è pronta", () => {
+  assert.equal(tourStartDelay(true, false), TOUR_READY_TIMEOUT_MS);
+  assert.equal(tourStartDelay(true, true), TOUR_START_DELAY_MS);
+  assert.equal(tourStartDelay(false, false), TOUR_START_DELAY_MS);
+  assert.ok(TOUR_START_DELAY_MS < TOUR_READY_TIMEOUT_MS);
 });

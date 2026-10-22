@@ -80,10 +80,10 @@ export function AppHeader() {
           </NavItem>
           {status === "authenticated" ? (
             <>
-              <NavItem to="/people" className="desktop-nav-link" aria-label="Persone">
+              <NavItem to="/people" className="desktop-nav-link" aria-label="Persone" data-tour="nav-people">
                 <UsersRound size={18} aria-hidden="true" /> <span className="hidden lg:inline">Persone</span>
               </NavItem>
-              <NavItem to="/profile/links" className="desktop-nav-link" aria-label={linksAccessibleLabel}>
+              <NavItem to="/profile/links" className="desktop-nav-link" aria-label={linksAccessibleLabel} data-tour="nav-links">
                 <span className="nav-icon">
                   <Link2 size={18} aria-hidden="true" />
                   <span className="nav-badge"><IncomingLinkCountBadge /></span>

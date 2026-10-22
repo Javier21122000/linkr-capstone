@@ -41,11 +41,11 @@ export function MobileNav() {
         </NavItem>
       ) : (
         <>
-          <NavItem to="/people" className="mobile-nav__item">
+          <NavItem to="/people" className="mobile-nav__item" data-tour="nav-people">
             <span className="mobile-nav__icon"><UsersRound size={ICON_SIZE} strokeWidth={2.2} aria-hidden="true" /></span>
             <span className="mobile-nav__label">Persone</span>
           </NavItem>
-          <NavItem to="/profile/links" className="mobile-nav__item" aria-label={linksAccessibleLabel}>
+          <NavItem to="/profile/links" className="mobile-nav__item" aria-label={linksAccessibleLabel} data-tour="nav-links">
             <span className="mobile-nav__icon">
               <Link2 size={ICON_SIZE} strokeWidth={2.2} aria-hidden="true" />
               <span className="mobile-nav__badge"><IncomingLinkCountBadge /></span>

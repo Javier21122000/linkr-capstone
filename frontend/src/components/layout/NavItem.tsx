@@ -10,6 +10,8 @@ interface NavItemProps {
   readonly className: string;
   readonly "aria-label"?: string;
   readonly title?: string;
+  /** Gancio del tour guidato (vedi ProductGuidanceContext). */
+  readonly "data-tour"?: string;
   readonly children: ReactNode;
 }
 

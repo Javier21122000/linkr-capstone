@@ -129,3 +129,12 @@ export function placeTourCard(target: Rect | null, card: Size, viewport: Viewpor
   }
   return opposite;
 }
+
+/** Dopo "Scopri come funziona" il modale si chiude e il tour parte appena la schermata è pronta: pochi istanti per l'uscita del modale e il ripristino del focus. */
+export const TOUR_START_DELAY_MS = 350;
+/** Se in pagina c'è la mappa di Discover ma non è ancora pronta si aspetta, fino a questo limite: poi il tour parte comunque con gli elementi presenti. */
+export const TOUR_READY_TIMEOUT_MS = 6_000;
+
+export function tourStartDelay(hasMap: boolean, discoverReady: boolean): number {
+  return hasMap && !discoverReady ? TOUR_READY_TIMEOUT_MS : TOUR_START_DELAY_MS;
+}

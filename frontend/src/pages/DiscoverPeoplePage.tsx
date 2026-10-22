@@ -5,6 +5,8 @@ import { Link } from "react-router";
 
 import { UserAvatar } from "../components/auth/UserAvatar";
 import { WriteMessageLink } from "../components/chat/WriteMessageLink";
+import { EditorialHeading } from "../components/editorial/EditorialHeading";
+import { PeopleHeroArt } from "../components/editorial/scenes";
 import { EmptyState } from "../components/ui/EmptyState";
 import { useAuth } from "../context/AuthContext";
 import { useLinkRequestCount } from "../context/LinkRequestCountContext";
@@ -184,12 +186,16 @@ export function DiscoverPeoplePage() {
   return (
     <div className="page-shell page-with-mobile-nav py-8 sm:py-12 lg:py-16" data-editorial="people">
       <section className="mx-auto max-w-5xl" aria-labelledby="discover-people-title">
-        {/* Spazio riservato a un'illustrazione collage originale (nascosto nel tema base). */}
-        <div className="ed-slot" data-slot="people-hero" aria-hidden="true" />
-        <p className="section-kicker">La community di LINKR</p>
-        <h1 id="discover-people-title" className="mt-2 text-4xl font-extrabold tracking-[-0.05em] text-ink sm:text-5xl">Scopri <span className="ed-em">persone</span></h1>
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">Incontra persone che hanno scelto di comparire. Per prime trovi chi condivide più interessi con te.</p>
-        <p className="mt-2 text-xs font-bold text-muted">L’ordine è calcolato dal servizio in base agli interessi condivisi.</p>
+        <header className="ed-hero">
+          <div className="ed-hero__head">
+            <EditorialHeading id="discover-people-title" kicker="La community di LINKR" lead="Scopri" emphasis="persone" className="mt-2 text-4xl font-extrabold tracking-[-0.05em] text-ink sm:text-5xl" />
+          </div>
+          <PeopleHeroArt />
+          <div className="ed-hero__intro">
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">Incontra persone che hanno scelto di comparire. Per prime trovi chi condivide più interessi con te.</p>
+            <p className="mt-2 text-xs font-bold text-muted">L’ordine è calcolato dal servizio in base agli interessi condivisi.</p>
+          </div>
+        </header>
 
         {state.status === "loading" ? (
           <div className="mt-8 grid gap-4 md:grid-cols-2" aria-busy="true" aria-label="Caricamento persone">

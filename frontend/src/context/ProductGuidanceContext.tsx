@@ -3,8 +3,10 @@ import { createContext, useCallback, useContext, useEffect, useLayoutEffect, use
 import type { CSSProperties, KeyboardEvent, ReactNode } from "react";
 import { createPortal } from "react-dom";
 
+import { CutoutWord } from "../components/editorial/CutoutWord";
+import { OnboardingPhoto } from "../components/editorial/scenes";
 import { LinkrSymbol } from "../components/ui/BrandMark";
-import { isOnboardingComplete, markOnboardingComplete, placeTourCard, WELCOME_DELAY_MS } from "../lib/guidance";
+import { isOnboardingComplete, markOnboardingComplete, placeTourCard, tourStartDelay, WELCOME_DELAY_MS } from "../lib/guidance";
 import type { Rect, TourPlacement } from "../lib/guidance";
 import { useAuth } from "./AuthContext";
 
@@ -22,12 +24,11 @@ interface ProductGuidanceValue {
 const ProductGuidanceContext = createContext<ProductGuidanceValue | null>(null);
 const FOCUSABLE = "a[href],button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),[tabindex]:not([tabindex='-1'])";
 
+/** Tre schermate: la parola in lettering ritagliato (`word`) è il titolo accessibile, il resto lo spiega. */
 const onboardingSteps = [
-  ["La città è piena di possibilità.", "Scopri cosa succede intorno a te."],
-  ["Trova qualcosa che ti piace.", "Esplora la mappa e filtra eventi e attività."],
-  ["Trova le persone giuste.", "Condividi interessi e crea nuovi Link."],
-  ["Organizzatevi insieme.", "Dopo aver accettato un Link, potete chattare."],
-  ["Il prossimo ricordo inizia qui.", "Esplora Milano e vivi nuove esperienze."],
+  { word: "SCOPRI", seed: 0, headline: "Eventi reali, luoghi interessanti.", body: "Esplora la mappa di Milano e scopri cosa succede intorno a te, ora e nei prossimi giorni." },
+  { word: "CONNETTITI", seed: 2, headline: "Persone con i tuoi stessi interessi.", body: "Trova chi condivide la tua passione, invia un Link e inizia a chattare." },
+  { word: "VIVI", seed: 5, headline: "Una città più tua.", body: "Esci, partecipa agli eventi o organizzane uno tuo, e crea nuovi ricordi." },
 ] as const;
 
 interface TourStepDefinition {
@@ -70,10 +71,11 @@ function findFreeMarker(): HTMLElement | null {
 
 const tourSteps: readonly TourStepDefinition[] = [
   { id: "categories", title: "Scegli cosa ti interessa", body: "Le categorie filtrano la mappa e la lista nello stesso momento.", find: () => findShown("[data-tour='categories']") },
-  { id: "marker", title: "Ogni marker è un evento", body: "Toccane uno per vedere l’anteprima: quando, dove e di cosa si tratta.", find: findFreeMarker },
+  { id: "marker", title: "Gli eventi sono sulla mappa", body: "Ogni marker è un evento. Toccalo per l’anteprima (quando, dove, di cosa si tratta) e da lì apri il dettaglio.", find: findFreeMarker },
   { id: "list", title: "Gli eventi, in lista", body: "Qui trovi tutto ciò che succede, in ordine di inizio. Un tocco sulla riga porta l’evento in mappa.", find: () => findShown("[data-tour='list']") },
+  { id: "people", title: "Scopri persone", body: "Incontra chi ha i tuoi stessi interessi: per prime vedi le persone con più cose in comune.", find: () => findShown("[data-tour='nav-people']") },
+  { id: "links", title: "Link e chat", body: "Invia un Link a chi ti incuriosisce: quando lo accetta potete scrivervi in chat e organizzarvi.", find: () => findShown("[data-tour='nav-links']") },
   { id: "quick-create", title: "Organizza qualcosa", body: "Il pulsante + apre Quick Create: un’uscita in tre passaggi, senza lasciare la mappa.", find: () => findShown("[data-tour='quick-create']") },
-  { id: "navigation", title: "Persone, Link e Chat", body: "Da qui ritrovi persone, connessioni e conversazioni.", find: () => findShown("[data-tour='navigation']") },
   { id: "help", title: "L’aiuto è sempre qui", body: "Il punto interrogativo riapre questo tour e il Centro assistenza.", find: () => findShown("[data-tour='help']") },
 ];
 
@@ -88,18 +90,6 @@ function getStorage(): Storage | null {
   } catch {
     return null;
   }
-}
-
-function GuidanceIllustration({ step }: { readonly step: number }) {
-  return (
-    <div className="guidance-illustration" data-step={step} role="img" aria-label="Illustrazione editoriale provvisoria di Milano, persone e connessioni">
-      <span className="guidance-illustration__sun" />
-      <span className="guidance-illustration__duomo" />
-      <span className="guidance-illustration__person guidance-illustration__person--one" />
-      <span className="guidance-illustration__person guidance-illustration__person--two" />
-      <span className="guidance-illustration__signal" />
-    </div>
-  );
 }
 
 function Modal({ labelledBy, describedBy, onClose, children, className = "", backdropClassName = "" }: { readonly labelledBy: string; readonly describedBy?: string; readonly onClose: () => void; readonly children: ReactNode; readonly className?: string; readonly backdropClassName?: string }) {
@@ -147,27 +137,36 @@ function Modal({ labelledBy, describedBy, onClose, children, className = "", bac
   );
 }
 
-function Onboarding({ step, onStep, onSkip, onFinish }: { readonly step: number; readonly onStep: (step: number) => void; readonly onSkip: () => void; readonly onFinish: () => void }) {
-  const [title, description] = onboardingSteps[step];
+function Onboarding({ step, onStep, onSkip, onFinish }: { readonly step: number; readonly onStep: (step: number) => void; readonly onSkip: () => void; readonly onFinish: (startTour: boolean) => void }) {
+  const current = onboardingSteps[step];
+  const isLast = step === onboardingSteps.length - 1;
   return (
-    <Modal labelledBy="onboarding-title" onClose={onSkip} className="onboarding-dialog">
-      <button className="guidance-close icon-button" type="button" onClick={onSkip} aria-label="Salta onboarding"><X size={18} aria-hidden="true" /></button>
-      <GuidanceIllustration step={step} />
-      <div className="guidance-dialog__body">
-        <p className="section-kicker">Benvenuto su LINKR</p>
-        <h2 id="onboarding-title" className="mt-2 text-3xl font-extrabold tracking-[-0.05em] text-ink">{title}</h2>
-        <p className="mt-3 text-base font-semibold leading-7 text-muted">{description}</p>
-        <div className="guidance-progress" aria-label={`Passaggio ${step + 1} di ${onboardingSteps.length}`}>
-          {onboardingSteps.map((_, index) => <span key={index} data-current={index === step || undefined} />)}
+    <Modal labelledBy="onboarding-title" describedBy="onboarding-copy" onClose={onSkip} className="onboarding-dialog" backdropClassName="guidance-backdrop--onboarding">
+      <div className="ob-top">
+        <span className="ob-brand" aria-hidden="true"><LinkrSymbol className="size-7" /><span>LINKR</span></span>
+        <button className="guidance-skip" type="button" onClick={onSkip}>Salta<span className="sr-only"> onboarding</span></button>
+      </div>
+      <div className="ob-body">
+        <div className="ob-stage" key={step}>
+          <h2 id="onboarding-title" className="ob-word"><CutoutWord word={current.word} seed={current.seed} /></h2>
+          <OnboardingPhoto step={step as 0 | 1 | 2} />
+        </div>
+        <div id="onboarding-copy" className="ob-copy" key={`copy-${step}`}>
+          <p className="ob-headline">{current.headline}</p>
+          <p className="ob-text">{current.body}</p>
         </div>
       </div>
-      <footer className="guidance-dialog__footer">
-        <button className="guidance-skip" type="button" onClick={onSkip}>Salta</button>
-        <div className="flex gap-2">
-          {step > 0 ? <button className="button-secondary inline-flex items-center gap-2" type="button" onClick={() => onStep(step - 1)}><ArrowLeft size={17} aria-hidden="true" /> Indietro</button> : null}
-          <button className="button-primary inline-flex items-center gap-2" type="button" onClick={step === onboardingSteps.length - 1 ? onFinish : () => onStep(step + 1)}>
-            {step === onboardingSteps.length - 1 ? "Esplora Milano" : "Avanti"} {step < onboardingSteps.length - 1 ? <ArrowRight size={17} aria-hidden="true" /> : null}
+      <footer className="ob-bar" data-last={isLast || undefined}>
+        <div className="guidance-progress" role="img" aria-label={`Passaggio ${step + 1} di ${onboardingSteps.length}`}>
+          {onboardingSteps.map((item, index) => <span key={item.word} data-current={index === step || undefined} />)}
+        </div>
+        <div className="ob-actions">
+          {step > 0 ? <button className="ob-back" type="button" onClick={() => onStep(step - 1)}><ArrowLeft size={17} aria-hidden="true" /> <span className="ob-back__label">Indietro</span></button> : null}
+          <button className="ob-next" type="button" data-autofocus="" data-last={isLast || undefined} aria-label={isLast ? undefined : "Avanti"} onClick={isLast ? () => onFinish(true) : () => onStep(step + 1)}>
+            {isLast ? <span>Scopri come funziona</span> : null}
+            <ArrowRight size={20} strokeWidth={2.6} aria-hidden="true" />
           </button>
+          {isLast ? <button className="ob-secondary" type="button" onClick={() => onFinish(false)}>Esplora Milano</button> : null}
         </div>
       </footer>
     </Modal>
@@ -231,6 +230,12 @@ function Tour({ steps, step, onStep, onClose }: { readonly steps: readonly TourS
       observer.disconnect();
     };
   }, [current]);
+
+  // Alla chiusura il focus torna dove era prima del tour (se quell'elemento esiste ancora). Va dichiarato prima del focus sul callout.
+  useLayoutEffect(() => {
+    const previous = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null;
+    return () => { if (previous?.isConnected) previous.focus({ preventScroll: true }); };
+  }, []);
 
   useLayoutEffect(() => {
     cardRef.current?.focus({ preventScroll: true });
@@ -306,6 +311,8 @@ export function ProductGuidanceProvider({ children }: { readonly children: React
   const [tourStepList, setTourSteps] = useState<readonly TourStepDefinition[]>([]);
   const [tourStep, setTourStep] = useState(0);
   const [discoverReady, setDiscoverReady] = useState(false);
+  /** "Scopri come funziona": l'onboarding è chiuso e il tour parte appena Discover è pronto. */
+  const [tourPending, setTourPending] = useState(false);
 
   // Benvenuto alla prima visita: non appena la pagina si apre (e su Login o Registrazione mai), ma quando Discover è davvero pronto
   // e dopo un istante in cui l'utente guarda la mappa. Se nel frattempo si apre un altro dialogo o si cambia pagina, si rinuncia.
@@ -314,6 +321,7 @@ export function ProductGuidanceProvider({ children }: { readonly children: React
     const timeoutId = window.setTimeout(() => {
       if (isOnboardingComplete(getStorage(), userId)) return;
       if (document.querySelector("[role='dialog'][aria-modal='true']")) return;
+      setOnboardingStep(0);
       setLayer((current) => (current === null ? "welcome" : current));
     }, WELCOME_DELAY_MS);
     return () => window.clearTimeout(timeoutId);
@@ -330,13 +338,6 @@ export function ProductGuidanceProvider({ children }: { readonly children: React
     setLayer("tour");
   }, []);
 
-  /** "Non ora" e "Scopri LINKR" chiudono entrambi la prima visita: dopo un refresh il benvenuto non torna da solo. */
-  const finishWelcome = useCallback((startGuidedTour: boolean) => {
-    markOnboardingComplete(getStorage(), userId);
-    if (startGuidedTour) startTour();
-    else setLayer(null);
-  }, [startTour, userId]);
-
   const value = useMemo<ProductGuidanceValue>(() => ({
     openHelp: () => setLayer("help"),
     openOnboarding: () => { setOnboardingStep(0); setLayer("onboarding"); },
@@ -344,28 +345,32 @@ export function ProductGuidanceProvider({ children }: { readonly children: React
     notifyDiscoverReady: setDiscoverReady,
   }), [startTour]);
 
-  const closeSlides = useCallback(() => {
+  /** Salta, Escape e "Esplora Milano" chiudono e basta; "Scopri come funziona" chiude e poi, a modale sparito, avvia il tour. */
+  const finishOnboarding = useCallback((thenTour: boolean) => {
     markOnboardingComplete(getStorage(), userId);
     setLayer(null);
+    setTourPending(thenTour);
   }, [userId]);
+
+  // Il tour parte solo se nel frattempo non si è aperto altro (aiuto, un altro dialogo): niente overlay sovrapposti.
+  useEffect(() => {
+    if (!tourPending) return undefined;
+    if (layer !== null || document.querySelector("[role='dialog'][aria-modal='true']")) {
+      setTourPending(false);
+      return undefined;
+    }
+    const delay = tourStartDelay(document.querySelector(".event-map") !== null, discoverReady);
+    const timeoutId = window.setTimeout(() => {
+      setTourPending(false);
+      startTour();
+    }, delay);
+    return () => window.clearTimeout(timeoutId);
+  }, [tourPending, layer, discoverReady, startTour]);
 
   return (
     <ProductGuidanceContext.Provider value={value}>
       {children}
-      {layer === "welcome" ? (
-        <Modal labelledBy="welcome-title" describedBy="welcome-description" onClose={() => finishWelcome(false)} className="welcome-dialog" backdropClassName="guidance-backdrop--welcome">
-          <div className="welcome-dialog__body">
-            <LinkrSymbol className="welcome-dialog__mark" />
-            <h2 id="welcome-title" className="mt-4 text-3xl font-extrabold tracking-[-0.05em] text-ink">Benvenuto su LINKR</h2>
-            <p id="welcome-description" className="mt-3 text-base font-semibold leading-7 text-muted">Scopri cosa succede. Trova le persone giuste. Vivilo insieme.</p>
-          </div>
-          <footer className="guidance-dialog__footer welcome-dialog__footer">
-            <button className="button-secondary inline-flex items-center justify-center" type="button" onClick={() => finishWelcome(false)}>Non ora</button>
-            <button className="button-primary inline-flex items-center justify-center gap-2" type="button" data-autofocus="" onClick={() => finishWelcome(true)}>Scopri LINKR</button>
-          </footer>
-        </Modal>
-      ) : null}
-      {layer === "onboarding" ? <Onboarding step={onboardingStep} onStep={setOnboardingStep} onSkip={closeSlides} onFinish={closeSlides} /> : null}
+      {layer === "welcome" || layer === "onboarding" ? <Onboarding step={onboardingStep} onStep={setOnboardingStep} onSkip={() => finishOnboarding(false)} onFinish={finishOnboarding} /> : null}
       {layer === "tour" ? <Tour steps={tourStepList} step={tourStep} onStep={setTourStep} onClose={() => setLayer(null)} /> : null}
       {layer === "help" ? (
         <Modal labelledBy="help-title" onClose={() => setLayer(null)} className="help-dialog">

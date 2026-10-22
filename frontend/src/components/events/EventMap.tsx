@@ -57,7 +57,7 @@ interface MarkerEntry {
   readonly event: EventSummary;
 }
 
-/** Selezione corrente. `source` decide se la mappa deve portare l'evento in vista (lista) o solo se è nascosto (marker). */
+/** Selezione corrente. `source` dice da dove arriva (marker o lista); la camera si comporta allo stesso modo in entrambi i casi. */
 export interface MapSelection {
   readonly id: string;
   readonly source: "map" | "list";
@@ -346,16 +346,25 @@ export function EventMap({ events, eventsReady, viewKey, selection, active, onSe
     });
   }, [participations, markerEntries]);
 
-  // Selezione: porta l'evento in vista nell'area libera dagli overlay. Non dipende dai dati, così un refresh non sposta la mappa.
+  // Selezione: ogni nuovo evento (marker o lista, stesso comportamento) viene portato al centro dell'area libera dagli overlay.
+  // `easeTo` sostituisce l'animazione in corso, quindi con selezioni rapide vince l'ultima. Riselezionare l'evento già attivo mentre la camera
+  // lo sta raggiungendo non riparte; a camera ferma si ricentra solo se nel frattempo è stato spostato (vedi `planSelectionFraming`).
+  const framedSelectionRef = useRef<string | null>(null);
   useEffect(() => {
+    if (!selection) {
+      framedSelectionRef.current = null;
+      return;
+    }
     const map = mapRef.current;
     const container = containerRef.current;
-    if (!selection || !activeRef.current || !map || !container) return;
+    if (!activeRef.current || !map || !container) return;
 
     const selectedEvent = eventsRef.current.find((event) => event.id === selection.id);
     if (!selectedEvent || !hasValidCoordinates(selectedEvent)) return;
+    if (framedSelectionRef.current === selection.id && map.isMoving()) return;
 
-    const target = planSelectionFraming(map, container, selectedEvent, { onlyIfHidden: selection.source === "map" });
+    framedSelectionRef.current = selection.id;
+    const target = planSelectionFraming(map, container, selectedEvent);
     if (!target) return;
 
     applyCameraTarget(map, target, { animate: true, kind: "selection" });

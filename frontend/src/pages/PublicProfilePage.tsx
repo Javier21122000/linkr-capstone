@@ -71,7 +71,7 @@ export function PublicProfilePage() {
   const statusLabel = profile ? linkStatusLabel(profile.linkStatus) : null;
 
   return (
-    <div className="page-shell page-with-mobile-nav pt-8 sm:pt-12 lg:pt-16">
+    <div className="page-shell page-with-mobile-nav pt-8 sm:pt-12 lg:pt-16" data-editorial="profile">
       <section className="mx-auto max-w-2xl" aria-labelledby="public-profile-title">
         <Link className="inline-flex min-h-11 items-center gap-2 rounded-full font-extrabold text-ink" to="/people">
           <ArrowLeft size={19} aria-hidden="true" /> Torna alle persone
@@ -113,6 +113,8 @@ export function PublicProfilePage() {
         {profile ? (
           <>
             <article className="surface-card content-reveal mt-6 p-5 sm:p-7">
+              {/* Spazio riservato a un'illustrazione collage originale (nascosto nel tema base). */}
+              <div className="ed-slot" data-slot="profile-hero" aria-hidden="true" />
               <div className="flex flex-col items-start gap-5 sm:flex-row sm:items-center">
                 <UserAvatar displayName={profile.displayName} avatarUrl={profile.avatarUrl} className="size-24 text-2xl sm:size-28 sm:text-3xl" />
                 <div className="min-w-0">

@@ -3,6 +3,7 @@ import type { Map as MapLibreMap } from "maplibre-gl";
 
 import type { EventSummary } from "../types/event";
 import { prefersReducedMotion } from "./motion";
+import { isAlreadyFramed, selectionScreenTarget } from "./selectionFraming";
 
 /**
  * Inquadratura della mappa di Discover.
@@ -18,11 +19,10 @@ export const FIT_MAX_ZOOM = 14.5;
 export const FIT_MIN_ZOOM = 10.5;
 /** Zoom per un singolo evento: livello di quartiere, non di edificio. */
 export const SINGLE_EVENT_ZOOM = 14;
-/** Selezionando un evento non si scende mai sotto questo zoom (si può restare più vicini). */
-export const SELECTION_MIN_ZOOM = 13;
 
 const FRAMING_DURATION_MS = 650;
-const SELECTION_DURATION_MS = 450;
+/** Ricentrare sull'evento selezionato: abbastanza lungo per essere letto come movimento, abbastanza breve da non farsi aspettare. */
+const SELECTION_DURATION_MS = 400;
 /** Altezza del marker sopra il punto (il pin è ancorato in basso): serve spazio sopra, non sotto. */
 const PIN_HEIGHT = 60;
 const PIN_HALF_WIDTH = 26;
@@ -138,30 +138,21 @@ export function planEventsFraming(map: MapLibreMap, container: HTMLElement, poin
 }
 
 /**
- * Camera per l'evento selezionato. Con `onlyIfHidden` (selezione dal marker) la mappa non si muove se il pin
- * è già interamente visibile nell'area libera: toccare marker vicini non deve far "ballare" la vista.
+ * Camera per l'evento selezionato: ogni nuova selezione, da marker o da lista, porta il punto al centro dell'area libera
+ * dagli overlay (pannello, filtri, controlli, anteprima, Bottom Navigation) mantenendo lo zoom corrente.
+ * Se il marker è già lì (stesso evento riselezionato) non c'è nulla da animare e restituisce `null`.
  */
-export function planSelectionFraming(
-  map: MapLibreMap,
-  container: HTMLElement,
-  point: Point,
-  options: { readonly onlyIfHidden: boolean },
-): CameraTarget | null {
+export function planSelectionFraming(map: MapLibreMap, container: HTMLElement, point: Point): CameraTarget | null {
   syncMapSize(map, container);
 
   const margins = pointMargins(container, measureCameraInsets(container));
-  if (options.onlyIfHidden) {
-    const projected = map.project([point.longitude, point.latitude]);
-    const inside = projected.x >= margins.left
-      && projected.x <= container.clientWidth - margins.right
-      && projected.y >= margins.top
-      && projected.y <= container.clientHeight - margins.bottom;
-    if (inside) return null;
-  }
+  const projected = map.project([point.longitude, point.latitude]);
+  const target = selectionScreenTarget({ width: container.clientWidth, height: container.clientHeight }, margins);
+  if (isAlreadyFramed(projected, target)) return null;
 
   return {
     center: [point.longitude, point.latitude],
-    zoom: Math.max(map.getZoom(), SELECTION_MIN_ZOOM),
+    zoom: map.getZoom(),
     offset: freeAreaOffset(margins),
   };
 }

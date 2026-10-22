@@ -1,4 +1,7 @@
 import "@fontsource-variable/manrope";
+// Urban Editorial Pop (sperimentale, vedi styles/urban-editorial.css): serif solo per pochi titoli. Il corsivo si scarica solo se usato.
+import "@fontsource-variable/fraunces/wght.css";
+import "@fontsource-variable/fraunces/wght-italic.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 

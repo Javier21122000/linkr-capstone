@@ -38,6 +38,8 @@ import com.linkr.backend.people.ParticipationRequiredException;
 import com.linkr.backend.ticketmaster.ImportAlreadyRunningException;
 import com.linkr.backend.ticketmaster.InvalidImportParameterException;
 import com.linkr.backend.upload.UploadException;
+import com.linkr.backend.user.InvalidProfileException;
+import com.linkr.backend.user.ProfileNotFoundException;
 import com.linkr.backend.user.UserNotFoundException;
 
 /**
@@ -84,6 +86,21 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Invalid request content.");
 		problem.setTitle("Validation failed");
 		problem.setProperty("errors", ex.getErrors());
+		return problem;
+	}
+
+	@ExceptionHandler(InvalidProfileException.class)
+	public ProblemDetail handleInvalidProfile(InvalidProfileException ex) {
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Invalid request content.");
+		problem.setTitle("Validation failed");
+		problem.setProperty("errors", ex.getErrors());
+		return problem;
+	}
+
+	@ExceptionHandler(ProfileNotFoundException.class)
+	public ProblemDetail handleProfileNotFound(ProfileNotFoundException ex) {
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+		problem.setTitle("Profile not found");
 		return problem;
 	}
 

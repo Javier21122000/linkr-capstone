@@ -23,6 +23,10 @@ export function isAllowedEventImageUrl(value: string): boolean {
   return /^https:\/\/\S+$/.test(value) || INTERNAL_EVENT_IMAGE.test(value);
 }
 
+export function isInternalUploadedImageUrl(value: string): boolean {
+  return INTERNAL_EVENT_IMAGE.test(value);
+}
+
 export function resolveEventImageUrl(value: string): string {
   if (!value.startsWith("/api/uploads/event-images/")) return value;
 

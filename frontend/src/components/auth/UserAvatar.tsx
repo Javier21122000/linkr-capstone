@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 
+import { resolveEventImageUrl } from "../../lib/eventImages";
+
 interface UserAvatarProps {
   readonly displayName: string;
   readonly avatarUrl: string | null;
@@ -20,7 +22,7 @@ export function UserAvatar({ displayName, avatarUrl, className = "size-20" }: Us
   if (avatarUrl && !imageFailed) {
     return (
       <img
-        src={avatarUrl}
+        src={resolveEventImageUrl(avatarUrl)}
         alt={`Foto profilo di ${displayName}`}
         className={`${className} shrink-0 rounded-full border border-line object-cover`}
         onError={() => setImageFailed(true)}

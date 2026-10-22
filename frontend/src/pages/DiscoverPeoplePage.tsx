@@ -1,6 +1,7 @@
 import axios from "axios";
-import { Check, Clock3, Link2, RotateCcw, Sparkles, UserPlus, UsersRound, X } from "lucide-react";
+import { Check, Clock3, Link2, RotateCcw, UserPlus, UsersRound, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router";
 
 import { UserAvatar } from "../components/auth/UserAvatar";
 import { WriteMessageLink } from "../components/chat/WriteMessageLink";
@@ -40,6 +41,7 @@ function appendUniquePeople(
 }
 
 function sharedInterestsLabel(count: number): string {
+  if (count === 0) return "Nessun interesse in comune";
   if (count === 1) return "1 interesse in comune";
   return `${count} interessi in comune`;
 }
@@ -184,7 +186,7 @@ export function DiscoverPeoplePage() {
       <section className="mx-auto max-w-5xl" aria-labelledby="discover-people-title">
         <p className="section-kicker">La community di LINKR</p>
         <h1 id="discover-people-title" className="mt-2 text-4xl font-extrabold tracking-[-0.05em] text-ink sm:text-5xl">Scopri persone</h1>
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">Incontra persone che hanno scelto di comparire e condividono almeno un interesse con te.</p>
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">Incontra persone che hanno scelto di comparire. Per prime trovi chi condivide più interessi con te.</p>
         <p className="mt-2 text-xs font-bold text-muted">L’ordine è calcolato dal servizio in base agli interessi condivisi.</p>
 
         {state.status === "loading" ? (
@@ -225,7 +227,7 @@ export function DiscoverPeoplePage() {
               className="mx-auto max-w-md"
               illustration={<span className="grid size-14 place-items-center rounded-full bg-linkr-soft text-linkr-strong"><UsersRound size={28} aria-hidden="true" /></span>}
               title="Nessuna persona da mostrarti"
-              description="Quando ci saranno persone visibili con interessi in comune, le troverai qui."
+              description="Quando ci saranno altre persone che hanno scelto di comparire, le troverai qui."
             />
           </div>
         ) : null}
@@ -244,25 +246,30 @@ export function DiscoverPeoplePage() {
                 const actionError = linkActionErrors[person.userId];
                 return (
                   <li className="surface-card stagger-in flex flex-col p-5" style={staggerStyle(index)} key={person.userId} aria-busy={pending}>
-                    <div className="flex items-center gap-3.5">
+                    <Link className="flex items-center gap-3.5 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-linkr-strong" to={`/people/${encodeURIComponent(person.userId)}`} aria-label={`Apri il profilo di ${person.displayName}`}>
                       <UserAvatar displayName={person.displayName} avatarUrl={person.avatarUrl} className="size-14 text-base" />
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-lg font-extrabold tracking-[-0.02em] text-ink">{person.displayName}</p>
+                        <p className="truncate text-lg font-extrabold tracking-[-0.02em] text-ink transition-colors hover:text-linkr-strong">{person.displayName}</p>
                         <p className="truncate text-sm font-semibold text-muted">@{person.username}</p>
                       </div>
-                    </div>
-                    <p className="mt-5 inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-[0.08em] text-linkr-strong">
-                      <Sparkles size={14} aria-hidden="true" /> {sharedInterestsLabel(person.sharedInterestsCount)}
+                    </Link>
+                    <p className={`mt-5 text-xs font-extrabold uppercase tracking-[0.08em] ${person.sharedInterestsCount > 0 ? "text-linkr-strong" : "text-muted"}`}>
+                      {sharedInterestsLabel(person.sharedInterestsCount)}
                     </p>
-                    <div className="mt-2.5 flex min-h-8 flex-wrap gap-1.5" aria-label={`Interessi condivisi con ${person.displayName}`}>
-                      {visibleInterests.map((interest) => (
-                        <span className="shared-chip" key={interest.id}>{interest.name}</span>
-                      ))}
-                      {remainingInterests > 0 ? <span className="shared-chip shared-chip--more">+{remainingInterests}</span> : null}
-                    </div>
+                    {visibleInterests.length > 0 ? (
+                      <div className="mt-2.5 flex flex-wrap gap-1.5" role="group" aria-label={`Interessi condivisi con ${person.displayName}`}>
+                        {visibleInterests.map((interest) => (
+                          <span className="shared-chip" key={interest.id}>{interest.name}</span>
+                        ))}
+                        {remainingInterests > 0 ? <span className="shared-chip shared-chip--more">+{remainingInterests}</span> : null}
+                      </div>
+                    ) : null}
 
                     <div className="mt-auto pt-5">
-                      {person.linkStatus === "NONE" ? (
+                      {person.linkStatus === "NONE" && person.sharedInterestsCount === 0 ? (
+                        <p className="text-xs font-semibold leading-5 text-muted">Puoi inviare un Link quando avete almeno un interesse in comune.</p>
+                      ) : null}
+                      {person.linkStatus === "NONE" && person.sharedInterestsCount > 0 ? (
                         <button className="button-primary inline-flex items-center gap-2" type="button" disabled={pending} onClick={() => void handleLinkAction(person, "send")}>
                           <UserPlus size={17} aria-hidden="true" /> {pendingAction === "send" ? "Invio…" : "Invia Link"}
                         </button>

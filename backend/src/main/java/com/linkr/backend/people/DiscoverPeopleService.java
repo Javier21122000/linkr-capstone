@@ -18,10 +18,10 @@ import com.linkr.backend.people.dto.SharedInterestResponse;
 import com.linkr.backend.user.UserNotFoundException;
 
 /**
- * Discover People: persone che hanno scelto di essere visibili (opt-in) e condividono almeno un interesse con te.
+ * Discover People: tutte le persone che hanno scelto di essere visibili (opt-in).
  *
- * Regole: RECIPROCITA' (se tu non sei visibile ottieni 403), mai te stesso, mai persone senza interessi in comune,
- * ordine per interessi condivisi. Se non hai interessi la lista e' vuota (non si inventano dati sociali).
+ * Regole: RECIPROCITA' (se tu non sei visibile ottieni 403), mai te stesso, ordine per interessi condivisi (decrescente):
+ * chi non ne condivide nessuno compare comunque, in fondo, con conteggio 0. Chi non e' visibile non compare mai.
  */
 @Service
 public class DiscoverPeopleService {

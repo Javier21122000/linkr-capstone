@@ -304,13 +304,15 @@ export function EventPeopleSection({ eventId, startsAt, endsAt, participation, p
                   const linkActionError = linkActionErrors[person.userId];
                   return (
                     <li className="flex gap-3 py-5" key={person.userId}>
-                      <UserAvatar displayName={person.displayName} avatarUrl={person.avatarUrl} className="size-12 text-sm" />
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
-                          <div className="min-w-0">
-                            <p className="truncate font-extrabold text-ink">{person.displayName}</p>
-                            <p className="truncate text-sm font-semibold text-muted">@{person.username}</p>
-                          </div>
+                          <Link className="flex min-w-0 items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-linkr-strong" to={`/people/${encodeURIComponent(person.userId)}`} aria-label={`Apri il profilo di ${person.displayName}`}>
+                            <UserAvatar displayName={person.displayName} avatarUrl={person.avatarUrl} className="size-12 text-sm" />
+                            <span className="min-w-0">
+                              <span className="block truncate font-extrabold text-ink transition-colors hover:text-linkr-strong">{person.displayName}</span>
+                              <span className="block truncate text-sm font-semibold text-muted">@{person.username}</span>
+                            </span>
+                          </Link>
                           <span className="rounded-full bg-linkr-soft px-2.5 py-1 text-xs font-extrabold text-linkr-strong">
                             {person.status === "GOING" ? "Parteciperà" : "Gli interessa"}
                           </span>

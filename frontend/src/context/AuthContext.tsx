@@ -15,6 +15,7 @@ interface AuthContextValue {
   readonly accessToken: string | null;
   readonly user: UserResponse | null;
   authenticate(response: AuthResponse): void;
+  updateCurrentUser(user: UserResponse): void;
   logout(): void;
   authorizedRequest<T>(request: (accessToken: string) => Promise<T>): Promise<T>;
   validateSession(signal?: AbortSignal): Promise<UserResponse>;
@@ -36,6 +37,18 @@ function isStoredUser(value: unknown): value is UserResponse {
     && (user.role === "USER" || user.role === "ADMIN")
     && typeof user.createdAt === "string"
     && typeof user.discoverable === "boolean";
+}
+
+function usersAreEqual(left: UserResponse, right: UserResponse): boolean {
+  return left.id === right.id
+    && left.username === right.username
+    && left.email === right.email
+    && left.displayName === right.displayName
+    && left.bio === right.bio
+    && left.avatarUrl === right.avatarUrl
+    && left.role === right.role
+    && left.createdAt === right.createdAt
+    && left.discoverable === right.discoverable;
 }
 
 function readStoredSession(): AuthSession | null {
@@ -99,6 +112,15 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
     setSession(nextSession);
   }, []);
 
+  const updateCurrentUser = useCallback((user: UserResponse) => {
+    setSession((current) => {
+      if (!current || current.user.id !== user.id || usersAreEqual(current.user, user)) return current;
+      const nextSession = { ...current, user };
+      persistSession(nextSession);
+      return nextSession;
+    });
+  }, []);
+
   const authorizedRequest = useCallback(async <T,>(request: (accessToken: string) => Promise<T>): Promise<T> => {
     if (!session) throw new Error("Authentication is required");
     if (session.expiresAt <= Date.now()) {
@@ -122,8 +144,10 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
   }, [session]);
 
   const validateSession = useCallback(async (signal?: AbortSignal) => {
-    return authorizedRequest((accessToken) => getCurrentUser(accessToken, signal));
-  }, [authorizedRequest]);
+    const currentUser = await authorizedRequest((accessToken) => getCurrentUser(accessToken, signal));
+    updateCurrentUser(currentUser);
+    return currentUser;
+  }, [authorizedRequest, updateCurrentUser]);
 
   useEffect(() => {
     if (!session) return undefined;
@@ -143,10 +167,11 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
     accessToken: session?.accessToken ?? null,
     user: session?.user ?? null,
     authenticate,
+    updateCurrentUser,
     logout,
     authorizedRequest,
     validateSession,
-  }), [authenticate, authorizedRequest, logout, session, validateSession]);
+  }), [authenticate, authorizedRequest, logout, session, updateCurrentUser, validateSession]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

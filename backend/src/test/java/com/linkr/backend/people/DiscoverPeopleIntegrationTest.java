@@ -136,19 +136,21 @@ class DiscoverPeopleIntegrationTest {
 	}
 
 	@Test
-	void onlyVisiblePeopleWithASharedInterestAreListedAndNeverMyself() throws Exception {
+	void allVisiblePeopleAreListedSharedOnesFirstAndNeverMyselfOrHiddenOnes() throws Exception {
 		TestUser me = visible("dp_me", "techno", "house");
 		visible("dp_shared", "house", "uk-garage");
-		visible("dp_nothing_shared", "uk-garage");                  // visibile ma senza interessi in comune
+		visible("dp_nothing_shared", "uk-garage");                  // visibile, nessun interesse in comune: compare in fondo con 0
 		TestUser hidden = users().user("dp_hidden");               // interessi in comune ma NON visibile
 		interests(hidden, "techno");
-		visible("dp_no_interests");                                 // visibile ma senza interessi
+		visible("dp_no_interests");                                 // visibile senza interessi: compare in fondo con 0
 
 		String body = people(me, "").andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 
-		assertThat((List<String>) JsonPath.read(body, "$.items[*].username")).containsExactly("dp_shared");
-		assertThat((Integer) JsonPath.read(body, "$.totalElements")).isEqualTo(1);
-		assertThat(body).doesNotContain("dp_me\"").doesNotContain("dp_hidden").doesNotContain("dp_nothing_shared");
+		assertThat((List<String>) JsonPath.read(body, "$.items[*].username")).containsExactly("dp_shared", "dp_nothing_shared", "dp_no_interests");
+		assertThat((List<Integer>) JsonPath.read(body, "$.items[*].sharedInterestsCount")).containsExactly(1, 0, 0);
+		assertThat((List<Object>) JsonPath.read(body, "$.items[1].sharedInterests")).isEmpty();
+		assertThat((Integer) JsonPath.read(body, "$.totalElements")).isEqualTo(3);
+		assertThat(body).doesNotContain("dp_me\"").doesNotContain("dp_hidden");
 	}
 
 	@Test
@@ -187,13 +189,17 @@ class DiscoverPeopleIntegrationTest {
 	}
 
 	@Test
-	void emptyWhenIHaveNoInterestsOrNobodyMatches() throws Exception {
+	void withoutInterestsEveryoneVisibleIsListedWithZeroInCommonAndNobodyElseMeansEmpty() throws Exception {
 		TestUser me = users().user("dp_empty");
 		discovery(me, "{\"discoverable\":true}");
-		visible("dp_empty_other", "techno");
 
 		people(me, "").andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(0))
 				.andExpect(jsonPath("$.totalElements").value(0)).andExpect(jsonPath("$.totalPages").value(0));
+
+		visible("dp_empty_other", "techno");
+		people(me, "").andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1))
+				.andExpect(jsonPath("$.items[0].username").value("dp_empty_other"))
+				.andExpect(jsonPath("$.items[0].sharedInterestsCount").value(0));
 	}
 
 	@Test

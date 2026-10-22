@@ -430,6 +430,7 @@
   display: inline-flex;
   min-height: 1.75rem;
   align-items: center;
+  border: 1px solid rgb(169 43 24 / 0.22);
   border-radius: 999px;
   background: var(--color-linkr-soft);
   padding-inline: 0.7rem;
@@ -439,8 +440,57 @@
 }
 
 .shared-chip--more {
+  border-color: transparent;
   background: rgb(24 24 22 / 0.06);
   color: var(--color-muted);
+}
+
+/* Interesse di un profilo pubblico: porta a Discover. Neutro per default; "--shared" = in comune con te (corallo tenue + segno di spunta, mai solo colore). */
+.profile-chip {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-surface);
+  padding: 0.5rem 1rem;
+  color: var(--color-ink);
+  font-size: 0.875rem;
+  font-weight: 750;
+  text-decoration: none;
+  transition: border-color 180ms ease, background-color 180ms ease, transform 180ms ease;
+}
+
+.profile-chip:active {
+  transform: scale(0.97);
+}
+
+.profile-chip--shared {
+  border-color: rgb(169 43 24 / 0.28);
+  background: var(--color-linkr-soft);
+  color: var(--color-linkr-strong);
+  font-weight: 800;
+}
+
+@media (hover: hover) {
+  .profile-chip:hover {
+    border-color: var(--color-ink);
+  }
+
+  .profile-chip--shared:hover {
+    border-color: var(--color-linkr-strong);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-chip {
+    transition: none;
+  }
+
+  .profile-chip:active {
+    transform: none;
+  }
 }
 
 .status-pill {

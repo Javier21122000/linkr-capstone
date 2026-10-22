@@ -108,34 +108,28 @@ public class PeopleRepository {
 				.param("id", userId).query(Boolean.class).optional();
 	}
 
-	/**
-	 * Quante persone VISIBILI hanno almeno un interesse in comune con "me" (mai "me" stesso).
-	 * Parte dagli interessi di "me" (PK di user_interest) e arriva agli altri con idx_user_interest_interest.
-	 */
+	/** Quante persone VISIBILI ci sono (mai "me" stesso), con o senza interessi in comune: la visibilita' (opt-in) e' l'unico filtro. */
 	long countDiscoverable(UUID me) {
 		return jdbc.sql("""
-				SELECT count(DISTINCT theirs.user_id)
-				  FROM user_interest mine
-				  JOIN user_interest theirs ON theirs.interest_id = mine.interest_id AND theirs.user_id <> :me
-				  JOIN app_user u ON u.id = theirs.user_id AND u.discoverable
-				 WHERE mine.user_id = :me
+				SELECT count(*) FROM app_user u
+				 WHERE u.discoverable AND u.id <> :me
 				""")
 				.param("me", me).query(Long.class).single();
 	}
 
 	/**
-	 * Una pagina di persone visibili con interessi in comune, per numero di interessi condivisi (decrescente), poi nome e id
-	 * (ordine stabile tra una pagina e l'altra). Nessuna persona senza interessi in comune: non si inventano abbinamenti.
+	 * Una pagina di persone visibili, per numero di interessi condivisi (decrescente, anche zero), poi nome e id
+	 * (ordine stabile tra una pagina e l'altra). Chi non condivide nulla compare in fondo: il numero e' reale, non si inventano abbinamenti.
 	 */
 	List<DiscoverRow> findDiscoverablePage(UUID me, int size, long offset) {
 		return jdbc.sql("""
 				SELECT u.id, u.username, u.display_name, u.avatar_url
-				  FROM user_interest mine
-				  JOIN user_interest theirs ON theirs.interest_id = mine.interest_id AND theirs.user_id <> :me
-				  JOIN app_user u ON u.id = theirs.user_id AND u.discoverable
-				 WHERE mine.user_id = :me
+				  FROM app_user u
+				  LEFT JOIN user_interest theirs ON theirs.user_id = u.id
+				       AND theirs.interest_id IN (SELECT mine.interest_id FROM user_interest mine WHERE mine.user_id = :me)
+				 WHERE u.discoverable AND u.id <> :me
 				 GROUP BY u.id, u.username, u.display_name, u.avatar_url
-				 ORDER BY count(*) DESC, lower(u.display_name), u.id
+				 ORDER BY count(theirs.interest_id) DESC, lower(u.display_name), u.id
 				 LIMIT :size OFFSET :offset
 				""")
 				.param("me", me).param("size", size).param("offset", offset)

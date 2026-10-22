@@ -2,6 +2,7 @@ import type { ComponentType } from "react";
 import { createBrowserRouter, createRoutesFromElements, Route, RouterProvider } from "react-router";
 
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
+import { AdminRoute } from "./components/auth/AdminRoute";
 import { AppShell } from "./components/layout/AppShell";
 import { EventDetailPage } from "./pages/EventDetailPage";
 import { LoginPage } from "./pages/LoginPage";
@@ -33,12 +34,16 @@ const router = createBrowserRouter(
             <Route path="chats" lazy={lazyPage(() => import("./pages/ChatsPage"), "ChatsPage")} />
             <Route path="chats/:conversationId" lazy={lazyPage(() => import("./pages/ChatThreadPage"), "ChatThreadPage")} />
             <Route path="people" lazy={lazyPage(() => import("./pages/DiscoverPeoplePage"), "DiscoverPeoplePage")} />
+            <Route path="people/:personId" lazy={lazyPage(() => import("./pages/PublicProfilePage"), "PublicProfilePage")} />
             <Route path="events/new" lazy={lazyPage(() => import("./pages/CreateEventPage"), "CreateEventPage")} />
             <Route path="events/:eventId/edit" lazy={lazyPage(() => import("./pages/CreateEventPage"), "EditEventPage")} />
             <Route path="profile" lazy={lazyPage(() => import("./pages/ProfilePage"), "ProfilePage")} />
             <Route path="profile/events" lazy={lazyPage(() => import("./pages/MyEventsPage"), "MyEventsPage")} />
             <Route path="profile/interests" lazy={lazyPage(() => import("./pages/EditInterestsPage"), "EditInterestsPage")} />
             <Route path="profile/links" lazy={lazyPage(() => import("./pages/ProfileLinksPage"), "ProfileLinksPage")} />
+            <Route element={<AdminRoute />}>
+              <Route path="admin" lazy={lazyPage(() => import("./pages/AdminPage"), "AdminPage")} />
+            </Route>
           </Route>
         </Route>
       </Route>

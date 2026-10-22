@@ -14,9 +14,10 @@ import { EmptyState } from "../components/ui/EmptyState";
 import { GlassSurface } from "../components/ui/GlassSurface";
 import { useMyParticipations } from "../context/MyParticipationsContext";
 import { HelpButton, useProductGuidance } from "../context/ProductGuidanceContext";
-import { categoryOptions } from "../lib/eventPresentation";
+import { categoryLabels, categoryOptions } from "../lib/eventPresentation";
 import { getEvents, getEventsErrorMessage, isRequestCancelled, toEventSummary } from "../lib/events";
 import { isDiscoverReady } from "../lib/guidance";
+import { readInterestFilterRequest } from "../lib/interestFilter";
 import { hasValidCoordinates } from "../lib/map";
 import type { MapPickState } from "../lib/map";
 import { readMapFocusRequest } from "../lib/navigation";
@@ -57,6 +58,8 @@ interface DiscoverNotice {
   readonly detail?: string;
   readonly actionLabel?: string;
   readonly onAction?: () => void;
+  readonly durationMs?: number;
+  readonly tone?: "success" | "info";
 }
 
 interface DiscoverPageProps {
@@ -95,9 +98,11 @@ export function DiscoverPage({ active }: DiscoverPageProps) {
   const refreshControllerRef = useRef<AbortController | null>(null);
   const focusControllerRef = useRef<AbortController | null>(null);
   const handledFocusRef = useRef<number | null>(null);
+  const handledInterestFilterRef = useRef<string | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
   const focusRequest = readMapFocusRequest(location.state);
+  const interestFilter = readInterestFilterRequest(location.search);
 
   eventsStatusRef.current = eventsState.status;
 
@@ -283,11 +288,43 @@ export function DiscoverPage({ active }: DiscoverPageProps) {
     void focusEventOnMap(focusEventId);
   }, [active, eventsState.status, focusEventId, focusRequestedAt, focusEventOnMap, location.pathname, location.search, navigate]);
 
+  // Arrivo da un interesse di un profilo (`/?categoria=MUSIC&interesse=UK%20Garage`): si imposta il filtro categoria che già esiste e lo si
+  // dice. Gli eventi non hanno un interesse specifico, quindi il filtro è solo per categoria; se l'interesse non ne ha una si mostra tutto, dichiarandolo.
+  // L'indirizzo si ripulisce (come per "Visualizza sulla mappa"): tornare indietro o ricaricare non rimette un filtro che l'utente ha tolto.
+  const interestFilterCategory = interestFilter?.category ?? null;
+  const interestFilterName = interestFilter?.interestName;
+  useEffect(() => {
+    if (!active || interestFilterName === undefined || handledInterestFilterRef.current === location.key) return;
+
+    handledInterestFilterRef.current = location.key;
+    navigate({ pathname: location.pathname }, { replace: true, state: location.state });
+    setSelection(null);
+    setListOpen(false);
+    setActiveCategory(interestFilterCategory);
+    setNotice(interestFilterCategory ? {
+      key: Date.now(),
+      tone: "info",
+      title: `Eventi di ${categoryLabels[interestFilterCategory]}`,
+      detail: `Dall’interesse «${interestFilterName}». Gli eventi si filtrano per categoria, non per singolo interesse.`,
+      actionLabel: "Mostra tutti",
+      onAction: () => selectCategory(null),
+    } : {
+      key: Date.now(),
+      tone: "info",
+      title: `Nessuna categoria per «${interestFilterName}»`,
+      detail: "Ti mostro tutti gli eventi: non c’è un filtro che corrisponda a questo interesse.",
+    });
+  // `selectCategory` usa solo setter: non serve tra le dipendenze.
+  }, [active, interestFilterCategory, interestFilterName, location.key, location.pathname, location.state, navigate]);
+
   // Un avviso non resta appeso a una pagina nascosta.
   useEffect(() => {
     if (!active) setNotice(null);
   }, [active]);
   const dismissNotice = useCallback(() => setNotice(null), []);
+  const showParticipationFeedback = useCallback((message: string) => {
+    setNotice({ key: Date.now(), title: message, durationMs: 2_600, tone: "success" });
+  }, []);
 
   return (
     <div className="discover" data-layout={isDesktop ? "split" : "overlay"}>
@@ -384,7 +421,14 @@ export function DiscoverPage({ active }: DiscoverPageProps) {
         )}
 
         {preview.shown && (!listOpen || isDesktop) && (
-          <EventPreview event={preview.shown} participation={participations.get(preview.shown.id)} leaving={preview.leaving} onClose={() => setSelection(null)} />
+          <EventPreview
+            key={preview.shown.id}
+            event={preview.shown}
+            participation={participations.get(preview.shown.id)}
+            leaving={preview.leaving}
+            onClose={() => setSelection(null)}
+            onFeedback={showParticipationFeedback}
+          />
         )}
 
         <QuickCreate
@@ -399,7 +443,7 @@ export function DiscoverPage({ active }: DiscoverPageProps) {
 
         <div className="qc-notice-region" role="status" aria-live="polite">
           {notice ? (
-            <MapNotice key={notice.key} title={notice.title} detail={notice.detail} durationMs={notice.onAction ? 12_000 : 8_000} onDismiss={dismissNotice}>
+            <MapNotice key={notice.key} tone={notice.tone} title={notice.title} detail={notice.detail} durationMs={notice.durationMs ?? (notice.onAction ? 12_000 : 8_000)} onDismiss={dismissNotice}>
               {notice.onAction ? (
                 <button className="qc-link-button" type="button" onClick={() => { notice.onAction?.(); dismissNotice(); }}>{notice.actionLabel}</button>
               ) : null}

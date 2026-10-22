@@ -1,7 +1,7 @@
 import { ArrowLeft, BadgeCheck, CalendarDays, Image, LoaderCircle, MapPin, RotateCcw, Users } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
 
 import { FormField } from "../components/auth/FormField";
 import { EventCoverField } from "../components/events/EventCoverField";
@@ -30,6 +30,7 @@ import {
 import type { EventFormErrors, EventFormValues } from "../lib/eventForm";
 import { getEvent, getEventsErrorMessage, isRequestCancelled } from "../lib/events";
 import { toRomeLocalInput } from "../lib/romeTime";
+import { createBackState, readBackRequest } from "../lib/navigation";
 import type { EventCategory, EventDetail } from "../types/event";
 
 const EVENT_DRAFT_KEY_PREFIX = "linkr:create-event-draft:";
@@ -92,6 +93,8 @@ function valuesFromEvent(event: EventDetail): EventFormValues {
 function EventFormPage({ mode }: { readonly mode: "create" | "edit" }) {
   const { authorizedRequest, user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const back = readBackRequest(location.state);
   const { eventId } = useParams<{ eventId: string }>();
   const formRef = useRef<HTMLFormElement>(null);
   const submittingRef = useRef(false);
@@ -263,7 +266,7 @@ function EventFormPage({ mode }: { readonly mode: "create" | "edit" }) {
       ));
       if (!savedEvent.id) throw new Error("Event response is missing the event id");
       if (!isEdit) removeDraft(draftKey);
-      navigate(`/events/${encodeURIComponent(savedEvent.id)}`, { replace: true });
+      navigate(`/events/${encodeURIComponent(savedEvent.id)}`, { replace: true, state: back ? createBackState(back.context) : undefined });
     } catch (error) {
       const failure = isEdit ? getUpdateEventFailure(error) : getCreateEventFailure(error);
       const serverErrors = mapServerFieldErrors(failure.fieldErrors);
@@ -278,7 +281,11 @@ function EventFormPage({ mode }: { readonly mode: "create" | "edit" }) {
 
   const latitude = parseCoordinate(values.latitude);
   const longitude = parseCoordinate(values.longitude);
-  const returnTo = isEdit && eventId ? `/events/${encodeURIComponent(eventId)}` : "/";
+  // Aperta da Admin > Eventi si torna lì; aperta dal dettaglio (o senza contesto) si torna all'evento, che conserva il contesto di Admin.
+  const returnToAdmin = isEdit && back !== null && !back.viaDetail;
+  const returnTo = returnToAdmin ? back.target.to : isEdit && eventId ? `/events/${encodeURIComponent(eventId)}` : "/";
+  const returnState = !returnToAdmin && isEdit && back ? createBackState(back.context) : undefined;
+  const returnLabel = returnToAdmin ? `Torna ad ${back.target.label}` : isEdit ? "Torna all’evento" : "Torna a Discover";
 
   if (loading) {
     return <div className="page-shell page-with-mobile-nav py-20 text-center font-bold text-muted" aria-busy="true">Caricamento evento…</div>;
@@ -291,7 +298,7 @@ function EventFormPage({ mode }: { readonly mode: "create" | "edit" }) {
           <h1 className="text-3xl font-extrabold tracking-[-0.045em] text-ink">Modifica non disponibile</h1>
           <p className="mt-3 text-sm leading-6 text-muted">{loadError}</p>
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
-            <Link className="button-secondary inline-flex items-center" to={returnTo}>Torna all’evento</Link>
+            <Link className="button-secondary inline-flex items-center" to={returnTo} state={returnState}>{returnLabel}</Link>
             <button className="button-primary inline-flex items-center gap-2" type="button" onClick={() => setRequestKey((current) => current + 1)}>
               <RotateCcw size={17} aria-hidden="true" /> Riprova
             </button>
@@ -303,8 +310,8 @@ function EventFormPage({ mode }: { readonly mode: "create" | "edit" }) {
 
   return (
     <div className="page-shell page-with-mobile-nav pb-16 pt-8 sm:pt-12 lg:pt-16">
-      <Link className="inline-flex min-h-11 items-center gap-2 rounded-full font-extrabold text-ink" to={returnTo}>
-        <ArrowLeft size={19} aria-hidden="true" /> {isEdit ? "Torna all’evento" : "Torna a Discover"}
+      <Link className="inline-flex min-h-11 items-center gap-2 rounded-full font-extrabold text-ink" to={returnTo} state={returnState}>
+        <ArrowLeft size={19} aria-hidden="true" /> {returnLabel}
       </Link>
 
       <header className="mt-5 max-w-3xl">
@@ -611,6 +618,7 @@ function EventFormPage({ mode }: { readonly mode: "create" | "edit" }) {
             <Link
               className="button-secondary inline-flex items-center"
               to={returnTo}
+              state={returnState}
               aria-disabled={submitting}
               tabIndex={submitting ? -1 : undefined}
               onClick={(event) => {

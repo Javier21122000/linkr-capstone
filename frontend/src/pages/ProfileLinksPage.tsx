@@ -254,14 +254,16 @@ export function ProfileLinksPage() {
                 const actionError = answerErrors[request.requestId];
                 return (
                   <li className="surface-card stagger-in p-5" style={staggerStyle(index)} key={request.requestId} aria-busy={pending}>
-                    <div className="flex gap-3">
-                      <UserAvatar displayName={request.otherUser.displayName} avatarUrl={request.otherUser.avatarUrl} className="size-12 text-sm" />
+                    <div>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="truncate font-extrabold text-ink">{request.otherUser.displayName}</p>
-                            <p className="truncate text-sm font-semibold text-muted">@{request.otherUser.username}</p>
-                          </div>
+                          <Link className="flex min-w-0 items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-linkr-strong" to={`/people/${encodeURIComponent(request.otherUser.userId)}`} aria-label={`Apri il profilo di ${request.otherUser.displayName}`}>
+                            <UserAvatar displayName={request.otherUser.displayName} avatarUrl={request.otherUser.avatarUrl} className="size-12 text-sm" />
+                            <span className="min-w-0">
+                              <span className="block truncate font-extrabold text-ink transition-colors hover:text-linkr-strong">{request.otherUser.displayName}</span>
+                              <span className="block truncate text-sm font-semibold text-muted">@{request.otherUser.username}</span>
+                            </span>
+                          </Link>
                           <span className="link-status" data-status={request.status}>{requestStatusLabel(request.status)}</span>
                         </div>
 

@@ -7,6 +7,7 @@ import { AuthProvider } from "./context/AuthContext";
 import { AppErrorBoundary } from "./components/ui/AppErrorBoundary";
 import { ChatRealtimeProvider } from "./context/ChatRealtimeContext";
 import "./styles/index.css";
+import "./styles/admin.css";
 
 // La connessione anticipata a MapTiler serve solo a chi atterra su Discover: su Login, Chat o Persone la mappa non c'è e non si apre alcuna connessione.
 if (window.location.pathname === "/") {

@@ -62,7 +62,7 @@ export function EventParticipationPanel({ eventId, startsAt, endsAt, onParticipa
     void authorizedRequest((accessToken) => getEventParticipation(accessToken, eventId, controller.signal))
       .then((participation) => {
         setState({ status: "ready", participation });
-        applyParticipation(eventId, participation.status);
+        applyParticipation(eventId, participation.status, participation.visibleToOthers);
         onParticipationChange(participation);
       })
       .catch((error: unknown) => {
@@ -103,7 +103,7 @@ export function EventParticipationPanel({ eventId, startsAt, endsAt, onParticipa
       ));
       setState({ status: "ready", participation });
       // Discover mostra lo stato personale sui marker: si aggiorna appena il servizio conferma, senza aspettare un nuovo caricamento.
-      applyParticipation(eventId, participation.status);
+      applyParticipation(eventId, participation.status, participation.visibleToOthers);
       onParticipationSaved(participation);
     } catch (error) {
       if (isEventEndedConflict(error)) setEndedFromServer(true);

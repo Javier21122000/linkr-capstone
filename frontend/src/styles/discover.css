@@ -24,8 +24,11 @@
   --discover-map-left: 0.75rem;
   /* Bordo destro dell'area libera: su tablet e desktop i controlli zoom stanno sulla stessa riga dei filtri. */
   --discover-map-right: 0.75rem;
-  /* Centro orizzontale dell'area libera (tra pannello lista e controlli): è lì che si allineano filtri, avvisi e messaggi, non al centro della finestra. */
-  --discover-map-center: calc((100% + var(--discover-map-left) - var(--discover-map-right)) / 2);
+  /* Centro orizzontale di filtri, avvisi e messaggi: la mezzeria della finestra (cioè della navigazione) finché una barra larga
+     `--discover-filter-w` sta tra pannello e controlli senza toccarli; se non ci sta scivola quanto basta nell'area libera. Mai sotto il pannello. */
+  --discover-filter-w: 57rem;
+  --discover-half: min(calc(var(--discover-filter-w) / 2), calc((100% - var(--discover-map-left) - var(--discover-map-right)) / 2));
+  --discover-map-center: clamp(calc(var(--discover-map-left) + var(--discover-half)), 50%, calc(100% - var(--discover-map-right) - var(--discover-half)));
 
   position: relative;
   height: 100vh;
@@ -168,21 +171,27 @@
 }
 
 /* ——— Filtri categoria (vetro flottante) ——— */
-/* Centrata nell'area libera: con sinistra e destra fisse, larghezza `fit-content` e margini automatici la barra sta al centro
-   dello spazio tra pannello e controlli (mai sotto il pannello) e, se non ci sta, lo riempie e scorre. */
-.discover-filter-bar {
+/* La riga occupa tutta la larghezza e la barra è la colonna centrale di una griglia: le colonne laterali sono uguali (barra centrata sulla finestra,
+   allineata alla navigazione) ma non scendono sotto il pannello a sinistra e i controlli a destra. Se non c'è spazio la barra si restringe e scorre.
+   Nessun offset in pixel: tutto deriva dagli stessi `--discover-map-left/right` di pannello e controlli. */
+.discover-filter-row {
   position: absolute;
   z-index: var(--z-map-ui);
   top: var(--discover-top);
-  right: var(--discover-map-right);
-  left: var(--discover-map-left);
-  width: fit-content;
-  /* `fit-content` non sottrae gli inset: senza un massimo esplicito la barra sfora l'area libera invece di scorrere. */
-  max-width: calc(100% - var(--discover-map-left) - var(--discover-map-right));
-  margin-inline: auto;
+  right: 0;
+  left: 0;
+  display: grid;
+  grid-template-columns: minmax(var(--discover-map-left), 1fr) minmax(0, max-content) minmax(var(--discover-map-right), 1fr);
+  pointer-events: none;
+}
+
+.discover-filter-bar {
+  grid-column: 2;
+  min-width: 0;
   overflow: hidden;
   border-radius: 999px;
   padding: 0.3rem;
+  pointer-events: auto;
 }
 
 /* Scorrimento orizzontale nativo (inerzia al tocco); le sfumature ai bordi compaiono solo se c'è altro da scorrere. */
@@ -351,7 +360,8 @@
   bottom: var(--discover-preview-bottom);
   left: var(--discover-map-left);
   display: flex;
-  max-width: 32rem;
+  max-width: 34rem;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.8rem;
   margin-inline: auto;
@@ -359,6 +369,10 @@
   padding: 0.6rem 0.75rem 0.6rem 0.6rem;
   border: 1px solid color-mix(in srgb, var(--event-category-color) 50%, rgb(24 24 22 / 0.16));
   box-shadow: 0 14px 34px rgb(24 24 22 / 0.2), 0 0 0 2px color-mix(in srgb, var(--event-category-color) 22%, transparent);
+}
+
+.event-preview__content {
+  align-self: center;
 }
 
 /* Uscita: opacità e piccolo scivolamento verso il basso, nello stesso tempo con cui useLeaving la tiene montata. */
@@ -447,6 +461,181 @@
 
 .event-preview__close:active .event-preview__close-disc {
   transform: scale(0.9);
+}
+
+/* Riga social: sopra le azioni, sopra il link a tutta card (z-index 2) perché "Chi viene?" è un collegamento a sé. */
+.event-preview__people {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  min-width: 0;
+  min-height: 2.25rem;
+  flex: 1 0 100%;
+  align-items: center;
+  gap: 0.6rem;
+  border-top: 1px solid var(--glass-divider);
+  padding-top: 0.55rem;
+}
+
+.event-preview__faces {
+  display: inline-flex;
+  flex: 0 0 auto;
+  padding-left: 0.5rem;
+}
+
+/* Avatar sovrapposti: bordo del colore della superficie per staccarli, ordine di lettura da sinistra a destra. */
+.event-preview__faces > * {
+  margin-left: -0.5rem;
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 0.92);
+}
+
+.event-preview__faces-empty {
+  display: grid;
+  width: 1.75rem;
+  height: 1.75rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 999px;
+  background: rgb(24 24 22 / 0.06);
+  color: var(--color-muted);
+}
+
+.event-preview__people-text {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--color-ink);
+  font-size: 0.78rem;
+  font-weight: 750;
+  line-height: 1.1rem;
+}
+
+.event-preview__people-link {
+  display: inline-flex;
+  min-height: 2.75rem;
+  flex: 0 0 auto;
+  align-items: center;
+  margin-block: -0.5rem;
+  border-radius: 999px;
+  padding-inline: 0.4rem;
+  color: var(--color-linkr-strong);
+  font-size: 0.78rem;
+  font-weight: 850;
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 0.2em;
+}
+
+.event-preview__people-link:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 1px;
+}
+
+.event-preview__actions {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  min-width: 0;
+  flex: 1 0 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+/* Mi interessa / Ci sarò. Stato attivo = colore + riempimento + anello interno (non solo colore); hover solo dove esiste (mouse), pressione su tocco. */
+.event-preview__participation {
+  display: inline-flex;
+  min-width: 0;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border: 1px solid var(--glass-divider);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.72);
+  padding: 0.55rem 0.7rem;
+  color: var(--color-ink);
+  font-size: 0.78rem;
+  font-weight: 850;
+  line-height: 1rem;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease, box-shadow 120ms ease, transform 140ms ease, opacity 120ms ease;
+}
+
+.event-preview__participation svg {
+  flex: 0 0 auto;
+  transition: transform 160ms var(--ease-spring);
+}
+
+@media (hover: hover) {
+  .event-preview__participation:not(:disabled, [data-selected="true"]):hover {
+    border-color: rgb(24 24 22 / 0.28);
+    background: rgb(255 255 255 / 0.96);
+    box-shadow: 0 3px 10px rgb(24 24 22 / 0.1);
+  }
+
+  .event-preview__participation:not(:disabled):hover svg {
+    transform: scale(1.08);
+  }
+}
+
+.event-preview__participation[data-kind="INTERESTED"][data-selected="true"] {
+  border-color: color-mix(in srgb, var(--color-linkr-action) 68%, transparent);
+  background: color-mix(in srgb, var(--color-linkr-action) 14%, white);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-linkr-action) 45%, transparent);
+  color: var(--color-linkr-action);
+}
+
+.event-preview__participation[data-kind="GOING"][data-selected="true"] {
+  border-color: color-mix(in srgb, var(--color-success) 68%, transparent);
+  background: color-mix(in srgb, var(--color-success) 12%, white);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-success) 45%, transparent);
+  color: var(--color-success);
+}
+
+.event-preview__participation[data-selected="true"] svg {
+  transform: scale(1.1);
+}
+
+.event-preview__participation:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.event-preview__participation:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.event-preview__participation:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .event-preview__participation,
+  .event-preview__participation svg {
+    transition-duration: 0.01ms;
+  }
+
+  .event-preview__participation:active:not(:disabled),
+  .event-preview__participation[data-selected="true"] svg,
+  .event-preview__participation:hover svg {
+    transform: none;
+  }
+}
+
+.event-preview__error {
+  position: relative;
+  z-index: 2;
+  flex: 1 0 100%;
+  margin: -0.1rem 0.25rem 0.1rem;
+  color: var(--color-danger);
+  font-size: 0.75rem;
+  font-weight: 750;
+  line-height: 1.15rem;
 }
 
 /* ——— Lista eventi: sheet (mobile/tablet) e pannello fisso (desktop) ——— */

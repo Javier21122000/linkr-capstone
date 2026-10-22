@@ -130,15 +130,22 @@ class EventImageUploadIntegrationTest {
 
 	@Test
 	void responseHasExactlyTheDocumentedFieldsAndARelativeInternalUrl() throws Exception {
-		String body = upload(anna, "a.png", "image/png", ImageFixtures.png()).andReturn().getResponse().getContentAsString();
+		String originalName = "a.png";
+		String body = upload(anna, originalName, "image/png", ImageFixtures.png()).andReturn().getResponse().getContentAsString();
 
 		Map<String, Object> root = JsonPath.read(body, "$");
 		assertThat(root.keySet()).containsExactlyInAnyOrder("imageUrl", "filename", "contentType", "size");
 		String filename = JsonPath.read(body, "$.filename");
-		assertThat(filename).matches(EventImageStorage.FILENAME_REGEX);
+		// Nome generato dal server: UUID minuscolo + estensione del formato reale, mai il nome dichiarato dal client.
+		assertThat(filename).matches(EventImageStorage.FILENAME_REGEX).isNotEqualTo(originalName).endsWith(".png");
+		String stem = filename.substring(0, filename.length() - ".png".length());
+		assertThat(UUID.fromString(stem).toString()).as("il nome senza estensione e' un UUID in forma canonica").isEqualTo(stem);
 		assertThat((String) JsonPath.read(body, "$.imageUrl")).isEqualTo("/api/uploads/event-images/" + filename)
 				.matches("^/api/uploads/event-images/" + EventImageStorage.FILENAME_REGEX + "$");
-		assertThat(body).doesNotContain("a.png").doesNotContain(STORAGE.toString());   // ne' il nome originale ne' percorsi del server
+		// Ne' il nome originale ne' percorsi del server compaiono in un campo. Si confrontano i VALORI dei campi e non una sottostringa
+		// dell'intera risposta: un UUID minuscolo puo' finire per caso con "a" e quindi la risposta con "a.png" (1 volta su 16).
+		assertThat(root.values()).noneMatch(value -> originalName.equals(value) || String.valueOf(value).endsWith("/" + originalName)
+				|| String.valueOf(value).contains(STORAGE.toString()));
 	}
 
 	@Test

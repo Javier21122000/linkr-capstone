@@ -36,6 +36,7 @@ export function toEventSummary(event: EventDetail): EventSummary {
     demo: event.demo,
     status: event.status,
     type: event.type,
+    source: event.source ?? null,
   };
 }
 
@@ -49,6 +50,8 @@ export function getEventsErrorMessage(error: unknown): string {
       return "Non è stato possibile contattare il backend. Verifica che il servizio sia avviato e riprova.";
     }
     if (error.response.status === 404) return "L’evento richiesto non esiste o non è più disponibile.";
+    if (error.response.status === 429) return "Troppe richieste ravvicinate. Attendi qualche secondo e riprova.";
+    if (error.response.status >= 500) return "Il servizio eventi non è disponibile in questo momento. Riprova tra poco.";
     return `Il backend ha risposto con codice HTTP ${error.response.status}.`;
   }
 

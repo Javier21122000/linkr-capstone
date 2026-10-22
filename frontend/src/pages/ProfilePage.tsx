@@ -1,5 +1,5 @@
 import axios from "axios";
-import { ArrowRight, CalendarDays, LogOut, Mail, RotateCcw, Ticket, UsersRound } from "lucide-react";
+import { ArrowRight, CalendarDays, Gauge, LogOut, Mail, RotateCcw, Ticket, UsersRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 
@@ -7,6 +7,7 @@ import { UserAvatar } from "../components/auth/UserAvatar";
 import { ProfileParticipations } from "../components/events/ProfileParticipations";
 import { ProfileInterests } from "../components/interests/ProfileInterests";
 import { IncomingLinkCountBadge } from "../components/links/IncomingLinkCountBadge";
+import { ProfileEditor } from "../components/profile/ProfileEditor";
 import { useAuth } from "../context/AuthContext";
 import { useLinkRequestCount } from "../context/LinkRequestCountContext";
 import { getAuthRequestErrorMessage, updateDiscovery } from "../lib/auth";
@@ -101,6 +102,8 @@ export function ProfilePage() {
           {user.bio?.trim() ? <p className="mt-5 text-base leading-7 text-ink">{user.bio}</p> : null}
         </div>
 
+        <ProfileEditor user={user} />
+
         {loadError ? (
           <div className="form-message form-message--error mt-6" role="alert">
             <p>{loadError}</p>
@@ -191,6 +194,17 @@ export function ProfilePage() {
         <ProfileParticipations />
 
         <ProfileInterests saved={interestsSaved} initialInterests={savedInterests} />
+
+        {user.role === "ADMIN" ? (
+          <Link
+            className="mt-5 flex min-h-12 items-center gap-3 rounded-xl px-3 font-extrabold text-muted transition-colors hover:bg-white/60 hover:text-ink"
+            to="/admin"
+          >
+            <Gauge size={19} aria-hidden="true" />
+            Amministrazione
+            <ArrowRight className="ml-auto" size={17} aria-hidden="true" />
+          </Link>
+        ) : null}
 
         <button className="button-secondary mt-8 flex w-full items-center gap-2 sm:w-auto" type="button" onClick={handleLogout}>
           <LogOut size={18} aria-hidden="true" /> Esci

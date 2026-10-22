@@ -837,3 +837,19 @@ a {
   background: var(--color-linkr-soft);
   color: var(--color-linkr-strong);
 }
+
+/* Origine di un evento importato (es. Ticketmaster): sobria, solo contorno, per non confonderla con "Community" né con lo stato di partecipazione. */
+.source-badge {
+  display: inline-flex;
+  min-height: 1.4rem;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+  font-size: 0.68rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--color-muted);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+}

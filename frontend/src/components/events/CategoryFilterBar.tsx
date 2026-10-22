@@ -65,26 +65,28 @@ export function CategoryFilterBar({ activeCategory, onSelect }: CategoryFilterBa
   }, [updateScrollHints]);
 
   return (
-    <div
-      ref={barRef}
-      className="discover-filter-bar glass"
-      role="group"
-      aria-label="Filtra gli eventi per categoria"
-      data-map-inset="top"
-      data-tour="categories"
-    >
-      <div ref={scrollerRef} className="discover-filter-bar__scroller scrollbar-none" onScroll={updateScrollHints}>
-        <div ref={trackRef} className="discover-filter-bar__track">
-          <span className="discover-filter-bar__thumb" aria-hidden="true" />
-          {categoryOptions.map((option) => (
-            <FilterChip
-              key={option.value ?? "all"}
-              label={option.label}
-              category={option.value ?? undefined}
-              selected={activeCategory === option.value}
-              onSelect={() => onSelect(option.value)}
-            />
-          ))}
+    <div className="discover-filter-row">
+      <div
+        ref={barRef}
+        className="discover-filter-bar glass"
+        role="group"
+        aria-label="Filtra gli eventi per categoria"
+        data-map-inset="top"
+        data-tour="categories"
+      >
+        <div ref={scrollerRef} className="discover-filter-bar__scroller scrollbar-none" onScroll={updateScrollHints}>
+          <div ref={trackRef} className="discover-filter-bar__track">
+            <span className="discover-filter-bar__thumb" aria-hidden="true" />
+            {categoryOptions.map((option) => (
+              <FilterChip
+                key={option.value ?? "all"}
+                label={option.label}
+                category={option.value ?? undefined}
+                selected={activeCategory === option.value}
+                onSelect={() => onSelect(option.value)}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </div>

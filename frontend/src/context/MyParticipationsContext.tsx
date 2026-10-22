@@ -7,6 +7,7 @@ import type { ParticipationStatus } from "../types/participation";
 import { useAuth } from "./AuthContext";
 
 type ParticipationMap = ReadonlyMap<string, ParticipationStatus>;
+type ParticipationVisibilityMap = ReadonlyMap<string, boolean>;
 
 interface MyParticipationsValue {
   /**
@@ -14,19 +15,26 @@ interface MyParticipationsValue {
    * `GET /api/users/me/participations`: da anonimi (o finché non sono arrivati, o se la richiesta fallisce) la mappa è vuota e non si mostra nulla.
    */
   readonly byEventId: ParticipationMap;
+  /** Preferenza privacy da preservare quando dalla mappa si cambia soltanto lo stato. */
+  readonly visibleToOthersByEventId: ParticipationVisibilityMap;
   /** Rilegge l'elenco dal servizio (Discover lo fa quando torna visibile). Più richieste ravvicinate si fondono in una. */
   readonly refresh: () => Promise<void>;
   /** Applica subito una modifica appena confermata dal servizio (`null` = partecipazione rimossa), senza aspettare un nuovo caricamento. */
-  readonly apply: (eventId: string, status: ParticipationStatus | null) => void;
+  readonly apply: (eventId: string, status: ParticipationStatus | null, visibleToOthers?: boolean) => void;
 }
 
 const EMPTY: ParticipationMap = new Map();
+const EMPTY_VISIBILITY: ParticipationVisibilityMap = new Map();
 const MyParticipationsContext = createContext<MyParticipationsValue | null>(null);
 
 export function MyParticipationsProvider({ children }: { readonly children: ReactNode }) {
   const { status, user, authorizedRequest } = useAuth();
   const ownerId = status === "authenticated" && user ? user.id : null;
-  const [state, setState] = useState<{ readonly ownerId: string; readonly byEventId: ParticipationMap } | null>(null);
+  const [state, setState] = useState<{
+    readonly ownerId: string;
+    readonly byEventId: ParticipationMap;
+    readonly visibleToOthersByEventId: ParticipationVisibilityMap;
+  } | null>(null);
   const requestRef = useRef<{ readonly ownerId: string; readonly promise: Promise<void> } | null>(null);
   const requestIdRef = useRef(0);
 
@@ -40,8 +48,12 @@ export function MyParticipationsProvider({ children }: { readonly children: Reac
       .then((response) => {
         if (requestId !== requestIdRef.current) return;
         const next = new Map<string, ParticipationStatus>();
-        for (const participation of response.participations) next.set(participation.event.id, participation.status);
-        setState({ ownerId, byEventId: next });
+        const nextVisibility = new Map<string, boolean>();
+        for (const participation of response.participations) {
+          next.set(participation.event.id, participation.status);
+          nextVisibility.set(participation.event.id, participation.visibleToOthers);
+        }
+        setState({ ownerId, byEventId: next, visibleToOthersByEventId: nextVisibility });
       })
       .catch((error: unknown) => {
         // Senza l'elenco non si mostra nulla (mai un indicatore inventato): resta ciò che si sapeva già.
@@ -62,20 +74,33 @@ export function MyParticipationsProvider({ children }: { readonly children: Reac
     if (ownerId !== null) void refresh();
   }, [ownerId, refresh]);
 
-  const apply = useCallback((eventId: string, next: ParticipationStatus | null) => {
+  const apply = useCallback((eventId: string, next: ParticipationStatus | null, visibleToOthers?: boolean) => {
     if (ownerId === null) return;
     setState((current) => {
       const base = current?.ownerId === ownerId ? current.byEventId : EMPTY;
-      if (next === null ? !base.has(eventId) : base.get(eventId) === next) return current ?? { ownerId, byEventId: base };
+      const baseVisibility = current?.ownerId === ownerId ? current.visibleToOthersByEventId : EMPTY_VISIBILITY;
+      const nextVisibility = visibleToOthers ?? baseVisibility.get(eventId) ?? false;
+      const unchanged = next === null
+        ? !base.has(eventId) && !baseVisibility.has(eventId)
+        : base.get(eventId) === next && baseVisibility.get(eventId) === nextVisibility;
+      if (unchanged) return current ?? { ownerId, byEventId: base, visibleToOthersByEventId: baseVisibility };
+
       const updated = new Map(base);
-      if (next === null) updated.delete(eventId);
-      else updated.set(eventId, next);
-      return { ownerId, byEventId: updated };
+      const updatedVisibility = new Map(baseVisibility);
+      if (next === null) {
+        updated.delete(eventId);
+        updatedVisibility.delete(eventId);
+      } else {
+        updated.set(eventId, next);
+        updatedVisibility.set(eventId, nextVisibility);
+      }
+      return { ownerId, byEventId: updated, visibleToOthersByEventId: updatedVisibility };
     });
   }, [ownerId]);
 
   const value = useMemo<MyParticipationsValue>(() => ({
     byEventId: ownerId !== null && state?.ownerId === ownerId ? state.byEventId : EMPTY,
+    visibleToOthersByEventId: ownerId !== null && state?.ownerId === ownerId ? state.visibleToOthersByEventId : EMPTY_VISIBILITY,
     refresh,
     apply,
   }), [apply, ownerId, refresh, state]);

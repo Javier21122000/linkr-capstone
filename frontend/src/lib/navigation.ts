@@ -44,3 +44,37 @@ export function readMapFocusRequest(state: unknown): MapFocusRequest | null {
   if (typeof eventId !== "string" || !EVENT_ID.test(eventId) || typeof requestedAt !== "number" || !Number.isFinite(requestedAt)) return null;
   return { eventId, requestedAt };
 }
+
+/**
+ * Ritorno contestuale: da dove si è arrivati a un evento quando non è Discover (il predefinito). Nello stato di navigazione viaggia solo una
+ * chiave di un elenco chiuso, mai un percorso: nessun indirizzo arbitrario può diventare un link "Torna a…".
+ */
+export type BackContext = "admin-events";
+
+export interface BackTarget {
+  readonly to: string;
+  readonly label: string;
+}
+
+const BACK_TARGETS: Readonly<Record<BackContext, BackTarget>> = {
+  "admin-events": { to: "/admin?section=events", label: "Admin · Eventi" },
+};
+
+export interface BackRequest {
+  readonly context: BackContext;
+  readonly target: BackTarget;
+  /** Si è già passati dal dettaglio (es. dal dettaglio a Modifica): il ritorno va al dettaglio, che porta poi il contesto. */
+  readonly viaDetail: boolean;
+}
+
+export function createBackState(context: BackContext, viaDetail = false): { readonly backTo: BackContext; readonly viaDetail?: true } {
+  return viaDetail ? { backTo: context, viaDetail: true } : { backTo: context };
+}
+
+export function readBackRequest(state: unknown): BackRequest | null {
+  if (typeof state !== "object" || state === null || !("backTo" in state)) return null;
+  const { backTo, viaDetail } = state as { readonly backTo: unknown; readonly viaDetail?: unknown };
+  if (typeof backTo !== "string" || !Object.hasOwn(BACK_TARGETS, backTo)) return null;
+  const context = backTo as BackContext;
+  return { context, target: BACK_TARGETS[context], viaDetail: viaDetail === true };
+}

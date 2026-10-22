@@ -78,6 +78,13 @@ public class User {
 		return user;
 	}
 
+	/** Unici dati del profilo che l'utente puo' cambiare da solo (validati da UserService): niente id, email, username, ruolo. */
+	public void changeProfile(String displayName, String bio, String avatarUrl) {
+		this.displayName = displayName;
+		this.bio = bio;
+		this.avatarUrl = avatarUrl;
+	}
+
 	public void changeDiscoverable(boolean discoverable) {
 		this.discoverable = discoverable;
 	}

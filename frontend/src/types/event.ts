@@ -17,6 +17,12 @@ export interface EventCreator {
   readonly avatarUrl: string | null;
 }
 
+/** Da dove arriva un evento importato (oggi solo Ticketmaster) e il link alla sua pagina ufficiale. Assente per gli eventi creati in LINKR. */
+export interface EventSource {
+  readonly provider: string;
+  readonly url: string | null;
+}
+
 export interface EventSummary {
   readonly id: string;
   readonly title: string;
@@ -32,6 +38,8 @@ export interface EventSummary {
   readonly demo: boolean;
   readonly status: EventStatus;
   readonly type: EventType;
+  /** Origine esterna dell'evento; null/assente se è stato creato in LINKR (community, demo, ufficiale a mano). */
+  readonly source?: EventSource | null;
 }
 
 export interface EventDetail extends EventSummary {

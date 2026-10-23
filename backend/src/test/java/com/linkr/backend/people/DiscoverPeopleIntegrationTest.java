@@ -146,7 +146,7 @@ class DiscoverPeopleIntegrationTest {
 
 		String body = people(me, "").andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 
-		assertThat((List<String>) JsonPath.read(body, "$.items[*].username")).containsExactly("dp_shared", "dp_nothing_shared", "dp_no_interests");
+		assertThat((List<String>) JsonPath.read(body, "$.items[*].username")).containsExactly("dp_shared", "dp_no_interests", "dp_nothing_shared");
 		assertThat((List<Integer>) JsonPath.read(body, "$.items[*].sharedInterestsCount")).containsExactly(1, 0, 0);
 		assertThat((List<Object>) JsonPath.read(body, "$.items[1].sharedInterests")).isEmpty();
 		assertThat((Integer) JsonPath.read(body, "$.totalElements")).isEqualTo(3);

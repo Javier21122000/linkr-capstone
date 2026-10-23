@@ -196,9 +196,12 @@ Permissions-Policy: camera=(self), microphone=(), geolocation=()
 Servono utente e password di PostgreSQL nell'ambiente (non nel repository) e il database `linkr_test_db` con lo stesso utente. Da una copia, per non far riavviare un'app di sviluppo in esecuzione (devtools ricompila `backend/target`):
 
 ```bash
-set -a; source .env; set +a                      # carica LINKR_DB_USERNAME / LINKR_DB_PASSWORD, senza stamparli
-rsync -a --exclude target backend/ /tmp/linkr-build/ && cd /tmp/linkr-build
-JAVA_HOME=$(/usr/libexec/java_home -v 21) ./mvnw test   # usa SOLO linkr_test_db (URL fisso nei test)
+set -a; source .env; set +a                                     # carica LINKR_DB_USERNAME / LINKR_DB_PASSWORD, senza stamparli
+mkdir -p /tmp/linkr-build/backend /tmp/linkr-build/frontend
+rsync -a --exclude target backend/ /tmp/linkr-build/backend/
+rsync -a frontend/public/ /tmp/linkr-build/frontend/public/     # asset locali richiesti da CommunityDemoSeederTest
+cd /tmp/linkr-build/backend
+JAVA_HOME=$(/usr/libexec/java_home -v 21) ./mvnw test           # usa SOLO linkr_test_db (URL fisso nei test)
 ```
 
 Atteso: tutto verde. Il jar di produzione si costruisce con `./mvnw -DskipTests package` (è quello che fa il `Dockerfile`).

@@ -1,6 +1,7 @@
 import { LocateFixed, MapPin, RotateCcw, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 
+import { useBottomSheet } from "../../hooks/useBottomSheet";
 import { categoryColors, categoryLabels, formatEventDate, formatEventTimeRange } from "../../lib/eventPresentation";
 import { hasValidCoordinates } from "../../lib/map";
 import { staggerStyle } from "../../lib/motion";
@@ -33,6 +34,8 @@ interface EventListProps {
   readonly onShowAll?: () => void;
 }
 
+function noop() {}
+
 export function EventList({
   events,
   selectedEventId,
@@ -51,18 +54,25 @@ export function EventList({
   const panelRef = useRef<HTMLElement>(null);
   const listBodyRef = useRef<HTMLDivElement>(null);
   const previousSelectedEventIdRef = useRef(selectedEventId);
+  // Su mobile la sheet ha tre posizioni (intermedia, espansa, chiusa) e si trascina; sugli schermi larghi l'hook non interviene.
+  const { snap, toggleSnap, requestClose } = useBottomSheet({
+    enabled: isSheet && Boolean(onClose),
+    panelRef,
+    bodyRef: listBodyRef,
+    onClose: onClose ?? noop,
+  });
 
   useEffect(() => {
     if (!isSheet || !onClose) return;
     panelRef.current?.focus({ preventScroll: true });
 
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose?.();
+      if (event.key === "Escape") requestClose();
     }
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isSheet, onClose]);
+  }, [isSheet, onClose, requestClose]);
 
   useEffect(() => {
     const previousSelectedEventId = previousSelectedEventIdRef.current;
@@ -91,7 +101,9 @@ export function EventList({
   return (
     <section
       ref={panelRef}
-      className={`event-list-panel event-list-panel--${variant} glass glass--panel content-reveal`}
+      // La sheet si muove con `transform`: `.content-reveal` (che lo anima e lo tiene a fine corsa) la bloccherebbe nello stato di arrivo.
+      className={`event-list-panel event-list-panel--${variant} glass glass--panel${isSheet ? "" : " content-reveal"}`}
+      data-snap={isSheet ? snap : undefined}
       role={isSheet ? "dialog" : "region"}
       // Il pannello fisso (desktop) occupa il lato sinistro della mappa: la camera ne tiene conto. Lo sheet è transitorio.
       data-map-inset={isSheet ? undefined : "left"}
@@ -99,7 +111,18 @@ export function EventList({
       tabIndex={isSheet ? -1 : undefined}
       aria-labelledby="event-list-title"
     >
-      <div className="event-list-panel__header">
+      {isSheet && onClose && (
+        <button
+          className="event-list-panel__grip"
+          type="button"
+          data-sheet-grip
+          aria-label={snap === "full" ? "Riduci la lista" : "Espandi la lista"}
+          onClick={toggleSnap}
+        >
+          <span aria-hidden="true" />
+        </button>
+      )}
+      <div className="event-list-panel__header" data-sheet-grip={isSheet ? "" : undefined}>
         <div className="min-w-0">
           <p className="section-kicker">Discover Milano</p>
           <h2 id="event-list-title" className="mt-1 text-2xl font-extrabold tracking-[-0.045em] text-ink">
@@ -111,7 +134,7 @@ export function EventList({
         </div>
         {!isSheet && <EditorialIllustration kind="megaphone" className="ed-header-art" />}
         {isSheet && onClose && (
-          <IconButton className="shrink-0" label="Torna alla mappa" onClick={onClose}>
+          <IconButton className="shrink-0" label="Torna alla mappa" onClick={requestClose}>
             <X size={19} aria-hidden="true" />
           </IconButton>
         )}

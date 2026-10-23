@@ -57,6 +57,9 @@
   /* Navigazione flottante sopra la mappa: altezza delle pillole e distanza dal bordo (condivise da header e Discover) */
   --float-pill-h: 3rem;
   --float-top: calc(env(safe-area-inset-top, 0px) + 0.625rem);
+  /* Bottom Navigation mobile: altezza della capsula e distanza dal bordo (safe area iOS inclusa), condivise con Discover e con le pagine con azioni fisse. */
+  --mobile-nav-h: 3.8rem;
+  --mobile-nav-bottom: max(0.625rem, env(safe-area-inset-bottom, 0px));
   /* Spazio che i contenuti lasciano in alto per le pillole fluttuanti dell'header. */
   --page-top: calc(var(--float-top) + var(--float-pill-h) + 0.75rem);
 

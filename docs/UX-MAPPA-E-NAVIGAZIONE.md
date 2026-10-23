@@ -131,6 +131,30 @@ evento, in "Le mie uscite" (eventi creati dall'utente) e nella "Mia agenda" del 
 - Si aggiorna subito dopo una modifica fatta sul dettaglio dell'evento (`EventParticipationPanel` applica la risposta confermata dal servizio) e al ritorno su Discover; il marker viene aggiornato, non ricreato.
 - Stessa informazione, come etichetta, nelle righe della lista e nell'anteprima.
 
+## Discover su mobile: nessuno scorrimento, bottom sheet, navigazione (`AppShell.tsx`, `layout.css`, `lib/bottomSheet.ts`, `hooks/useBottomSheet.ts`)
+
+**Layer che scivolavano (Safari iOS).** Su Safari `100vh` è l'altezza con le barre ritirate, più grande dell'area visibile; `body` aveva `min-height: 100vh` mentre `.discover` è `100dvh`. Il documento aveva quindi un piccolo scorrimento fantasma e bastava trascinare su un overlay (header, filtri, nav) perché mappa, filtri e "Mostra lista" scivolassero rispetto alle barre `fixed`. La posizione restava anche dopo login → Discover (nessun reset dello scroll). Non erano la causa MapLibre (con pan e zoom abilitati il contenitore ha `touch-action: pinch-zoom`), né transform sugli antenati, né z-index.
+
+- Con Discover attivo `AppShell` imposta `html[data-view="discover"]` (e azzera lo scroll): `html` e `body` hanno `overflow: hidden`, `overscroll-behavior: none` e `body` `min-height: 0`; la shell è `position: fixed; inset: 0`. Il documento non ha estensione né rimbalzo, e anche uno `scrollTo` programmatico non sposta più nulla.
+- L'altezza di `main`, `.discover-host` e `.discover` è `100%` della shell fissa (non più `100dvh` a parte): shell e mappa non possono divergere quando Safari mostra o nasconde la barra degli indirizzi.
+- `body` usa `min-height: 100dvh` (con ripiego `100vh`) anche sulle altre pagine: niente più scorrimento fantasma sulle pagine corte.
+
+**Bottom sheet della lista (< 48rem).** Tre posizioni: **intermedia** (all'apertura, ~55 % dell'area mappa, minimo 20rem), **espansa** (dai filtri al bordo basso) e **chiusa** (la sheet si smonta e torna "Mostra lista"). Sotto 48rem l'hook `useBottomSheet` gestisce i gesti; da 48rem la lista è il pannello laterale di prima, senza maniglia né trasformazioni.
+
+- Il pannello ha sempre l'altezza dello stato espanso e si sposta solo con `transform: translate3d(0, var(--sheet-y), 0)`. `--sheet-y` è scritta direttamente sull'elemento: nessun render React né layout durante il trascinamento. La parte fuori schermo nello stato intermedio è compensata dal padding della lista (`--sheet-hidden`), così l'ultimo evento si raggiunge.
+- Si trascinano maniglia (un vero `button`: il tocco alterna intermedia/espansa) e intestazione. Un gesto che parte sulla lista è della sheet se: il dito va in basso e la lista è al primo elemento; il dito va in alto e la sheet non è espansa (prima si apre, poi scorre). Altrimenti scorre la lista. Un nuovo gesto durante una transizione ferma la sheet dov'è.
+- Rilascio (`lib/bottomSheet.ts`, funzioni pure con test): un lancio oltre 0,45 px/ms sposta di uno stato, altrimenti vince lo stato più vicino alla posizione proiettata. Sopra lo stato espanso c'è resistenza elastica. Sugli schermi bassi (orizzontale) lo stato intermedio non esiste.
+- Solo listener locali al pannello: `touchmove` non passivo (l'unico modo per fermare lo scorrimento nativo quando il gesto è della sheet) e Pointer Events per il mouse sulla maniglia. Nessun listener su `document`/`window` oltre all'Escape già esistente. La sheet non usa `.content-reveal` (che tiene `transform` a fine corsa e la bloccherebbe). Con "riduci animazioni" non c'è transizione.
+- Limite noto: se la lista era scorsa e il dito torna in cima senza staccarsi, il controllo passa alla sheet solo se il browser lascia annullare il `touchmove` (Chrome no durante lo scroll nativo, Safari non verificato); altrimenti serve un nuovo gesto.
+
+**Bottom Navigation.** Capsula più bassa (~63 px contro 71, −11 %; voci 176×51 px: area touch ≥ 44 px) con token condivisi `--mobile-nav-h` e `--mobile-nav-bottom` (safe area iOS); usati anche da `--discover-bottom` e dalle azioni fisse del form evento. Con la sheet aperta esce di scena (`transform`, `opacity`, `visibility: hidden`: niente tocco, focus o lettori di schermo) e torna appena la sheet comincia a chiudersi (`data-state="closing"`). La regola è CSS puro con `:has()` (iOS 15.4+): senza `:has()` la capsula resterebbe visibile sotto la sheet. Il suo rettangolo esce dalla mappa, quindi la camera (`measureCameraInsets`) non la conta.
+
+**Popover «Milano».** Agganciato alla pillola, con Crea e profilo a destra finiva a `left: -79px`, fuori schermo (utente autenticato). Sotto 48rem ora è `fixed` sotto le pillole, con margini di 0,75rem e `max-height` che non invade la nav; lo sfondo è quasi opaco (0,97) perché filtri e marker non trasparissero attraverso il testo. Da anonimo lo stack era già corretto: la copertura segnalata non si è riprodotta.
+
+**Evidenza reale (Safari iOS 26, iPhone 13 Pro, sito pubblico con il build precedente).** Cinque screenshot confermano la diagnosi: la mappa finisce ~95 px sopra il bordo basso (sotto resta il colore del `body`) e i filtri sono tagliati in alto, cioè il documento era scorso di `100vh − 100dvh` mentre header e nav `fixed` restavano fermi; in un altro la pagina è tirata in basso (rimbalzo) con la mappa che inizia più in basso del bordo; il popover «Milano» da autenticato esce a sinistra e il testo è illeggibile. Il CSS pubblicato in quel momento non conteneva ancora `event-list-panel__grip` né `--mobile-nav-h`.
+
+**Verificato / non verificato.** WebKit 27.2 (Playwright, profilo iPhone 13 Pro) e Chrome con viewport iPhone (tocco CDP reale per i gesti); le prove per `100vh` grande usano un `min-height` forzato. **Safari reale non è stato verificato** (rimbalzo, barra dinamica, scroll con inerzia, blur): da provare su iPhone con la barra di Safari visibile e ritratta, i gesti della sheet e il popover da loggati e da anonimi.
+
 ## Chat mobile
 
 Sotto 48rem la conversazione occupa lo spazio tra header dell’app e Bottom Navigation. Header della conversazione e composer sono elementi fissi del flex layout; soltanto `.chat-thread__messages` scorre. L’altezza parte da `100dvh` e viene aggiornata con `visualViewport` quando compare la tastiera virtuale, includendo safe area e spazio della navigazione inferiore.
@@ -143,7 +167,7 @@ La textarea cresce automaticamente fino a 144px. Un `ResizeObserver` conserva il
 
 ```bash
 cd frontend
-npm test            # 144 test: luoghi MapTiler, fuso di Milano, orari, navigazione, ALT, scroll chat, salute e recupero della mappa, guida, stato Link del profilo pubblico, dimensione della mappa
+npm test            # 153 test: luoghi MapTiler, fuso di Milano, orari, navigazione, ALT, scroll chat, salute e recupero della mappa, guida, stato Link del profilo pubblico, dimensione della mappa, bottom sheet
 npm run typecheck
 npm run build
 ```

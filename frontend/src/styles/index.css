@@ -30,7 +30,9 @@ html {
 
 body {
   min-width: 320px;
+  /* `dvh` = area visibile davvero (Safari iOS: `100vh` è più alto con la barra degli indirizzi visibile e crea uno scorrimento fantasma). */
   min-height: 100vh;
+  min-height: 100dvh;
   margin: 0;
   background: var(--color-canvas);
 }

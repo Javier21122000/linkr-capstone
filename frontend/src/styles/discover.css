@@ -16,7 +16,9 @@
   --discover-top: calc(var(--float-top) + var(--float-pill-h) + 0.6rem);
   --discover-below-filters: calc(var(--discover-top) + 3.5rem + 0.6rem);
   --discover-controls-top: var(--discover-below-filters);
-  --discover-bottom: calc(max(0.75rem, env(safe-area-inset-bottom, 0px)) + 4.5rem + 0.6rem);
+  --discover-bottom: calc(var(--mobile-nav-bottom) + var(--mobile-nav-h) + 0.6rem);
+  /* Bordo basso della bottom sheet della lista: la Bottom Navigation è nascosta mentre è aperta, quindi arriva fino al bordo sicuro. */
+  --sheet-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
   /* Sopra "Mostra lista" e sopra il pulsante + di Quick Create (3.5rem) con un respiro di 0.65rem. */
   --discover-preview-bottom: calc(var(--discover-bottom) + 4.15rem);
   /* Bordo sinistro dell'area libera della mappa: su desktop è dopo il pannello lista. */
@@ -645,25 +647,69 @@
   overflow: hidden;
 }
 
+/*
+ * Bottom sheet (mobile): il pannello ha sempre l'altezza dello stato espanso (dai filtri al bordo basso) e si sposta solo con `transform`.
+ * `--sheet-y` la scrive `useBottomSheet`: 0 espansa, più grande = più in basso (intermedia, chiusa). Niente `height`/`top` animati.
+ */
 .event-list-panel--sheet {
   position: absolute;
   z-index: var(--z-sheet);
+  top: var(--discover-below-filters);
   right: 0.5rem;
-  bottom: calc(var(--discover-bottom) - 0.35rem);
+  bottom: var(--sheet-bottom);
   left: 0.5rem;
-  height: min(68dvh, 42rem);
-  max-height: calc(100dvh - var(--discover-top) - var(--discover-bottom));
+  border-radius: var(--radius-sheet);
+  transform: translate3d(0, var(--sheet-y, 0px), 0);
+  transition: transform 380ms var(--ease-out-soft);
+  will-change: transform;
+}
+
+/* Sotto il dito la sheet non ha transizione; con "riduci animazioni" non si anima mai. */
+.event-list-panel--sheet[data-dragging],
+.event-list-panel--sheet[data-resizing] {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .event-list-panel--sheet {
+    transition: none;
+  }
+}
+
+/* Maniglia: un vero pulsante (tocco per espandere/ridurre, trascinamento diretto) con un'area più ampia del segno grafico. */
+.event-list-panel__grip {
+  display: grid;
+  width: 100%;
+  height: 1.75rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  padding: 0.2rem 0 0;
+  touch-action: none;
+  cursor: grab;
+}
+
+.event-list-panel__grip > span {
+  width: 2.75rem;
+  height: 0.3rem;
+  border-radius: 999px;
+  background: #c8c7c1;
+  transition: background-color 160ms ease;
+}
+
+.event-list-panel__grip:active > span {
+  background: #a9a8a0;
+}
+
+.event-list-panel__grip:focus-visible {
+  outline-offset: -3px;
   border-radius: var(--radius-sheet);
 }
 
-.event-list-panel--sheet::before {
-  width: 2.75rem;
-  height: 0.3rem;
-  flex: 0 0 auto;
-  margin: 0.55rem auto 0;
-  border-radius: 999px;
-  background: #c8c7c1;
-  content: "";
+/* L'intestazione si trascina come la maniglia: il browser non deve interpretare quel gesto come scorrimento. */
+.event-list-panel--sheet .event-list-panel__header {
+  touch-action: none;
 }
 
 .event-list-panel__header {
@@ -680,7 +726,8 @@
   flex: 1;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 0.35rem 0.5rem calc(1rem + env(safe-area-inset-bottom, 0px));
+  /* `--sheet-hidden`: parte del pannello fuori schermo nello stato intermedio, così l'ultimo evento si raggiunge anche lì. */
+  padding: 0.35rem 0.5rem calc(1rem + env(safe-area-inset-bottom, 0px) + var(--sheet-hidden, 0px));
 }
 
 .event-list-panel__message {
@@ -952,18 +999,24 @@
     --discover-map-right: 4.5rem;
   }
 
+  /* Pannello laterale: niente gesti di trascinamento né maniglia. */
   .event-list-panel--sheet {
     top: var(--discover-top);
     right: 0.75rem;
     bottom: 0.75rem;
     left: auto;
     width: min(27rem, calc(100% - 1.5rem));
-    height: auto;
-    max-height: none;
+    transform: none;
+    transition: none;
+    will-change: auto;
   }
 
-  .event-list-panel--sheet::before {
+  .event-list-panel__grip {
     display: none;
+  }
+
+  .event-list-panel--sheet .event-list-panel__header {
+    touch-action: auto;
   }
 
   .event-map .maplibregl-ctrl-top-left {
@@ -1010,7 +1063,7 @@
 @media (max-width: 47.999rem) and (max-height: 30rem) {
   .discover {
     --discover-top: calc(var(--float-top) + var(--float-pill-h) + 0.3rem);
-    --discover-bottom: calc(max(0.5rem, env(safe-area-inset-bottom, 0px)) + 4.5rem + 0.4rem);
+    --discover-bottom: calc(max(0.5rem, env(safe-area-inset-bottom, 0px)) + var(--mobile-nav-h) + 0.4rem);
   }
 
   /* Il pulsante + sta nell'angolo: "Mostra lista" gli si affianca invece di sovrapporsi. */
@@ -1039,8 +1092,6 @@
 
   .event-list-panel--sheet {
     top: 0.5rem;
-    height: auto;
-    max-height: none;
   }
 
   .event-list-panel__header {

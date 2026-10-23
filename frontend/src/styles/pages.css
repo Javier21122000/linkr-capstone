@@ -156,7 +156,7 @@
 .create-event-actions {
   position: sticky;
   z-index: var(--z-map-ui);
-  bottom: calc(max(0.75rem, env(safe-area-inset-bottom, 0px)) + 4.5rem + 0.6rem);
+  bottom: calc(var(--mobile-nav-bottom) + var(--mobile-nav-h) + 0.6rem);
   display: flex;
   flex-direction: column;
   gap: 0.6rem;

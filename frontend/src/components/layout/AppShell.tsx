@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import { Outlet, useLocation, useNavigation } from "react-router";
 
 import { LinkRequestCountProvider } from "../../context/LinkRequestCountContext";
@@ -40,6 +40,16 @@ function AppShellContent() {
   // per tutta la sessione, con vista, filtro e selezione intatti al ritorno.
   const [discoverMounted, setDiscoverMounted] = useState(discoverActive);
   if (discoverActive && !discoverMounted) setDiscoverMounted(true);
+
+  // Discover è una vista a schermo intero che non scorre: il documento non deve avere nulla da scorrere (vedi `html[data-view="discover"]` in layout.css).
+  // Arrivando da una pagina scorsa la posizione di scorrimento si azzera, così nessun residuo sposta mappa, filtri e pulsanti rispetto alle barre fisse.
+  useLayoutEffect(() => {
+    if (!discoverActive) return undefined;
+    const root = document.documentElement;
+    root.dataset.view = "discover";
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    return () => { delete root.dataset.view; };
+  }, [discoverActive]);
 
   return (
     <div className="app-shell text-ink" data-view={discoverActive ? "discover" : "page"} data-ambient={ambientKind(pathname)}>

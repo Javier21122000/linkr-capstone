@@ -60,3 +60,27 @@ export function createBootStore(expectsDiscover: boolean): BootStore {
     },
   };
 }
+
+/** Segnale a un solo valore che si accende una volta (per esempio "lo splash è uscito"). */
+export interface FlagStore {
+  readonly get: () => boolean;
+  readonly subscribe: (listener: () => void) => () => void;
+  readonly raise: () => void;
+}
+
+export function createFlagStore(): FlagStore {
+  let raised = false;
+  const listeners = new Set<() => void>();
+  return {
+    get: () => raised,
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => { listeners.delete(listener); };
+    },
+    raise() {
+      if (raised) return;
+      raised = true;
+      listeners.forEach((listener) => listener());
+    },
+  };
+}

@@ -1,15 +1,19 @@
 import { Compass, Link2, MapPin, MessageCircle, Plus, UserRound, UsersRound, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type AnimationEvent, type MouseEvent } from "react";
 import { Link, useLocation } from "react-router";
 
 import { useAuth } from "../../context/AuthContext";
 import { useChatRealtime } from "../../context/ChatRealtimeContext";
 import { useLinkRequestCount } from "../../context/LinkRequestCountContext";
 import { useSlidingIndicator } from "../../hooks/useSlidingIndicator";
+import { prefersReducedMotion } from "../../lib/motion";
 import { ChatUnreadBadge } from "../chat/ChatUnreadBadge";
 import { IncomingLinkCountBadge } from "../links/IncomingLinkCountBadge";
 import { BrandMark } from "../ui/BrandMark";
 import { NavItem } from "./NavItem";
+
+/** Durata del giro del logo (`brand-spin` in layout.css) e margine oltre il quale si sblocca comunque. */
+const LOGO_SPIN_FALLBACK_MS = 700;
 
 /**
  * Navigazione principale: tre gruppi di vetro (brand, navigazione, città/azioni) che galleggiano in alto su ogni pagina,
@@ -26,6 +30,9 @@ export function AppHeader() {
   const cityButtonRef = useRef<HTMLButtonElement>(null);
   const cityContinueRef = useRef<HTMLButtonElement>(null);
   const [cityOpen, setCityOpen] = useState(false);
+  const [logoSpinning, setLogoSpinning] = useState(false);
+  const spinTimerRef = useRef(0);
+  useEffect(() => () => window.clearTimeout(spinTimerRef.current), []);
   useSlidingIndicator({ trackRef: navRef, activeSelector: '[aria-current="page"]', activeKey: pathname });
   const profileLabel = user ? `@${user.username}` : "Profilo";
   const linksAccessibleLabel = incomingCount
@@ -34,6 +41,22 @@ export function AppHeader() {
   const chatAccessibleLabel = unreadCount
     ? `Chat, ${unreadCount} ${unreadCount === 1 ? "messaggio non letto" : "messaggi non letti"}`
     : "Chat";
+
+  // Già su Discover il logo non porta da nessuna parte: il simbolo delle mani gira su se stesso una volta (wordmark e pillola restano fermi) (senza navigare, ricaricare né toccare mappa e filtri).
+  // Un tocco durante il giro non ne accumula altri. Clic con modificatori (nuova scheda) e navigazione da altre pagine restano quelli di prima.
+  const handleBrandClick = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (pathname !== "/" || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    if (logoSpinning || prefersReducedMotion()) return;
+    setLogoSpinning(true);
+    window.clearTimeout(spinTimerRef.current);
+    spinTimerRef.current = window.setTimeout(() => setLogoSpinning(false), LOGO_SPIN_FALLBACK_MS);
+  };
+  const handleLogoSpinEnd = (event: AnimationEvent<HTMLSpanElement>) => {
+    if (event.animationName !== "brand-spin") return;
+    window.clearTimeout(spinTimerRef.current);
+    setLogoSpinning(false);
+  };
 
   useEffect(() => {
     if (!cityOpen) return undefined;
@@ -68,8 +91,11 @@ export function AppHeader() {
             className="app-header__brand glass"
             aria-label="LINKR home"
             data-map-inset="top"
+            onClick={handleBrandClick}
           >
-            <BrandMark />
+            <span className="app-header__logo" data-spinning={logoSpinning ? "" : undefined} onAnimationEnd={handleLogoSpinEnd}>
+              <BrandMark />
+            </span>
           </Link>
         </div>
 

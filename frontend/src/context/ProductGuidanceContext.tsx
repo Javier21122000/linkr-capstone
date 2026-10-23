@@ -6,7 +6,7 @@ import { useLocation } from "react-router";
 
 import { CutoutWord } from "../components/editorial/CutoutWord";
 import { OnboardingPhoto } from "../components/editorial/scenes";
-import { useBootReady } from "../hooks/useBootReady";
+import { useSplashGone } from "../hooks/useBootReady";
 import { LinkrHands, LinkrWordmark } from "../components/brand/LinkrLogo";
 import { isOnboardingComplete, markOnboardingComplete, placeTourCard, tourStartDelay, WELCOME_DELAY_MS } from "../lib/guidance";
 import type { Rect, TourPlacement } from "../lib/guidance";
@@ -308,7 +308,7 @@ function Tour({ steps, step, onStep, onClose }: { readonly steps: readonly TourS
 export function ProductGuidanceProvider({ children }: { readonly children: ReactNode }) {
   const { user } = useAuth();
   const userId = user?.id ?? null;
-  const bootReady = useBootReady();
+  const splashGone = useSplashGone();
   const onDiscover = useLocation().pathname === "/";
   const [layer, setLayer] = useState<Layer>(null);
   const [onboardingStep, setOnboardingStep] = useState(0);
@@ -318,10 +318,10 @@ export function ProductGuidanceProvider({ children }: { readonly children: React
   /** "Scopri come funziona": l'onboarding è chiuso e il tour parte appena Discover è pronto. */
   const [tourPending, setTourPending] = useState(false);
 
-  // Benvenuto alla prima visita (anonima o autenticata, è lo stesso): subito dopo lo splash di avvio, su Discover (su Login o Registrazione mai).
+  // Benvenuto alla prima visita (anonima o autenticata, è lo stesso): subito dopo lo splash di avvio (che lascia finire il suo ciclo), su Discover (su Login o Registrazione mai).
   // Non aspetta la mappa: mentre si legge, la mappa si carica dietro. Se nel frattempo si apre un altro dialogo o si cambia pagina, si rinuncia.
   useEffect(() => {
-    if (!bootReady || !onDiscover || isOnboardingComplete(getStorage(), userId)) return undefined;
+    if (!splashGone || !onDiscover || isOnboardingComplete(getStorage(), userId)) return undefined;
     const timeoutId = window.setTimeout(() => {
       if (isOnboardingComplete(getStorage(), userId)) return;
       if (document.querySelector("[role='dialog'][aria-modal='true']")) return;
@@ -329,7 +329,7 @@ export function ProductGuidanceProvider({ children }: { readonly children: React
       setLayer((current) => (current === null ? "welcome" : current));
     }, WELCOME_DELAY_MS);
     return () => window.clearTimeout(timeoutId);
-  }, [bootReady, onDiscover, userId]);
+  }, [splashGone, onDiscover, userId]);
 
   const startTour = useCallback(() => {
     const available = resolveTourSteps();

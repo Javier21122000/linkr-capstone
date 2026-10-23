@@ -1,7 +1,8 @@
 /*
  * Splash LINKR e overlay di caricamento della mappa (componente `LinkrSplash`).
  * Sfondo bianco caldo (--color-canvas), logo nero (mani e wordmark in SVG, components/brand). Solo SVG e CSS: nessuna immagine, nessun JavaScript per animare.
- * Si anima solo `opacity`/`transform`. L'unica ripetizione è il loader a mani (variante panel); lo splash di avvio si anima una volta sola.
+ * Si anima solo `opacity`/`transform`. Il ciclo del logo si ripete finché si aspetta; quando lo splash di avvio può uscire, BootSplash
+ * lo lascia finire il ciclo in corso (vedi lib/splashCycle.ts).
  */
 .linkr-splash {
   position: fixed;
@@ -42,11 +43,9 @@
   overflow: visible;
 }
 
-/* Loader: le sole mani, più piccole. */
-.linkr-splash__loader {
-  width: 3.25rem;
-  height: auto;
-  overflow: visible;
+/* Loader della mappa: lo stesso logo, più piccolo (il wordmark resta leggibile da aperto). */
+.linkr-splash[data-variant="panel"] .linkr-splash__lockup {
+  width: 5.5rem;
 }
 
 .linkr-splash__message {
@@ -63,63 +62,73 @@
 }
 
 /*
- * Ingresso dello splash di avvio (circa 1 s): la mano in alto entra da destra, quella in basso da sinistra, si fermano incorniciando lo spazio e
- * il wordmark compare tra loro. Solo opacity/transform, una volta sola. Gli spostamenti sono in unità del disegno (viewBox di 1121 × 1447).
- * Se l'app è pronta prima della fine, lo splash esce comunque subito (vedi BootSplash): niente attese aggiunte.
+ * Il ciclo del logo (1,6 s), lo stesso per lo splash di avvio e per il loader della mappa. Le due mani si muovono come attratte: si aprono
+ * (riposo, wordmark leggibile), si chiudono accelerando, si toccano e si comprimono appena, si riaprono morbide con un assestamento
+ * leggero. La mano in alto scende e quella in basso sale dello stesso tratto, quindi il logo resta centrato. A chiusura avvenuta le
+ * dita a L e il vuoto centrale sono assorbiti dalla massa nera; il wordmark sparisce prima che le mani lo sfiorino (spazio libero
+ * 316 − 2·d unità, il wordmark ne occupa 180: sparito a d ≈ 56) e riappare solo quando lo spazio è di nuovo sufficiente (da d ≈ 46, pieno a d ≈ 24).
+ *
+ * Fotogrammi (percentuali del ciclo; d = avvicinamento di ogni mano, in unità del disegno, viewBox 1121 × 1447):
+ *   0–10 %   aperto, fermo        10–38 %  chiusura (d 0→170, in accelerazione)   38–44 %  compressione (d →186)
+ *   44–47 %  massimo              47–80 %  riapertura morbida (d →−12)            80–90 %  assestamento (d →0)    90–100 % aperto
+ * Se cambi la durata o queste soglie aggiorna anche lib/splashCycle.ts (SPLASH_CYCLE_MS, SPLASH_REST_FROM, SPLASH_HEAD_HOLD).
+ * Solo transform/opacity. La variabile --linkr-delay sposta la partenza (avvii successivi: ritardo; loader: sfasamento comune).
  */
-.linkr-splash[data-variant="screen"] .linkr-hand--top {
-  animation: splash-hand-top 800ms var(--ease-out-soft) 40ms both;
+.linkr-splash {
+  --linkr-cycle: 1600ms;
 }
 
-.linkr-splash[data-variant="screen"] .linkr-hand--bottom {
-  animation: splash-hand-bottom 800ms var(--ease-out-soft) 40ms both;
+.linkr-splash .linkr-hand--top {
+  animation: linkr-hand-top var(--linkr-cycle) linear var(--linkr-delay, 0ms) infinite both;
 }
 
-.linkr-splash[data-variant="screen"] .linkr-word {
+.linkr-splash .linkr-hand--bottom {
+  animation: linkr-hand-bottom var(--linkr-cycle) linear var(--linkr-delay, 0ms) infinite both;
+}
+
+.linkr-splash .linkr-word {
   transform-box: fill-box;
   transform-origin: center;
-  animation: splash-word-in 420ms var(--ease-out-soft) 580ms both;
+  animation: linkr-word var(--linkr-cycle) linear var(--linkr-delay, 0ms) infinite both;
+}
+
+/* Lo splash di avvio, quando esce, si ferma in posizione aperta mentre sfuma; il loader della mappa continua a muoversi mentre sfuma. */
+.linkr-splash[data-variant="screen"][data-leaving] :is(.linkr-hand, .linkr-word) {
+  animation-play-state: paused;
 }
 
 .linkr-splash__message {
   animation: splash-word 360ms var(--ease-out-soft) both;
 }
 
-/* Loader (1,4 s, in ciclo): le mani si allontanano e si riavvicinano di poco. Una sola animazione per mano, solo transform. */
-.linkr-splash[data-variant="panel"] .linkr-hand--top {
-  animation: splash-hands-top 1.4s ease-in-out infinite;
+@keyframes linkr-hand-top {
+  0%, 10% { transform: translateY(0); animation-timing-function: cubic-bezier(0.55, 0, 0.9, 0.45); }
+  38% { transform: translateY(170px); animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1); }
+  44% { transform: translateY(186px); animation-timing-function: linear; }
+  47% { transform: translateY(186px); animation-timing-function: cubic-bezier(0.16, 0.84, 0.28, 1); }
+  80% { transform: translateY(-12px); animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1); }
+  90%, 100% { transform: translateY(0); }
 }
 
-.linkr-splash[data-variant="panel"] .linkr-hand--bottom {
-  animation: splash-hands-bottom 1.4s ease-in-out infinite;
+@keyframes linkr-hand-bottom {
+  0%, 10% { transform: translateY(0); animation-timing-function: cubic-bezier(0.55, 0, 0.9, 0.45); }
+  38% { transform: translateY(-170px); animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1); }
+  44% { transform: translateY(-186px); animation-timing-function: linear; }
+  47% { transform: translateY(-186px); animation-timing-function: cubic-bezier(0.16, 0.84, 0.28, 1); }
+  80% { transform: translateY(12px); animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1); }
+  90%, 100% { transform: translateY(0); }
 }
 
-@keyframes splash-hand-top {
-  from { opacity: 0; transform: translate(560px, -70px); }
-  to { opacity: 1; transform: none; }
-}
-
-@keyframes splash-hand-bottom {
-  from { opacity: 0; transform: translate(-560px, 70px); }
-  to { opacity: 1; transform: none; }
-}
-
-@keyframes splash-word-in {
-  from { opacity: 0; transform: scale(0.94); }
-  to { opacity: 1; transform: none; }
+@keyframes linkr-word {
+  0%, 22.5% { opacity: 1; transform: scale(1); animation-timing-function: ease-in; }
+  29% { opacity: 0; transform: scale(0.9); animation-timing-function: linear; }
+  54% { opacity: 0; transform: scale(0.9); animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1); }
+  58%, 100% { opacity: 1; transform: scale(1); }
 }
 
 @keyframes splash-word {
   from { opacity: 0; transform: translateY(0.35rem); }
   to { opacity: 1; transform: none; }
-}
-
-@keyframes splash-hands-top {
-  50% { transform: translate(90px, -60px); }
-}
-
-@keyframes splash-hands-bottom {
-  50% { transform: translate(-90px, 60px); }
 }
 
 /* Con "riduci animazioni" tutto compare già al suo posto: nessun disegno, nessuna dissolvenza, nessun impulso. */

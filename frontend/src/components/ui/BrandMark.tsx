@@ -21,7 +21,7 @@ interface BrandMarkProps {
 export function BrandMark({ compact = false, className = "" }: BrandMarkProps) {
   return (
     <span className={`inline-flex items-center gap-2.5 text-ink ${className}`} aria-label="LINKR">
-      <LinkrSymbol className="h-8 w-auto shrink-0" />
+      <LinkrSymbol className="brand-mark__symbol h-8 w-auto shrink-0" />
       {!compact && <LinkrWordmark className="h-[1.15rem] w-auto shrink-0 sm:h-5" />}
     </span>
   );

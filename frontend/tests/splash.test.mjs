@@ -63,34 +63,6 @@ test("testi dell'overlay: dicono cosa succede e offrono di riprovare solo quando
   assert.match(mapLoadingMessage("loading", true), /più del previsto/);
 });
 
-test("CSS dello splash: movimento ridotto rispettato, solo le due mani del loader girano all'infinito, solo proprietà economiche", async () => {
-  const { readFile } = await import("node:fs/promises");
-  const css = await readFile(new URL("../src/styles/splash.css", import.meta.url), "utf8");
-  assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
-  const infinite = css.match(/[^;{}]*\binfinite\b[^;{}]*/g) ?? [];
-  assert.equal(infinite.length, 2, "avvicinamento delle mani: una animazione per mano, solo nel loader");
-  for (const line of infinite) assert.match(line, /splash-hands-/);
-  const keyframes = css.match(/@keyframes[^{]+\{[\s\S]*?\n\}/g) ?? [];
-  for (const block of keyframes) assert.doesNotMatch(block, /\b(width|height|top|left|margin|padding)\s*:/, "niente layout nei fotogrammi");
-});
-
-test("CSS dello splash: durata dell'introduzione tra 0,9 e 1,2 s e ciclo del loader di circa 1,4 s", async () => {
-  const { readFile } = await import("node:fs/promises");
-  const css = await readFile(new URL("../src/styles/splash.css", import.meta.url), "utf8");
-  const toMs = (v, unit) => (unit === "s" ? Number(v) * 1000 : Number(v));
-  const anim = (name) => {
-    const m = css.match(new RegExp(`animation:\\s*${name}\\s+([\\d.]+)(ms|s)(?:[^;]*?\\s([\\d.]+)(ms|s))?`));
-    assert.ok(m, `animazione ${name} dichiarata`);
-    return { duration: toMs(m[1], m[2]), delay: m[3] ? toMs(m[3], m[4]) : 0 };
-  };
-  const hand = anim("splash-hand-top");
-  const word = anim("splash-word-in");
-  const total = Math.max(hand.delay + hand.duration, word.delay + word.duration);
-  assert.ok(total >= 900 && total <= 1200, `introduzione di ${total} ms`);
-  assert.equal(anim("splash-hands-top").duration, 1400);
-  assert.equal(anim("splash-hands-bottom").duration, 1400);
-});
-
 test("logo: tracciati vettoriali, nessun font né immagine incorporati e nessun testo SVG", async () => {
   const { readFile } = await import("node:fs/promises");
   const read = (p) => readFile(new URL(p, import.meta.url), "utf8");

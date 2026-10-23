@@ -1,7 +1,7 @@
 /*
  * Splash LINKR e overlay di caricamento della mappa (componente `LinkrSplash`).
- * Sfondo bianco caldo (--color-canvas), simbolo nero, un solo accento corallo. Solo SVG e CSS: nessuna immagine, nessun JavaScript per animare.
- * Si anima solo `opacity`/`transform`/`stroke-dashoffset`, una volta sola; l'unica ripetizione è l'impulso del puntino, che costa quasi nulla.
+ * Sfondo bianco caldo (--color-canvas), logo nero (mani e wordmark in SVG, components/brand). Solo SVG e CSS: nessuna immagine, nessun JavaScript per animare.
+ * Si anima solo `opacity`/`transform`. L'unica ripetizione è il loader a mani (variante panel); lo splash di avvio si anima una volta sola.
  */
 .linkr-splash {
   position: fixed;
@@ -35,33 +35,18 @@
   text-align: center;
 }
 
-.linkr-splash__symbol {
-  width: 4.5rem;
-  height: 4.5rem;
+/* Logo dello splash: le mani incorniciano il wordmark. Larghezza in rem (si legge bene da 320 px in su), altezza dal rapporto del disegno. */
+.linkr-splash__lockup {
+  width: min(9.5rem, 44vw);
+  height: auto;
   overflow: visible;
 }
 
-.linkr-splash[data-variant="panel"] .linkr-splash__symbol {
-  width: 3.5rem;
-  height: 3.5rem;
-}
-
-.linkr-splash__ring {
-  stroke: currentColor;
-}
-
-.linkr-splash__dot {
-  fill: var(--color-linkr);
-  transform-box: fill-box;
-  transform-origin: center;
-}
-
-.linkr-splash__word {
-  font-size: 1.05rem;
-  font-weight: 800;
-  letter-spacing: 0.32em;
-  /* Il tracking aggiunge spazio dopo l'ultima lettera: lo si toglie per centrare davvero. */
-  margin-right: -0.32em;
+/* Loader: le sole mani, più piccole. */
+.linkr-splash__loader {
+  width: 3.25rem;
+  height: auto;
+  overflow: visible;
 }
 
 .linkr-splash__message {
@@ -77,42 +62,51 @@
   margin-top: 0.25rem;
 }
 
-/* Ingresso dello splash di avvio: l'anello si disegna, il puntino compare, la scritta sale. L'overlay della mappa è statico (subentra allo
-   splash senza ripetere l'animazione). */
-.linkr-splash[data-variant="screen"] .linkr-splash__ring {
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  animation: splash-ring 560ms var(--ease-out-soft) 60ms forwards;
+/*
+ * Ingresso dello splash di avvio (circa 1 s): la mano in alto entra da destra, quella in basso da sinistra, si fermano incorniciando lo spazio e
+ * il wordmark compare tra loro. Solo opacity/transform, una volta sola. Gli spostamenti sono in unità del disegno (viewBox di 1121 × 1447).
+ * Se l'app è pronta prima della fine, lo splash esce comunque subito (vedi BootSplash): niente attese aggiunte.
+ */
+.linkr-splash[data-variant="screen"] .linkr-hand--top {
+  animation: splash-hand-top 800ms var(--ease-out-soft) 40ms both;
 }
 
-.linkr-splash[data-variant="screen"] .linkr-splash__word {
-  opacity: 0;
-  animation: splash-word 360ms var(--ease-out-soft) 300ms forwards;
+.linkr-splash[data-variant="screen"] .linkr-hand--bottom {
+  animation: splash-hand-bottom 800ms var(--ease-out-soft) 40ms both;
+}
+
+.linkr-splash[data-variant="screen"] .linkr-word {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: splash-word-in 420ms var(--ease-out-soft) 580ms both;
 }
 
 .linkr-splash__message {
   animation: splash-word 360ms var(--ease-out-soft) both;
 }
 
-/* Il puntino compare e poi batte piano: dice che l'attesa è viva. Solo opacity/transform, nessun layout. */
-.linkr-splash[data-variant="screen"] .linkr-splash__dot {
-  opacity: 0;
-  animation:
-    splash-dot 320ms var(--ease-spring) 440ms forwards,
-    splash-pulse 1.6s ease-in-out 1s infinite;
+/* Loader (1,4 s, in ciclo): le mani si allontanano e si riavvicinano di poco. Una sola animazione per mano, solo transform. */
+.linkr-splash[data-variant="panel"] .linkr-hand--top {
+  animation: splash-hands-top 1.4s ease-in-out infinite;
 }
 
-.linkr-splash[data-variant="panel"] .linkr-splash__dot {
-  animation: splash-pulse 1.6s ease-in-out infinite;
+.linkr-splash[data-variant="panel"] .linkr-hand--bottom {
+  animation: splash-hands-bottom 1.4s ease-in-out infinite;
 }
 
-@keyframes splash-ring {
-  to { stroke-dashoffset: 0; }
+@keyframes splash-hand-top {
+  from { opacity: 0; transform: translate(560px, -70px); }
+  to { opacity: 1; transform: none; }
 }
 
-@keyframes splash-dot {
-  from { opacity: 0; transform: scale(0.2); }
-  to { opacity: 1; transform: scale(1); }
+@keyframes splash-hand-bottom {
+  from { opacity: 0; transform: translate(-560px, 70px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes splash-word-in {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: none; }
 }
 
 @keyframes splash-word {
@@ -120,8 +114,12 @@
   to { opacity: 1; transform: none; }
 }
 
-@keyframes splash-pulse {
-  50% { opacity: 0.45; transform: scale(0.8); }
+@keyframes splash-hands-top {
+  50% { transform: translate(90px, -60px); }
+}
+
+@keyframes splash-hands-bottom {
+  50% { transform: translate(-90px, 60px); }
 }
 
 /* Con "riduci animazioni" tutto compare già al suo posto: nessun disegno, nessuna dissolvenza, nessun impulso. */
@@ -131,13 +129,11 @@
     transition: none;
   }
 
-  .linkr-splash .linkr-splash__ring,
-  .linkr-splash .linkr-splash__dot,
-  .linkr-splash .linkr-splash__word,
+  .linkr-splash .linkr-hand,
+  .linkr-splash .linkr-word,
   .linkr-splash .linkr-splash__message {
     animation: none !important;
     opacity: 1 !important;
-    stroke-dashoffset: 0 !important;
     transform: none !important;
   }
 }

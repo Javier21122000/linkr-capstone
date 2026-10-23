@@ -95,6 +95,41 @@
   animation: qc-sheet-in 300ms var(--ease-out-soft) backwards;
 }
 
+/*
+ * Poco spazio visibile (tastiera aperta su schermi piccoli, Display Zoom, orizzontale): il pannello diventa un unico elemento che scorre.
+ * Intestazione e campi scorrono insieme, la CTA resta incollata in fondo (sticky) e il corpo non è più un riquadro di poche decine di pixel.
+ * `data-compact` lo imposta QuickCreateDialog in base all'altezza di `visualViewport`.
+ */
+.qc-dialog[data-compact="true"] {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.qc-dialog[data-compact="true"] .qc-dialog__grabber {
+  display: none;
+}
+
+.qc-dialog[data-compact="true"] .qc-view {
+  flex: 0 0 auto;
+}
+
+.qc-dialog[data-compact="true"] .qc-dialog__body {
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
+.qc-dialog[data-compact="true"] .qc-dialog__footer {
+  position: sticky;
+  z-index: 2;
+  bottom: 0;
+  background: var(--glass-bg-sheet);
+  padding-block: 0.6rem;
+}
+
+.qc-dialog[data-compact="true"] .qc-dialog__header {
+  padding-block: 0.7rem 0.4rem;
+}
+
 .qc-dialog__grabber {
   width: 2.75rem;
   height: 0.3rem;

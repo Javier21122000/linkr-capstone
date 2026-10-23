@@ -35,6 +35,7 @@ export function EventCoverField({
   compact = false,
 }: EventCoverFieldProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
 
@@ -56,6 +57,10 @@ export function EventCoverField({
   const previewUrl = localPreviewUrl ?? savedPreviewUrl;
   const hasCover = Boolean(selectedFile || trimmedUrl);
   const removeLabel = selectedFile && trimmedUrl ? "Annulla sostituzione" : "Rimuovi foto";
+
+  // Su dispositivi touch "Scatta foto" apre la fotocamera del sistema (con il suo selettore anteriore/posteriore, zoom, flash e la
+  // conversione di HEIC): l'anteprima diretta nella pagina (getUserMedia) resta per desktop, dove una webcam non ha questi controlli.
+  const [nativeCamera] = useState(() => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches);
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -101,7 +106,7 @@ export function EventCoverField({
               <button
                 className="button-secondary inline-flex items-center gap-2"
                 type="button"
-                onClick={() => setCameraOpen(true)}
+                onClick={() => (nativeCamera ? cameraInputRef.current?.click() : setCameraOpen(true))}
                 disabled={disabled}
                 aria-describedby={fileError ? "event-cover-file-error" : "event-cover-file-hint"}
               >
@@ -113,6 +118,7 @@ export function EventCoverField({
                 </button>
               ) : null}
             </div>
+            {/* Libreria, fotocamera o file: il selettore nativo del sistema propone tutto (senza `capture`). */}
             <input
               ref={fileInputRef}
               type="file"
@@ -120,6 +126,17 @@ export function EventCoverField({
               onChange={handleFileChange}
               disabled={disabled}
               hidden
+            />
+            {/* Solo fotocamera, scelta anteriore/posteriore nell'interfaccia del sistema: `capture` senza valore non impone nessuna delle due. */}
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept={EVENT_IMAGE_ACCEPT}
+              capture
+              onChange={handleFileChange}
+              disabled={disabled}
+              hidden
+              data-camera-input
             />
             {selectedFile ? (
               <p className="mt-3 truncate text-xs font-bold text-ink">Selezionata: {selectedFile.name}</p>

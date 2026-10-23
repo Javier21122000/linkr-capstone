@@ -2,6 +2,9 @@ import { useEffect, useRef } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 import { createPortal } from "react-dom";
 
+import { activeTextField } from "../../hooks/useKeyboardInsets";
+import { keyboardHeight, revealDelta, shouldUseCompactPanel } from "../../lib/virtualKeyboard";
+
 interface QuickCreateDialogProps {
   readonly labelledBy: string;
   /** Escape, clic sullo sfondo o pulsante di chiusura: il chiamante decide se chiudere subito o chiedere conferma. */
@@ -22,32 +25,75 @@ const FOCUSABLE = [
  * Con la tastiera virtuale aperta il layout viewport non si restringe (iOS) o non si restringe di default (Chrome Android):
  * un pannello `fixed` in basso finirebbe sotto la tastiera, con la CTA irraggiungibile. Si usa `visualViewport` per
  * alzare il pannello sopra la tastiera e limitarne l'altezza all'area realmente visibile.
+ *
+ * Con poco spazio visibile (tastiera aperta su uno schermo piccolo, Display Zoom, orizzontale) intestazione e CTA fisse lasciavano al
+ * corpo 60 px o meno: il pannello diventa `data-compact` e scorre per intero (CTA sempre in vista in fondo, vedi quick-create.css).
+ * Il campo con il cursore viene portato in vista dentro l'area che scorre, al netto della CTA.
  */
 function useVisibleViewport(panelRef: { readonly current: HTMLElement | null }) {
   useEffect(() => {
     const panel = panelRef.current;
     const viewport = window.visualViewport;
-    if (!panel || !viewport) return undefined;
+    if (!panel) return undefined;
+
+    let frame = 0;
+    let settle = 0;
+
+    const revealActiveField = () => {
+      const field = activeTextField(panel);
+      if (!field) return;
+      const compact = panel.dataset.compact === "true";
+      const scroller = compact ? panel : panel.querySelector<HTMLElement>(".qc-dialog__body");
+      if (!scroller) return;
+      const bounds = scroller.getBoundingClientRect();
+      // In modalità compatta la CTA sta sopra il fondo dell'area che scorre: il campo non deve finirle sotto.
+      const footer = compact ? panel.querySelector<HTMLElement>(".qc-dialog__footer") : null;
+      const rect = field.getBoundingClientRect();
+      const delta = revealDelta({ fieldTop: rect.top, fieldBottom: rect.bottom, boundTop: bounds.top, boundBottom: bounds.bottom - (footer?.getBoundingClientRect().height ?? 0) });
+      if (delta !== 0) scroller.scrollTop += delta;
+    };
 
     const update = () => {
+      if (!viewport) return;
       // Con lo zoom a pinch il viewport visivo si restringe senza che ci sia una tastiera: non si tocca nulla.
       if (viewport.scale > 1.01) {
         panel.style.removeProperty("--qc-keyboard");
         panel.style.removeProperty("--qc-viewport-h");
+        delete panel.dataset.compact;
         return;
       }
-      const covered = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
-      // Sotto ~120 px non è una tastiera ma la barra del browser che si ritrae.
-      panel.style.setProperty("--qc-keyboard", `${covered > 120 ? Math.round(covered) : 0}px`);
+      const keyboard = keyboardHeight({ layoutHeight: window.innerHeight, visualHeight: viewport.height, visualOffsetTop: viewport.offsetTop, scale: viewport.scale });
+      panel.style.setProperty("--qc-keyboard", `${keyboard}px`);
       panel.style.setProperty("--qc-viewport-h", `${Math.round(viewport.height)}px`);
+      const chrome = (panel.querySelector<HTMLElement>(".qc-dialog__header")?.offsetHeight ?? 0) + (panel.querySelector<HTMLElement>(".qc-dialog__footer")?.offsetHeight ?? 0);
+      panel.dataset.compact = shouldUseCompactPanel(viewport.height, chrome) ? "true" : "false";
+    };
+
+    const onChange = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => { update(); revealActiveField(); });
+    };
+    const onFocusIn = () => {
+      onChange();
+      // La tastiera compare dopo il focus: si ricontrolla a animazione finita.
+      window.clearTimeout(settle);
+      settle = window.setTimeout(() => { update(); revealActiveField(); }, 350);
     };
 
     update();
-    viewport.addEventListener("resize", update);
-    viewport.addEventListener("scroll", update);
+    // Cambia la vista (menu, passaggi) o il contenuto: intestazione e CTA possono cambiare altezza.
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(onChange);
+    observer?.observe(panel);
+    viewport?.addEventListener("resize", onChange);
+    viewport?.addEventListener("scroll", onChange);
+    panel.addEventListener("focusin", onFocusIn);
     return () => {
-      viewport.removeEventListener("resize", update);
-      viewport.removeEventListener("scroll", update);
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(settle);
+      observer?.disconnect();
+      viewport?.removeEventListener("resize", onChange);
+      viewport?.removeEventListener("scroll", onChange);
+      panel.removeEventListener("focusin", onFocusIn);
     };
   }, [panelRef]);
 }

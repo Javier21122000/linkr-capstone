@@ -541,7 +541,7 @@ export function EventMap({ events, eventsReady, viewKey, selection, active, onSe
 
       {unavailable && (
         <div className="event-map__fallback" role="status">
-          <LinkrSymbol className="mb-3 size-12" />
+          <LinkrSymbol className="mb-3 h-12 w-auto" />
           <p className="text-lg font-extrabold text-ink">Mappa non disponibile</p>
           <p className="mt-2 max-w-sm text-sm leading-6 text-muted">
             {status === "missing-key"

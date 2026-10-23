@@ -118,3 +118,12 @@ qualita' e nessun decoder esposto a file ostili. E' una *lista di ammissione*: c
 7. **Frontend**: `imageUrl` e' un percorso relativo (`/api/...`). Con Vite funziona tramite il proxy `/api`; con frontend e API su
    domini diversi il frontend deve anteporre l'URL base dell'API quando `imageUrl` inizia per `/api/uploads/`.
 8. **Deploy**: dietro HTTPS la cartella deve stare su un volume persistente e con backup, altrimenti un nuovo deploy perde le immagini.
+
+## Persistenza su Render: diagnosi del 24/10/2026
+
+- **Dove:** `LINKR_UPLOAD_DIR=/data/uploads` (impostato nel `Dockerfile`), file in `/data/uploads/event-images/<uuid>.<ext>`; nel database resta solo l'URL relativo `/api/uploads/event-images/<uuid>.<ext>`.
+- **Sopravvivenza:** il filesystem del container è effimero. Con l'istanza Free (nessun disco persistente) le foto spariscono a ogni riavvio, deploy o risveglio dopo lo sleep. Il database continua a puntare a file che non esistono più.
+- **Verificato in produzione con sole `GET`:** delle 3 foto caricate da utenti presenti nell'elenco eventi, **3 su 3 rispondono già 404**. Le 48 copertine demo sono file del frontend e non sono interessate.
+- **URL:** stabili (UUID, `Cache-Control` di un anno e `immutable`), ma un URL stabile non aiuta se il file non c'è: i browser che l'hanno già scaricata la mostrano ancora, gli altri no. La pagina mostra la copertina della categoria al posto dell'immagine mancante.
+- **Rischio per una beta con utenti reali:** concreto e già avvenuto. Lo stesso vale, più in grande, per PostgreSQL Free (scade 30 giorni dopo la creazione e non ha backup, vedi `DEPLOY.md`).
+- **Soluzioni minime** (nessuna è implementata): (1) disco persistente Render montato su `/data/uploads` (solo infrastruttura, nessun codice, richiede un'istanza a pagamento, una sola istanza); (2) storage oggetti esterno (S3, R2, Cloudinary…) con credenziali nuove e un piccolo adattatore nel backend; (3) fino ad allora, sconsigliare o nascondere il caricamento foto e usare le copertine per categoria.

@@ -202,6 +202,19 @@
   padding: 0.6rem;
 }
 
+/*
+ * Tastiera aperta (`data-keyboard`, scritto da useFormKeyboardSupport): il documento si allunga quanto la tastiera, così anche l'ultimo campo
+ * si porta sopra di essa, e la CTA smette di galleggiare sopra i campi (resta in fondo al modulo). Alta specificità: `.page-with-mobile-nav`
+ * è in index.css, che viene dopo questo file.
+ */
+.event-form-page.page-with-mobile-nav[data-keyboard="open"] {
+  padding-bottom: calc(var(--kb-inset, 0px) + 2rem);
+}
+
+.event-form-page[data-keyboard="open"] .create-event-actions {
+  position: static;
+}
+
 .create-event-actions__hint {
   display: none;
   margin: 0;

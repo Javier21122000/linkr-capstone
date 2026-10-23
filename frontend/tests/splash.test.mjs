@@ -63,13 +63,67 @@ test("testi dell'overlay: dicono cosa succede e offrono di riprovare solo quando
   assert.match(mapLoadingMessage("loading", true), /più del previsto/);
 });
 
-test("CSS dello splash: movimento ridotto rispettato, una sola animazione infinita (il puntino), solo proprietà economiche", async () => {
+test("CSS dello splash: movimento ridotto rispettato, solo le due mani del loader girano all'infinito, solo proprietà economiche", async () => {
   const { readFile } = await import("node:fs/promises");
   const css = await readFile(new URL("../src/styles/splash.css", import.meta.url), "utf8");
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
   const infinite = css.match(/[^;{}]*\binfinite\b[^;{}]*/g) ?? [];
-  assert.equal(infinite.length, 2, "impulso del puntino: variante screen e variante panel");
-  for (const line of infinite) assert.match(line, /splash-pulse/);
+  assert.equal(infinite.length, 2, "avvicinamento delle mani: una animazione per mano, solo nel loader");
+  for (const line of infinite) assert.match(line, /splash-hands-/);
   const keyframes = css.match(/@keyframes[^{]+\{[\s\S]*?\n\}/g) ?? [];
   for (const block of keyframes) assert.doesNotMatch(block, /\b(width|height|top|left|margin|padding)\s*:/, "niente layout nei fotogrammi");
+});
+
+test("CSS dello splash: durata dell'introduzione tra 0,9 e 1,2 s e ciclo del loader di circa 1,4 s", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const css = await readFile(new URL("../src/styles/splash.css", import.meta.url), "utf8");
+  const toMs = (v, unit) => (unit === "s" ? Number(v) * 1000 : Number(v));
+  const anim = (name) => {
+    const m = css.match(new RegExp(`animation:\\s*${name}\\s+([\\d.]+)(ms|s)(?:[^;]*?\\s([\\d.]+)(ms|s))?`));
+    assert.ok(m, `animazione ${name} dichiarata`);
+    return { duration: toMs(m[1], m[2]), delay: m[3] ? toMs(m[3], m[4]) : 0 };
+  };
+  const hand = anim("splash-hand-top");
+  const word = anim("splash-word-in");
+  const total = Math.max(hand.delay + hand.duration, word.delay + word.duration);
+  assert.ok(total >= 900 && total <= 1200, `introduzione di ${total} ms`);
+  assert.equal(anim("splash-hands-top").duration, 1400);
+  assert.equal(anim("splash-hands-bottom").duration, 1400);
+});
+
+test("logo: tracciati vettoriali, nessun font né immagine incorporati e nessun testo SVG", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const read = (p) => readFile(new URL(p, import.meta.url), "utf8");
+  const paths = await read("../src/components/brand/brandPaths.ts");
+  assert.match(paths, /HAND_PATH\s*=\s*"M/);
+  assert.match(paths, /WORDMARK_PATH\s*=\s*"M/);
+  for (const file of ["../src/components/brand/LinkrLogo.tsx", "../src/components/ui/LinkrSplash.tsx", "../src/components/ui/BrandMark.tsx"]) {
+    const src = await read(file);
+    assert.doesNotMatch(src, /<text\b|<image\b|font-family|@font-face/, file);
+  }
+  for (const file of ["../public/brand/linkr-logo.svg", "../public/linkr-symbol.svg", "../public/favicon.svg"]) {
+    const svg = await read(file);
+    assert.match(svg, /<path /, file);
+    assert.doesNotMatch(svg, /<text\b|<image\b|font-family|href=/, file);
+  }
+});
+
+test("PWA: manifest con nome, colori e icone esistenti (PNG con le dimensioni dichiarate); head collegato", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const manifest = JSON.parse(await readFile(new URL("../public/manifest.webmanifest", import.meta.url), "utf8"));
+  assert.equal(manifest.name, "LINKR");
+  assert.equal(manifest.display, "standalone");
+  assert.equal(manifest.background_color, "#f3eee2");
+  assert.ok(manifest.icons.some((i) => i.purpose === "maskable"), "icona maskable");
+  for (const icon of manifest.icons) {
+    const buffer = await readFile(new URL(`../public${icon.src}`, import.meta.url));
+    assert.equal(buffer.subarray(1, 4).toString(), "PNG", icon.src);
+    const [w, h] = icon.sizes.split("x").map(Number);
+    assert.equal(buffer.readUInt32BE(16), w, `${icon.src} larghezza`);
+    assert.equal(buffer.readUInt32BE(20), h, `${icon.src} altezza`);
+  }
+  const apple = await readFile(new URL("../public/apple-touch-icon.png", import.meta.url));
+  assert.equal(apple.readUInt32BE(16), 180);
+  const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
+  for (const needle of ['rel="manifest"', 'rel="apple-touch-icon"', 'href="/favicon.svg"', "#f3eee2"]) assert.ok(html.includes(needle), needle);
 });

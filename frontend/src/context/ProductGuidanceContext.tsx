@@ -7,7 +7,7 @@ import { useLocation } from "react-router";
 import { CutoutWord } from "../components/editorial/CutoutWord";
 import { OnboardingPhoto } from "../components/editorial/scenes";
 import { useBootReady } from "../hooks/useBootReady";
-import { LinkrSymbol } from "../components/ui/BrandMark";
+import { LinkrHands, LinkrWordmark } from "../components/brand/LinkrLogo";
 import { isOnboardingComplete, markOnboardingComplete, placeTourCard, tourStartDelay, WELCOME_DELAY_MS } from "../lib/guidance";
 import type { Rect, TourPlacement } from "../lib/guidance";
 import { useAuth } from "./AuthContext";
@@ -145,7 +145,7 @@ function Onboarding({ step, onStep, onSkip, onFinish }: { readonly step: number;
   return (
     <Modal labelledBy="onboarding-title" describedBy="onboarding-copy" onClose={onSkip} className="onboarding-dialog" backdropClassName="guidance-backdrop--onboarding">
       <div className="ob-top">
-        <span className="ob-brand" aria-hidden="true"><LinkrSymbol className="size-7" /><span>LINKR</span></span>
+        <span className="ob-brand" aria-hidden="true"><LinkrHands className="h-7 w-auto" /><LinkrWordmark className="h-4 w-auto" /></span>
         <button className="guidance-skip" type="button" onClick={onSkip}>Salta<span className="sr-only"> onboarding</span></button>
       </div>
       <div className="ob-body">

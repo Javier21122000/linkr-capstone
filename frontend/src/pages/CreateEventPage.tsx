@@ -29,6 +29,7 @@ import {
 } from "../lib/eventForm";
 import type { EventFormErrors, EventFormValues } from "../lib/eventForm";
 import { getEvent, getEventsErrorMessage, isRequestCancelled } from "../lib/events";
+import { useFormKeyboardSupport } from "../hooks/useKeyboardInsets";
 import { toRomeLocalInput } from "../lib/romeTime";
 import { createBackState, readBackRequest } from "../lib/navigation";
 import type { EventCategory, EventDetail } from "../types/event";
@@ -97,6 +98,7 @@ function EventFormPage({ mode }: { readonly mode: "create" | "edit" }) {
   const back = readBackRequest(location.state);
   const { eventId } = useParams<{ eventId: string }>();
   const formRef = useRef<HTMLFormElement>(null);
+  const pageRef = useRef<HTMLDivElement>(null);
   const submittingRef = useRef(false);
   const isAdmin = user?.role === "ADMIN";
   const isEdit = mode === "edit";
@@ -287,6 +289,8 @@ function EventFormPage({ mode }: { readonly mode: "create" | "edit" }) {
   const returnState = !returnToAdmin && isEdit && back ? createBackState(back.context) : undefined;
   const returnLabel = returnToAdmin ? `Torna ad ${back.target.label}` : isEdit ? "Torna all’evento" : "Torna a Discover";
 
+  useFormKeyboardSupport(pageRef, !loading && !loadError);
+
   if (loading) {
     return <div className="page-shell page-with-mobile-nav py-20 text-center font-bold text-muted" aria-busy="true">Caricamento evento…</div>;
   }
@@ -309,7 +313,7 @@ function EventFormPage({ mode }: { readonly mode: "create" | "edit" }) {
   }
 
   return (
-    <div className="page-shell page-with-mobile-nav pb-16 pt-8 sm:pt-12 lg:pt-16">
+    <div ref={pageRef} className="page-shell page-with-mobile-nav event-form-page pb-16 pt-8 sm:pt-12 lg:pt-16">
       <Link className="inline-flex min-h-11 items-center gap-2 rounded-full font-extrabold text-ink" to={returnTo} state={returnState}>
         <ArrowLeft size={19} aria-hidden="true" /> {returnLabel}
       </Link>

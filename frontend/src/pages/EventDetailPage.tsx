@@ -1,4 +1,4 @@
-import { ArrowLeft, CalendarDays, Clock3, ExternalLink, MapPin, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { ArrowLeft, CalendarDays, Clock3, Compass, ExternalLink, MapPin, Pencil, RotateCcw, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "react-router";
 
@@ -8,12 +8,13 @@ import { CancelEventDialog } from "../components/events/CancelEventDialog";
 import { EventPeopleSection } from "../components/events/EventPeopleSection";
 import { EventParticipationPanel } from "../components/events/EventParticipationPanel";
 import { SourceBadge } from "../components/events/SourceBadge";
+import { ShareEventButton } from "../components/events/ShareEventButton";
 import { ViewOnMapLink } from "../components/events/ViewOnMapLink";
 import { EmptyEventsIllustration } from "../components/ui/EmptyEventsIllustration";
 import { useAuth } from "../context/AuthContext";
 import { categoryLabels, formatEventDate, formatEventTimeRange, isEventEnded } from "../lib/eventPresentation";
 import { cancelEvent, getCancelEventFailure } from "../lib/eventCreation";
-import { getEvent, getEventsErrorMessage, isRequestCancelled } from "../lib/events";
+import { getEvent, getEventsErrorMessage, isEventNotFound, isRequestCancelled } from "../lib/events";
 import { officialDetailsUrl, sourceLabel } from "../lib/eventSource";
 import { hasValidCoordinates } from "../lib/map";
 import { createBackState, readBackRequest } from "../lib/navigation";
@@ -23,7 +24,7 @@ import type { ParticipationResponse } from "../types/participation";
 type EventState =
   | { readonly status: "loading" }
   | { readonly status: "success"; readonly event: EventDetail }
-  | { readonly status: "error"; readonly message: string };
+  | { readonly status: "error"; readonly message: string; readonly notFound?: boolean };
 
 export function EventDetailPage() {
   const { eventId } = useParams<{ eventId: string }>();
@@ -83,7 +84,9 @@ export function EventDetailPage() {
       .then((event) => setEventState({ status: "success", event }))
       .catch((error: unknown) => {
         if (!isRequestCancelled(error)) {
-          setEventState({ status: "error", message: getEventsErrorMessage(error) });
+          setEventState(isEventNotFound(error)
+            ? { status: "error", notFound: true, message: "Questo evento non esiste più, è stato annullato oppure il link non è corretto." }
+            : { status: "error", message: getEventsErrorMessage(error) });
         }
       });
 
@@ -114,9 +117,15 @@ export function EventDetailPage() {
               <EmptyEventsIllustration className="mx-auto mb-5 w-48" />
               <h1 className="text-3xl font-extrabold tracking-[-0.045em] text-ink">Evento non disponibile</h1>
               <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-muted">{eventState.message}</p>
-              <button className="button-primary mt-6 inline-flex items-center gap-2" type="button" onClick={() => setRequestKey((current) => current + 1)}>
-                <RotateCcw size={17} aria-hidden="true" /> Riprova
-              </button>
+              {eventState.notFound ? (
+                <Link className="button-primary mt-6 inline-flex items-center gap-2" to="/">
+                  <Compass size={17} aria-hidden="true" /> Scopri altri eventi
+                </Link>
+              ) : (
+                <button className="button-primary mt-6 inline-flex items-center gap-2" type="button" onClick={() => setRequestKey((current) => current + 1)}>
+                  <RotateCcw size={17} aria-hidden="true" /> Riprova
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -189,14 +198,13 @@ export function EventDetailPage() {
               </li>
             </ul>
 
-            {/* Un evento annullato o finito non è più su Discover: l'azione non deve promettere un marker che non c'è. */}
-            {eventState.event.status === "PUBLISHED"
-              && !isEventEnded(eventState.event.startsAt, eventState.event.endsAt)
-              && hasValidCoordinates(eventState.event) ? (
-                <div className="mt-4">
-                  <ViewOnMapLink eventId={eventState.event.id} />
-                </div>
-              ) : null}
+            {/* Un evento annullato o finito non è più su Discover né ha senso invitare qualcuno: l'azione non promette un marker che non c'è. */}
+            {eventState.event.status === "PUBLISHED" && !isEventEnded(eventState.event.startsAt, eventState.event.endsAt) ? (
+              <div className="mt-4 flex flex-wrap items-start gap-3">
+                {hasValidCoordinates(eventState.event) ? <ViewOnMapLink eventId={eventState.event.id} /> : null}
+                <ShareEventButton event={eventState.event} />
+              </div>
+            ) : null}
 
             {officialDetailsUrl(eventState.event.source) ? (
               <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">

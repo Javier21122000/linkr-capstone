@@ -531,6 +531,35 @@
   text-underline-offset: 0.2em;
 }
 
+/* Condividi: solo l'icona, area di tocco 2.75rem come "Chi viene?"; il margine negativo la tiene dentro l'altezza della riga (la scheda non cresce). */
+.event-preview__share {
+  display: inline-grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex: 0 0 auto;
+  place-items: center;
+  margin-block: -0.5rem;
+  margin-inline: -0.2rem -0.35rem;
+  border-radius: 999px;
+  color: var(--color-linkr-strong);
+  touch-action: manipulation;
+}
+
+@media (hover: hover) {
+  .event-preview__share:hover {
+    background: var(--color-linkr-soft);
+  }
+}
+
+.event-preview__share:active {
+  background: var(--color-linkr-soft);
+}
+
+.event-preview__share:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 1px;
+}
+
 .event-preview__people-link:focus-visible {
   outline: 3px solid var(--color-focus);
   outline-offset: 1px;

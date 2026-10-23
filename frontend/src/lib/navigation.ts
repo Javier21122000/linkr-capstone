@@ -8,19 +8,30 @@ interface ReturnState {
   readonly from?: ReturnLocation;
 }
 
-export function getSafeReturnPath(state: unknown): string {
-  if (typeof state !== "object" || state === null || !("from" in state)) return "/";
+/** Un percorso interno all'app, mai un indirizzo esterno: parte da una sola "/", senza "\\", spazi o caratteri di controllo. */
+const UNSAFE_PATH_CHARS = /[\u0000-\u0020\u007f\\]/;
+
+/**
+ * Dove tornare dopo accesso o registrazione, se chi ha mandato all'accesso lo ha detto (`state.from`, la posizione che il router ha già).
+ * `null` = nessun ritorno valido. Un percorso esterno o malformato non è mai un ritorno valido: `//host`, `http://host`, `/\host`, `/login`.
+ */
+export function readReturnPath(state: unknown): string | null {
+  if (typeof state !== "object" || state === null || !("from" in state)) return null;
 
   const { from } = state as ReturnState;
-  if (!from || typeof from.pathname !== "string") return "/";
+  if (!from || typeof from.pathname !== "string") return null;
 
   const pathname = from.pathname;
-  if (!pathname.startsWith("/") || pathname.startsWith("//") || pathname.includes("\\")) return "/";
-  if (pathname === "/login" || pathname === "/register") return "/";
+  if (!pathname.startsWith("/") || pathname.startsWith("//") || UNSAFE_PATH_CHARS.test(pathname)) return null;
+  if (pathname === "/login" || pathname === "/register") return null;
 
-  const search = typeof from.search === "string" && from.search.startsWith("?") ? from.search : "";
-  const hash = typeof from.hash === "string" && from.hash.startsWith("#") ? from.hash : "";
+  const search = typeof from.search === "string" && from.search.startsWith("?") && !UNSAFE_PATH_CHARS.test(from.search) ? from.search : "";
+  const hash = typeof from.hash === "string" && from.hash.startsWith("#") && !UNSAFE_PATH_CHARS.test(from.hash) ? from.hash : "";
   return `${pathname}${search}${hash}`;
+}
+
+export function getSafeReturnPath(state: unknown): string {
+  return readReturnPath(state) ?? "/";
 }
 
 const EVENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

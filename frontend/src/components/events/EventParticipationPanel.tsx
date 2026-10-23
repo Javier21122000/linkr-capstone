@@ -1,7 +1,7 @@
 import axios from "axios";
 import { CheckCircle2, Heart, RotateCcw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 
 import { useAuth } from "../../context/AuthContext";
 import { useMyParticipations } from "../../context/MyParticipationsContext";
@@ -173,7 +173,17 @@ export function EventParticipationPanel({ eventId, startsAt, endsAt, onParticipa
           ) : null}
 
           {status === "anonymous" && !ended ? (
-            <p className="mt-4 text-sm leading-6 text-muted">Accedi per indicare se questo evento ti interessa o se parteciperai.</p>
+            <div className="mt-4">
+              <p className="text-sm leading-6 text-muted">Accedi o crea un account per indicare se questo evento ti interessa o se parteciperai: tornerai subito qui.</p>
+              {/* Il ritorno all'evento viaggia nello stato della navigazione (vedi `readReturnPath`): vale anche per "Crea account". */}
+              <div className="mt-1 flex flex-wrap gap-x-5">
+                {([["/login", "Accedi"], ["/register", "Crea account"]] as const).map(([to, label]) => (
+                  <Link key={to} className="inline-flex min-h-11 items-center font-extrabold text-ink underline decoration-linkr/50 underline-offset-4" to={to} state={{ from: location }}>
+                    {label}
+                  </Link>
+                ))}
+              </div>
+            </div>
           ) : null}
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2">

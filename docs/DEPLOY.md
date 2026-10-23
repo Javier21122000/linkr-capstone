@@ -109,7 +109,7 @@ Vite le **incorpora nel bundle durante la build**: cambiarle richiede un nuovo d
 | `VITE_MAPTILER_KEY` | la chiave pubblica MapTiler |
 | `NODE_VERSION` | `24.15.0` (la versione con cui è stato provato; Vite 8 richiede Node ≥ 20.19 / 22.12) |
 
-`VITE_MAP_STYLE` resta vuota. Il WebSocket usa la stessa `VITE_API_BASE_URL`: `https://…` diventa `wss://…/ws`, `http://…` diventa `ws://…/ws` (nessuna impostazione a parte).
+`VITE_MAP_STYLE` resta vuota. `VITE_PUBLIC_SITE_URL` (facoltativa) è l'origine pubblica dei link di invito agli eventi, es. `https://linkr-web.onrender.com`: se manca si usa quella da cui il sito è aperto, purché sia pubblica (vedi [`CONDIVISIONE-EVENTI.md`](CONDIVISIONE-EVENTI.md)). Il WebSocket usa la stessa `VITE_API_BASE_URL`: `https://…` diventa `wss://…/ws`, `http://…` diventa `ws://…/ws` (nessuna impostazione a parte).
 
 ### Rewrite per il routing React
 

@@ -7,7 +7,7 @@ import { FormField } from "../components/auth/FormField";
 import { PasswordField } from "../components/auth/PasswordField";
 import { useAuth } from "../context/AuthContext";
 import { getAuthRequestErrorMessage, getProblemDetail, register } from "../lib/auth";
-import { getSafeReturnPath } from "../lib/navigation";
+import { getSafeReturnPath, readReturnPath } from "../lib/navigation";
 
 interface RegistrationValues {
   readonly displayName: string;
@@ -90,7 +90,10 @@ export function RegisterPage() {
       });
       registrationSucceededRef.current = true;
       authenticate(response);
-      navigate("/profile/interests", { replace: true, state: { onboarding: true } });
+      // Chi arriva da un invito (o da qualunque pagina che chiedeva l'accesso) torna lì: la scelta degli interessi resta raggiungibile dal profilo.
+      const returnPath = readReturnPath(location.state);
+      if (returnPath) navigate(returnPath, { replace: true });
+      else navigate("/profile/interests", { replace: true, state: { onboarding: true } });
     } catch (error) {
       const problem = getProblemDetail(error);
       if (problem?.status === 409) {

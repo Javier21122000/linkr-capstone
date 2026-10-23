@@ -44,6 +44,14 @@ export function isRequestCancelled(error: unknown): boolean {
   return axios.isCancel(error);
 }
 
+/**
+ * L'evento non c'è: id inesistente, oppure annullato e quindi non più pubblico (per chi non ha accesso il servizio risponde 404).
+ * Anche un id che non è un UUID (link tagliato o copiato male): il servizio risponde 400 e per chi legge è lo stesso caso.
+ */
+export function isEventNotFound(error: unknown): boolean {
+  return axios.isAxiosError(error) && (error.response?.status === 404 || error.response?.status === 400);
+}
+
 export function getEventsErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
     if (!error.response) {

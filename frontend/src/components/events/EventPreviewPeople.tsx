@@ -1,5 +1,6 @@
 import { UsersRound } from "lucide-react";
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import { Link } from "react-router";
 
 import { useAuth } from "../../context/AuthContext";
@@ -17,13 +18,15 @@ interface EventPreviewPeopleProps {
   readonly eventId: string;
   /** L'API mostra le persone solo a chi ha dichiarato la propria partecipazione: senza, non si chiede nulla. */
   readonly hasParticipation: boolean;
+  /** Azione in coda alla riga (oggi: Condividi). */
+  readonly trailing?: ReactNode;
 }
 
 /**
  * Riga social dell'anteprima: avatar sovrapposti e conteggio di chi ha scelto di essere visibile. Si carica solo per l'evento selezionato
  * (l'anteprima si monta per un evento alla volta) e solo se l'utente ha già risposto; in ogni altro caso il testo dice la verità, senza numeri.
  */
-export function EventPreviewPeople({ eventId, hasParticipation }: EventPreviewPeopleProps) {
+export function EventPreviewPeople({ eventId, hasParticipation, trailing }: EventPreviewPeopleProps) {
   const { status, authorizedRequest } = useAuth();
   const [state, setState] = useState<PreviewPeopleState>({ status: "loading" });
   const canLoad = status === "authenticated" && hasParticipation;
@@ -62,6 +65,7 @@ export function EventPreviewPeople({ eventId, hasParticipation }: EventPreviewPe
       )}
       <span className="event-preview__people-text">{message}</span>
       <Link className="event-preview__people-link" to={`/events/${eventId}`}>Chi viene?</Link>
+      {trailing}
     </div>
   );
 }

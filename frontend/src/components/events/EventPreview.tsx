@@ -13,6 +13,7 @@ import type { ParticipationStatus } from "../../types/participation";
 import { CategoryDisc } from "./CategoryIcon";
 import { EventImage } from "./EventImage";
 import { EventPreviewPeople } from "./EventPreviewPeople";
+import { ShareEventIconButton } from "./ShareEventButton";
 import { ParticipationChip } from "./ParticipationIndicator";
 import { SourceBadge } from "./SourceBadge";
 
@@ -130,7 +131,7 @@ export function EventPreview({ event, participation, leaving = false, onClose, o
         </span>
       </button>
 
-      <EventPreviewPeople eventId={event.id} hasParticipation={participation !== undefined} />
+      <EventPreviewPeople eventId={event.id} hasParticipation={participation !== undefined} trailing={<ShareEventIconButton event={event} onFeedback={onFeedback} />} />
 
       <div className="event-preview__actions" aria-busy={busy} onClick={stopCardInteraction} onPointerDown={stopCardInteraction}>
         <button

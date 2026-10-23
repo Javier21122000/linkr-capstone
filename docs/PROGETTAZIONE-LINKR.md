@@ -1,4 +1,4 @@
-# PROGETTAZIONE — LINKR CAPSTONE
+# PROGETTAZIONE — LINKR
 
 ## DESCRIZIONE
 
@@ -10,14 +10,10 @@ L'applicazione permette di scoprire eventi a Milano,
 visualizzarli su una mappa, partecipare e conoscere
 altri utenti interessati alle stesse esperienze.
 
-Concept:
+Il prodotto riunisce la scoperta degli eventi, la partecipazione
+e le connessioni tra persone in un unico flusso.
 
-"Discover what's happening.
-Find your people.
-Go together."
-
-La versione Capstone rappresenta un MVP didattico
-della futura piattaforma LINKR.
+La versione corrente rappresenta un MVP di LINKR.
 
 ---
 
@@ -37,9 +33,10 @@ Dipendenze principali:
 - Lombok
 - Spring Boot DevTools
 - Spring Validation
-- Spring Security (previsto)
-- Spring Security BCrypt (previsto)
-- Spring Security JWT (previsto)
+- Spring Security
+- BCrypt per le password
+- OAuth2 Resource Server per la validazione JWT
+- Spring WebSocket / STOMP
 - Flyway
 - Spring Boot Test
 
@@ -55,7 +52,7 @@ Dipendenze principali:
 
 ## Database
 
-- PostgreSQL 18
+- PostgreSQL
 - pgAdmin / Postgres.app
 - Flyway per le migrazioni
 
@@ -113,7 +110,7 @@ Si utilizzano DTO di input e output.
 
 Rappresenta un utente registrato.
 
-Campi previsti:
+Campi principali:
 
 - id: UUID
 - username: String (unique)
@@ -192,7 +189,7 @@ Funzionalità:
 - Filtri per categoria
 - Filtri per data
 - Visualizzazione geografica
-- Creazione e modifica eventi (previste)
+- Creazione, modifica ed eliminazione dei propri eventi
 
 Solo gli eventi pubblicati sono visibili pubblicamente.
 
@@ -202,12 +199,12 @@ Solo gli eventi pubblicati sono visibili pubblicamente.
 
 Rappresenta la partecipazione di un utente a un evento.
 
-Campi previsti:
+Campi principali:
 
 - id: UUID
 - userId: FK -> USER
 - eventId: FK -> EVENT
-- status: Enum GOING / CANCELLED
+- status: Enum INTERESTED / GOING
 - createdAt: Instant
 
 Vincolo:
@@ -230,7 +227,7 @@ allo stesso evento.
 
 Rappresenta una richiesta di connessione.
 
-Campi previsti:
+Campi principali:
 
 - id: UUID
 - senderId: FK -> USER
@@ -411,7 +408,7 @@ sul nome prima dell'esecuzione di Flyway.
 
 # FRONTEND
 
-Pagine previste:
+Pagine principali:
 
 - Discover
 - Dettaglio evento
@@ -422,6 +419,9 @@ Pagine previste:
 - Profilo pubblico
 - Eventi a cui partecipo
 - Richieste Link
+- Conversazioni e chat privata
+- Gestione dei propri eventi
+- Amministrazione
 
 Componenti:
 
@@ -436,7 +436,7 @@ Componenti:
 - LoadingState
 - ErrorState
 
-L'interfaccia sarà responsive e mobile-first.
+L'interfaccia è responsive e mobile-first.
 
 ---
 

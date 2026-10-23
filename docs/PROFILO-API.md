@@ -41,7 +41,19 @@ La risposta contiene solo dati pubblici: `userId`, `username`, `displayName`, `b
 
 ## Frontend
 
-`frontend/src/lib/profile.ts` contiene il client (`updateProfile`, `getPublicProfile`) e i tipi. Il cablaggio nella UI (pannello "Modifica profilo" in `ProfilePage`, pagina profilo pubblico, rotta in `App.tsx`) non è ancora fatto.
+`frontend/src/lib/profile.ts` contiene il client (`updateProfile`, `getPublicProfile`) e i tipi. La pagina del profilo pubblico (`pages/PublicProfilePage.tsx`, rotta `/people/:personId`, protetta: chi non ha una sessione passa da `/login` e torna al profilo) mostra anche l'azione Link, nello stato che il servizio restituisce in `linkStatus`:
+
+| `linkStatus` | Che cosa si vede |
+|---|---|
+| `NONE`, con almeno un interesse in comune | «Invia Link» |
+| `NONE`, senza interessi in comune | la spiegazione (senza, il servizio risponde `404` uniforme: il pulsante sarebbe inutile) |
+| `OUTGOING_PENDING` | «Richiesta inviata» (nessun secondo invio) |
+| `INCOMING_PENDING` con `linkRequestId` | «Richiesta ricevuta» e «Accetta Link» |
+| `INCOMING_DECLINED` | «Richiesta archiviata» |
+| `ACCEPTED` | «Siete collegati» e «Scrivi un messaggio» (la conversazione ha lo stesso identificativo di `linkRequestId`) |
+| il proprio profilo | nessuna azione Link |
+
+Le chiamate sono le stesse di Scopri persone (`hooks/useLinkActions.ts`, usato da entrambe le pagine; la logica di stato pura sta in `lib/linkState.ts`): un invio non porta `eventId`, quindi valgono la reciprocità di visibilità (`403 Discovery required`: il profilo rimanda a Scopri persone, dove la scelta di comparire resta dell'utente) e l'interesse in comune. Una sola richiesta per persona alla volta: un doppio clic non ne spedisce due. Se il servizio risponde che lo stato mostrato non è più valido (`409` richiesta già presente o già gestita, `404`), il profilo si rilegge in silenzio, senza scheletro di caricamento, e mostra lo stato vero.
 
 ## Verifica manuale
 

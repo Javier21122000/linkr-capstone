@@ -49,6 +49,29 @@ Comportamento attuale (`data-status` su `.event-map`: `loading`, `ready`, `recov
 - Se la mappa è lenta (oltre 20 s) si continua ad aspettare, ma compare «Riprova».
 - Nessuna richiesta a MapTiler fuori da Discover: il `preconnect` non è più in `index.html` ma lo aggiunge `main.tsx` solo quando la pagina aperta è `/`. Lo stesso controllore serve `EventLocationPicker`.
 
+### Canvas rimasto di 400×300 dopo il ritorno su Discover (`lib/mapSize.ts`, `EventMap.tsx`)
+
+Sintomo (segnalato su Safari): la cartografia compare solo in un rettangolo piccolo, in alto a sinistra, e il resto dell'area mappa resta vuoto. Lo stato dichiarato è `ready` (la mappa disegna qualcosa e non c'è nessun errore di tasselli), quindi nessun recupero scatta.
+
+**Riprodotto, non solo ipotizzato**, su WebKit 27.2 (build di Playwright: Safari 27.0.1 non è pilotabile finché «Allow remote automation» è spento nelle impostazioni Sviluppatore). Sequenze casuali ripetibili (con seme) di resize e di passaggi Discover ↔ altra pagina (clic, `back`, `forward`), con la mappa in produzione. Uno stato conta come difetto solo se **persiste** oltre 2 s da quando l'host è tornato visibile. Build di partenza: 1 sequenza su 170 (sempre la stessa, seme 1107, 4 volte su 4) e 2 iterazioni su 220 nello stress mirato. Build corretto: 0 su 170 e 0 su 220.
+
+**Causa, dimostrata con una traccia** (consegne del `ResizeObserver`, scritture di `canvas.width` con la pila delle chiamate, timer da 50 ms):
+
+1. Fuori da `/` Discover è `hidden` (`display: none`): il contenitore misura 0×0 e, se MapLibre ridimensiona in quel momento, `_containerDimensions()` ripiega su 400×300.
+2. MapLibre non ascolta `window.resize`: usa solo il proprio `ResizeObserver`, che chiama `resize()` tramite un throttle da 50 ms (una chiamata subito e una finale con `setTimeout`). La chiamata finale può scattare, spesso in ritardo perché il thread è occupato, **mentre Discover è di nuovo nascosto**.
+3. Se Discover torna visibile prima che il browser disegni un fotogramma, per il `ResizeObserver` la dimensione è identica all'ultima notificata e **non notifica più**: né l'osservatore di MapLibre né quello dell'app. Altri osservatori della pagina continuano a ricevere notifiche; quello del contenitore della mappa no. Il canvas resta a 400×300.
+
+**Correzione**, additiva (`EventMap.tsx`): 200 ms dopo ogni ritorno di Discover (`active` → `true`) si confronta il canvas con il contenitore; se il contenitore è visibile e le dimensioni differiscono di più di 1 px si chiama `map.resize()` (`canvasNeedsResize`, funzione pura con test). Stessa istanza, nessun tentativo né ricreazione, nessuna copertura della mappa; selezione, inquadratura, camera e marker non si toccano (il marcatore selezionato atterra nello stesso punto prima e dopo, anche dopo un ciclo nascondi/mostra). Nel caso normale il `ResizeObserver` ha già riallineato la mappa e il controllo non fa nulla.
+
+**Non verificato**: Safari vero. Il sintomo segnalato potrebbe avere un altro innesco (per esempio una scheda in secondo piano); il controllo riallinea comunque il canvas a ogni ritorno su Discover. Se si ripresenta, per diagnosticarlo servono questi valori dalla console di Safari:
+
+```js
+const c = document.querySelector(".event-map__canvas"), cv = c?.querySelector("canvas");
+console.table({ finestra: `${innerWidth}×${innerHeight}`, dpr: devicePixelRatio, contenitore: c && `${c.clientWidth}×${c.clientHeight}`,
+  canvasCss: cv && `${cv.style.width}×${cv.style.height}`, canvasBuffer: cv && `${cv.width}×${cv.height}`,
+  hostNascosto: document.querySelector(".discover-host")?.hidden, stato: document.querySelector(".event-map")?.dataset.status });
+```
+
 ## Ambient Map (`components/layout/AmbientMap.tsx`, `AppShell.tsx`)
 
 Decisione: **sfondo cartografico stilizzato derivato dai token**, non una seconda mappa e non la mappa di Discover riusata.
@@ -120,7 +143,7 @@ La textarea cresce automaticamente fino a 144px. Un `ResizeObserver` conserva il
 
 ```bash
 cd frontend
-npm test            # 85 test: luoghi MapTiler, fuso di Milano, orari, navigazione, ALT, scroll chat, salute e recupero della mappa, guida
+npm test            # 144 test: luoghi MapTiler, fuso di Milano, orari, navigazione, ALT, scroll chat, salute e recupero della mappa, guida, stato Link del profilo pubblico, dimensione della mappa
 npm run typecheck
 npm run build
 ```

@@ -133,7 +133,7 @@ descrizione e sede) e gli `excludedSamples` per capire se i motivi di esclusione
 
 Questa nota non e' una consulenza legale: sono i punti da **verificare sui termini attuali** del portale sviluppatori di Ticketmaster prima di importare o mostrare dati.
 
-1. **Condizioni d'uso dell'API:** uso consentito per un progetto Capstone vs. uso commerciale; limiti sulla conservazione (cache/archivio) dei dati degli eventi e sul loro aggiornamento; obbligo di rimuovere o aggiornare eventi cancellati.
+1. **Condizioni d'uso dell'API:** uso consentito in un ambiente dimostrativo rispetto all'uso commerciale; limiti sulla conservazione (cache/archivio) dei dati degli eventi e sul loro aggiornamento; obbligo di rimuovere o aggiornare eventi cancellati.
 2. **Attribuzione e link:** probabile obbligo di indicare la fonte e di rimandare all'annuncio originale (per questo `event_source.source_url` esiste gia' in V9). Non e' ancora deciso come mostrarlo nell'interfaccia.
 3. **Biglietti:** LINKR non li vende; se mostra un link di acquisto, deve portare a Ticketmaster senza alterarlo. Non e' ancora deciso se mostrarlo.
 4. **Immagini:** escluse in questa fase. Prima di usarle serve capire licenza, hotlink vs. copia e attribuzione.

@@ -1,4 +1,4 @@
-# Pubblicare LINKR su Render — procedura per il Capstone
+# Pubblicare LINKR su Render
 
 Tutto su Render, tre servizi nella stessa regione (consigliata **Frankfurt**, la più vicina a Milano):
 
@@ -105,7 +105,7 @@ Vite le **incorpora nel bundle durante la build**: cambiarle richiede un nuovo d
 
 | Variabile | Valore |
 |---|---|
-| `VITE_API_BASE_URL` | `https://linkr-api.onrender.com` — URL assoluto con `https://`, senza percorso |
+| `VITE_API_BASE_URL` | `https://linkr-api-9ezt.onrender.com` — URL assoluto con `https://`, senza percorso |
 | `VITE_MAPTILER_KEY` | la chiave pubblica MapTiler |
 | `NODE_VERSION` | `24.15.0` (la versione con cui è stato provato; Vite 8 richiede Node ≥ 20.19 / 22.12) |
 
@@ -130,7 +130,7 @@ Con l'URL definitivo del frontend, torna sul backend → **Environment** → imp
 Nei log del backend (**Logs**): `Database check passed`, le migrazioni Flyway, `Started BackendApplication`. Il primo avvio su Free può impiegare 1–2 minuti.
 
 ```bash
-API=https://linkr-api.onrender.com
+API=https://linkr-api-9ezt.onrender.com
 WEB=https://linkr-web.onrender.com
 
 curl -s $API/api/health                       # {"status":"UP","application":"LINKR","service":"backend"}
@@ -163,7 +163,7 @@ Verificati sulla [documentazione Render](https://render.com/docs/free) il 22/10/
 - **Web Service Free va in sleep dopo 15 minuti senza traffico** e si risveglia in circa un minuto (qui anche JVM, Flyway e seed). Il client ha un timeout di 10 s (`frontend/src/lib/api.ts`): se apri l'app a freddo, le prime chiamate falliscono o la mappa resta vuota.
   **Procedura demo:** 10 minuti prima di presentare apri `$API/api/health` e naviga l'app finché Discover mostra gli eventi. Un piano a pagamento per il backend elimina lo sleep (prezzo da verificare sul sito Render).
 - **Filesystem effimero**: le foto caricate dagli utenti spariscono a ogni riavvio, deploy o sleep (un disco persistente non è disponibile sul Free). La pagina mostra un'immagine rotta. Le copertine e gli avatar demo non sono toccati: stanno nel frontend (`/demo/…`). Non basare la demo su foto caricate prima. Con un disco a pagamento: montalo su `/data`; l'utente del container non è root, quindi verifica che `/data/uploads` sia scrivibile.
-- **PostgreSQL Free scade 30 giorni dopo la creazione** e non ha backup: va bene per il Capstone, non come servizio permanente.
+- **PostgreSQL Free scade 30 giorni dopo la creazione** e non ha backup: è adatto a un ambiente dimostrativo temporaneo, non a un servizio permanente.
 - **Auto-deploy**: ogni push su `main` ridistribuisce i servizi. Prima della presentazione disattivalo (Settings → Build & Deploy → Auto-Deploy: Off) per non avere un deploy a metà demo.
 - Il JWT dura 2 ore e non c'è refresh token: fai il login poco prima di presentare.
 - Memoria del Free: limitata (indicativamente 512 MB). Il backend è configurato per restarci (`JAVA_OPTS`); se Render segnala "out of memory" nei log, abbassa `-XX:MaxRAMPercentage` in `JAVA_OPTS`.
@@ -180,10 +180,10 @@ Verificati sulla [documentazione Render](https://render.com/docs/free) il 22/10/
 
 ### Intestazioni di sicurezza (facoltativo)
 
-Static Site → **Headers**, percorso `/*`. La CSP seguente è stata provata sul bundle di produzione con frontend e API sullo stesso dominio; **con il backend su un altro dominio non è stata provata**: `connect-src` deve elencare l'API (HTTPS e WSS). Provala con la console aperta e, se blocca qualcosa, toglila: non è indispensabile per il Capstone.
+Static Site → **Headers**, percorso `/*`. La CSP seguente è stata provata sul bundle di produzione con frontend e API sullo stesso dominio; **con il backend su un altro dominio non è stata provata**: `connect-src` deve elencare l'API (HTTPS e WSS). Provala con la console aperta e, se blocca qualcosa, toglila finché la configurazione non è stata verificata.
 
 ```
-Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://linkr-api.onrender.com wss://linkr-api.onrender.com https://api.maptiler.com; worker-src 'self' blob:; child-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://linkr-api-9ezt.onrender.com wss://linkr-api-9ezt.onrender.com https://api.maptiler.com; worker-src 'self' blob:; child-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
 X-Content-Type-Options: nosniff
 Referrer-Policy: strict-origin-when-cross-origin
 Permissions-Policy: camera=(self), microphone=(), geolocation=()

@@ -96,7 +96,7 @@ qualita' e nessun decoder esposto a file ostili. E' una *lista di ammissione*: c
   `Content-Security-Policy: default-src 'none'; sandbox`, `Cross-Origin-Resource-Policy: cross-origin`,
   `Cache-Control: public, max-age=31536000, immutable`.
 
-## Limiti residui (noti e accettati per il Capstone)
+## Limiti residui noti
 
 1. **Immagini caricate PRIMA della rimozione dei metadati.** Le nuove immagini sono ripulite (vedi sopra); quelle gia' nello
    storage no. Prima della pubblicazione: o si usa uno storage vuoto, oppure si ripuliscono i file esistenti con una procedura

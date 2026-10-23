@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import { categoryLabels } from "../../lib/eventPresentation";
 import { resolveEventImageUrl } from "../../lib/eventImages";
 import type { EventCategory } from "../../types/event";
@@ -14,14 +16,18 @@ interface EventImageProps {
 }
 
 export function EventImage({ imageUrl, imageAlt, category, className = "", loading = "lazy", compact = false }: EventImageProps) {
-  if (imageUrl) {
+  const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
+  const resolvedUrl = imageUrl?.trim() ? resolveEventImageUrl(imageUrl) : null;
+
+  if (resolvedUrl && failedImageUrl !== resolvedUrl) {
     return (
       <img
-        src={resolveEventImageUrl(imageUrl)}
+        src={resolvedUrl}
         alt={imageAlt ?? ""}
         className={className}
         loading={loading}
         fetchPriority={loading === "eager" ? "high" : "auto"}
+        onError={() => setFailedImageUrl(resolvedUrl)}
       />
     );
   }

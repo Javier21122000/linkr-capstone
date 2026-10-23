@@ -12,13 +12,13 @@ export function NotFoundPage() {
         </div>
         <p className="mt-16 text-sm font-extrabold uppercase tracking-[0.16em] text-linkr-strong">404</p>
         <h1 className="mt-3 text-5xl font-extrabold leading-[0.96] tracking-[-0.06em] sm:text-7xl">
-          This plan went off-route.
+          Questo piano è andato fuori rotta.
         </h1>
         <p className="mx-auto mt-6 max-w-md text-base leading-7 text-muted">
-          The page does not exist, but the city is still full of things worth doing.
+          La pagina non esiste, ma la città è ancora piena di cose da fare.
         </p>
         <Link to="/" className="button-primary mt-8 inline-flex items-center gap-2">
-          <ArrowLeft size={18} aria-hidden="true" /> Back to Discover
+          <ArrowLeft size={18} aria-hidden="true" /> Torna alla scoperta
         </Link>
       </div>
     </main>

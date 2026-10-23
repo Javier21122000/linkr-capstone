@@ -62,3 +62,42 @@ Prima di (2) vale la pena produrre le copertine demo anche in PNG/WebP, altrimen
 5. Ripeti dalla schermata Home (web app): stesso foglio di condivisione; l'accesso e il ritorno funzionano nella stessa finestra.
 6. Da Discover, sulla mappa: tocca un evento → icona di condivisione nella riga «Chi viene?» → senza foglio di sistema compare «Link copiato».
 7. Evento annullato o link errato (cambia una cifra dell'id): stato «Evento non disponibile» con «Scopri altri eventi».
+
+## Inviti sociali («Evento condiviso da [nome]»)
+
+Il link dell'evento può portare `?i=<token>`: un token firmato dal backend che dice **chi ha condiviso quell'evento**. Non dice che quella persona abbia invitato chi lo riceve. Il link senza token, o con un token scaduto, alterato o inventato, apre l'evento esattamente come prima.
+
+### Endpoint
+
+| Endpoint | Chi | Cosa |
+|---|---|---|
+| `POST /api/events/{id}/invites` | autenticato | emette il token **a nome di chi chiama** (nessun parametro permette un altro mittente); evento pubblicato e non finito. Risposta: `{ token, expiresAt }` |
+| `GET /api/invites/{token}` | autenticato | `{ eventId, sender: { displayName, avatarUrl }, linkStatus, linkRequestId }`. 404 uniforme in ogni altro caso |
+| `POST /api/invites/{token}/link-request` | autenticato | richiesta Link **PENDING** al mittente (201, `LinkRequestResponse`); il mittente deve accettare |
+
+Nessuna tabella, nessuna migrazione, nessuna nuova configurazione.
+
+### Token
+
+`base64url(versione | eventId | senderId | scadenza)` + `.` + `base64url(HMAC-SHA256)`: 41 byte di dati e 32 di firma (~100 caratteri). Scade **30 giorni** dopo l'emissione ed è legato a un solo evento e a un solo mittente. La firma si verifica a tempo costante. La chiave **non è il segreto del JWT**: è ricavata da esso con HKDF-SHA256 (RFC 5869, verificato con i vettori di prova) e l'etichetta `linkr/invite-token/v1`. Un token d'invito non vale come JWT né viceversa. Cambiare `LINKR_JWT_SECRET` invalida anche gli inviti già condivisi. L'UUID del mittente sta nei dati del token (non cifrato): è un identificativo, non un'identità; il nome si ottiene solo da `GET /api/invites/{token}`.
+
+### Chi vede cosa
+
+- **Mittente anonimo:** nessun token, nessun banner, nessuna identità.
+- **Destinatario anonimo:** vede l'evento. Non si chiede e non si mostra nulla sul mittente (nessuna chiamata a `/api/invites`).
+- **Destinatario autenticato** (anche appena registrato: dopo registrazione e accesso si torna all'evento *con* `?i=`): se il mittente è **visibile** (Discover People attivo), l'evento non è finito né annullato e chi guarda non è il mittente, compare «Evento condiviso da [nome]» (nome e avatar, mai email, username, bio, interessi). Altrimenti niente scheda.
+- **Link:** la scheda propone «Connettiti con [nome]» solo se non esiste nulla; mostra «Richiesta Link inviata» (in attesa), «[nome] ti ha inviato una richiesta Link» (con rimando a «I miei Link»), «siete già collegati»; un rifiuto non si ripropone. La richiesta parte solo dal tocco sul pulsante, è sempre separata da «Parteciperò» e non blocca né l'evento né la registrazione.
+
+### Regola Link aggiunta (e perché)
+
+Un invitato appena iscritto non è visibile, non partecipa e non ha interessi in comune: le regole esistenti (`POST /api/link-requests`) gli impedirebbero di inviare qualunque richiesta. `LinkRequestService.sendFromInvite` aggiunge **un solo** percorso, stretto: token valido (firma, 30 giorni, evento pubblicato e non finito), mittente esistente e **visibile al momento dell'invio**, chi chiama diverso dal mittente. Restano invariati anti-spam (10 al giorno, 20 senza risposta → 429), una sola richiesta per coppia in qualunque direzione (409), privacy del rifiuto, e il mittente deve accettare. Non cambia Discover People né le altre due modalità di invio. Il link può essere inoltrato: chi lo riceve vede le stesse due informazioni (nome e avatar) e può al più chiedere un Link al mittente, con gli stessi limiti.
+
+### Condivisione
+
+Per gli utenti autenticati il token si richiede **prima** del tocco (all'apertura dell'evento, una volta per utente ed evento) perché `navigator.share` su Safari iOS deve partire sincrono nel gesto. Se non è ancora pronto, o la richiesta fallisce, si condivide il link semplice.
+
+### Rischi e limiti noti
+
+- Chi riceve il link può inoltrarlo: vedrà «Evento condiviso da [nome]» anche chi non conosce il mittente. Il mittente decide ogni volta se condividere; può togliere la visibilità per smettere di comparire.
+- Un token non si revoca singolarmente (solo cambiando il segreto, che disconnette tutti), né si conta quante volte è stato usato.
+- Il nome compare solo a chi è autenticato (scelta prudente, non richiesta dal vincolo): per mostrarlo anche agli anonimi basterebbe togliere l'autenticazione da `GET /api/invites/{token}`, ma servirebbe una decisione esplicita sulla privacy.

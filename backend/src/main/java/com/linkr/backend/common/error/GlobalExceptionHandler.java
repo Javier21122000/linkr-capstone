@@ -30,6 +30,7 @@ import com.linkr.backend.event.EventNotFoundException;
 import com.linkr.backend.event.InvalidEventException;
 import com.linkr.backend.event.InvalidEventFilterException;
 import com.linkr.backend.interest.InvalidInterestSelectionException;
+import com.linkr.backend.invite.InviteNotFoundException;
 import com.linkr.backend.linkrequest.LinkRequestException;
 import com.linkr.backend.participation.EventEndedException;
 import com.linkr.backend.participation.ParticipationNotFoundException;
@@ -116,6 +117,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 	public ProblemDetail handleLinkRequest(LinkRequestException ex) {
 		ProblemDetail problem = ProblemDetail.forStatusAndDetail(ex.getStatus(), ex.getMessage());
 		problem.setTitle(ex.getTitle());
+		return problem;
+	}
+
+	/** Invito non utilizzabile: un solo 404, senza dire se e' alterato, scaduto, privato o dell'utente stesso. */
+	@ExceptionHandler(InviteNotFoundException.class)
+	public ProblemDetail handleInviteNotFound(InviteNotFoundException ex) {
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+		problem.setTitle("Invitation not available");
 		return problem;
 	}
 

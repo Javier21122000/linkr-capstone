@@ -3,6 +3,8 @@
  * Nessuna dipendenza dal DOM o da React: tutto ciò che tocca il browser arriva da `ShareEnvironment`, quindi si prova con `node --test`.
  */
 
+import { INVITE_PARAM, isInviteToken } from "./inviteToken.ts";
+
 const EVENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Nomi che non raggiungono nessun altro dispositivo: un invito con quell'indirizzo non si aprirebbe a chi lo riceve. */
 const NON_PUBLIC_HOST = /(^|\.)(localhost|local|internal|lan|home|test|invalid|example|localdomain)$/i;
@@ -31,11 +33,16 @@ export function resolveShareOrigin(configured: string | null | undefined, curren
   return toPublicOrigin(configured) ?? toPublicOrigin(current);
 }
 
-/** Indirizzo canonico e stabile dell'evento: solo origine + `/events/<id>`. Mai query, hash o altro che dipenda da chi condivide. */
-export function buildEventShareUrl(origin: string | null, eventId: string): string | null {
+/**
+ * Indirizzo canonico e stabile dell'evento: origine + `/events/<id>`. Senza invito, mai query né hash. Con `inviteToken` (emesso dal servizio
+ * per chi è autenticato) si aggiunge solo `?i=<token>`, e solo se ha la forma di un token: nessun nome, id o testo scelto dal client.
+ * Il link senza token funziona sempre.
+ */
+export function buildEventShareUrl(origin: string | null, eventId: string, inviteToken?: string | null): string | null {
   const publicOrigin = toPublicOrigin(origin);
   if (!publicOrigin || !EVENT_ID.test(eventId)) return null;
-  return `${publicOrigin}/events/${eventId.toLowerCase()}`;
+  const base = `${publicOrigin}/events/${eventId.toLowerCase()}`;
+  return isInviteToken(inviteToken) ? `${base}?${INVITE_PARAM}=${inviteToken}` : base;
 }
 
 export interface ShareInviteInput {

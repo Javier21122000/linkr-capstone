@@ -107,6 +107,28 @@ public class LinkRequestService {
 		return insertAndView(me, recipientId, null);
 	}
 
+	/**
+	 * Richiesta Link da un invito (vedi InviteService): chi apre il link di un evento condiviso da una persona VISIBILE puo' inviarle una
+	 * richiesta, anche se non e' ancora visibile a sua volta e non partecipa all'evento. Il token e' gia' stato verificato dal chiamante
+	 * (firma, scadenza, evento pubblicato e non finito); qui restano le stesse regole degli altri due modi: destinatario esistente e
+	 * visibile al momento dell'invio (404 uniforme), anti-spam (429) e una sola richiesta per coppia in qualunque direzione (409).
+	 * Nessuna richiesta nasce da sola: questo metodo e' chiamato solo dal gesto esplicito di chi guarda, e il mittente deve accettare.
+	 */
+	@Transactional
+	public LinkRequestResponse sendFromInvite(UUID me, UUID senderId, UUID eventId) {
+		if (me.equals(senderId)) {
+			throw LinkRequestException.self();
+		}
+		Set<UUID> locked = repository.lockUsers(me, senderId);
+		if (!locked.contains(me)) {
+			throw new UserNotFoundException();
+		}
+		if (!locked.contains(senderId) || !repository.isDiscoverable(senderId)) {
+			throw LinkRequestException.recipientNotAvailable();
+		}
+		return insertAndView(me, senderId, eventId);
+	}
+
 	/** Anti-spam e inserimento atomico, comuni ai due modi d'invio. */
 	private LinkRequestResponse insertAndView(UUID me, UUID recipientId, UUID eventId) {
 		if (repository.countAwaitingAnswer(me) >= MAX_AWAITING_ANSWER

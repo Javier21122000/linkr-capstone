@@ -2,13 +2,9 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactNode } from "react";
 
 import { getCurrentUser, isUnauthorized } from "../lib/auth";
+import { isExpired, loadSession, nextExpiryCheckDelay, parseStoredSession, saveSession, SESSION_STORAGE_KEY } from "../lib/authSession";
+import type { AuthSession, StorageLike } from "../lib/authSession";
 import type { AuthResponse, UserResponse } from "../types/auth";
-
-interface AuthSession {
-  readonly accessToken: string;
-  readonly expiresAt: number;
-  readonly user: UserResponse;
-}
 
 interface AuthContextValue {
   readonly status: "anonymous" | "authenticated";
@@ -23,22 +19,6 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const SESSION_STORAGE_KEY = "linkr.auth.session";
-
-function isStoredUser(value: unknown): value is UserResponse {
-  if (typeof value !== "object" || value === null) return false;
-  const user = value as Partial<UserResponse>;
-  return typeof user.id === "string"
-    && typeof user.username === "string"
-    && typeof user.email === "string"
-    && typeof user.displayName === "string"
-    && (typeof user.bio === "string" || user.bio === null)
-    && (typeof user.avatarUrl === "string" || user.avatarUrl === null)
-    && (user.role === "USER" || user.role === "ADMIN")
-    && typeof user.createdAt === "string"
-    && typeof user.discoverable === "boolean";
-}
-
 function usersAreEqual(left: UserResponse, right: UserResponse): boolean {
   return left.id === right.id
     && left.username === right.username
@@ -51,47 +31,26 @@ function usersAreEqual(left: UserResponse, right: UserResponse): boolean {
     && left.discoverable === right.discoverable;
 }
 
-function readStoredSession(): AuthSession | null {
+/** `localStorage` tiene la sessione tra una apertura e l'altra; `sessionStorage` è solo la sede della vecchia versione (migrazione). */
+function browserStorage(kind: "localStorage" | "sessionStorage"): StorageLike | null {
   try {
-    const raw = window.sessionStorage.getItem(SESSION_STORAGE_KEY);
-    if (!raw) return null;
-    const value: unknown = JSON.parse(raw);
-    if (typeof value !== "object" || value === null) throw new Error("Invalid stored session");
-    const candidate = value as Partial<AuthSession>;
-    if (typeof candidate.accessToken !== "string"
-      || typeof candidate.expiresAt !== "number"
-      || !Number.isFinite(candidate.expiresAt)
-      || !isStoredUser(candidate.user)
-      || candidate.expiresAt <= Date.now()) {
-      throw new Error("Invalid or expired stored session");
-    }
-    return {
-      accessToken: candidate.accessToken,
-      expiresAt: candidate.expiresAt,
-      user: candidate.user,
-    };
+    return window[kind];
   } catch {
-    try {
-      window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
-    } catch {
-      // Storage bloccato dal browser: nessuna sessione persistita.
-    }
     return null;
   }
 }
 
+function readStoredSession(): AuthSession | null {
+  return loadSession(browserStorage("localStorage"), browserStorage("sessionStorage"), Date.now());
+}
+
 function persistSession(session: AuthSession | null): void {
-  try {
-    if (session) window.sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
-    else window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
-  } catch {
-    // Se sessionStorage non e' disponibile, l'app continua con una sessione solo in memoria.
-  }
+  saveSession(browserStorage("localStorage"), browserStorage("sessionStorage"), session);
 }
 
 export function AuthProvider({ children }: { readonly children: ReactNode }) {
-  // sessionStorage sopravvive ai refresh ma resta leggibile da JavaScript: una XSS potrebbe quindi sottrarre il JWT.
-  // CSP, escaping React e dipendenze affidabili restano difese necessarie; non viene simulato alcun refresh token.
+  // Il JWT sta in localStorage (vedi lib/authSession.ts): sopravvive a refresh, chiusura della scheda e della web app dalla Home, fino alla sua
+  // scadenza. Resta leggibile da JavaScript, quindi CSP, escaping React e dipendenze affidabili restano difese necessarie; non c'è refresh token.
   const [session, setSession] = useState<AuthSession | null>(readStoredSession);
 
   const logout = useCallback(() => {
@@ -149,18 +108,44 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
     return currentUser;
   }, [authorizedRequest, updateCurrentUser]);
 
+  // Scadenza: un timer (a tappe, perché setTimeout non regge scadenze oltre ~24 giorni) e un controllo quando l'app torna in primo piano:
+  // i timer di una web app sospesa in background non scattano, e al ritorno non deve restare una sessione scaduta mostrata come attiva.
   useEffect(() => {
     if (!session) return undefined;
 
-    const remaining = session.expiresAt - Date.now();
-    if (remaining <= 0) {
-      logout();
-      return undefined;
-    }
+    let timeoutId: number | undefined;
+    const check = () => {
+      if (isExpired(session, Date.now())) {
+        logout();
+        return;
+      }
+      timeoutId = window.setTimeout(check, nextExpiryCheckDelay(session, Date.now()));
+    };
+    const handleResume = () => {
+      if (document.visibilityState === "visible") check();
+    };
 
-    const timeoutId = window.setTimeout(logout, remaining);
-    return () => window.clearTimeout(timeoutId);
+    check();
+    document.addEventListener("visibilitychange", handleResume);
+    window.addEventListener("pageshow", handleResume);
+    return () => {
+      window.clearTimeout(timeoutId);
+      document.removeEventListener("visibilitychange", handleResume);
+      window.removeEventListener("pageshow", handleResume);
+    };
   }, [logout, session]);
+
+  // Più schede (o la web app e Safari che condividono lo storage): un accesso o un logout fatto altrove si riflette qui. L'evento `storage`
+  // arriva solo dalle altre schede, mai da quella che ha scritto.
+  useEffect(() => {
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== null && event.key !== SESSION_STORAGE_KEY) return;
+      const next = parseStoredSession(event.key === null ? null : event.newValue, Date.now());
+      setSession((current) => (next?.accessToken === current?.accessToken ? current : next));
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
 
   const value = useMemo<AuthContextValue>(() => ({
     status: session ? "authenticated" : "anonymous",

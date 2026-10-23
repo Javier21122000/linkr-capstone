@@ -8,6 +8,7 @@ import { CancelEventDialog } from "../components/events/CancelEventDialog";
 import { EventPeopleSection } from "../components/events/EventPeopleSection";
 import { EventParticipationPanel } from "../components/events/EventParticipationPanel";
 import { SourceBadge } from "../components/events/SourceBadge";
+import { InviteSharedBy } from "../components/events/InviteSharedBy";
 import { ShareEventButton } from "../components/events/ShareEventButton";
 import { ViewOnMapLink } from "../components/events/ViewOnMapLink";
 import { EmptyEventsIllustration } from "../components/ui/EmptyEventsIllustration";
@@ -17,6 +18,7 @@ import { cancelEvent, getCancelEventFailure } from "../lib/eventCreation";
 import { getEvent, getEventsErrorMessage, isEventNotFound, isRequestCancelled } from "../lib/events";
 import { officialDetailsUrl, sourceLabel } from "../lib/eventSource";
 import { hasValidCoordinates } from "../lib/map";
+import { readInviteToken } from "../lib/inviteToken";
 import { createBackState, readBackRequest } from "../lib/navigation";
 import type { EventDetail } from "../types/event";
 import type { ParticipationResponse } from "../types/participation";
@@ -32,6 +34,8 @@ export function EventDetailPage() {
   const location = useLocation();
   // Da Admin si torna ad Admin > Eventi; senza contesto (o da Discover) il ritorno resta Discover.
   const back = readBackRequest(location.state);
+  // Link con invito (`?i=`): solo la forma del token si controlla qui; la verifica e la visibilità del mittente le decide il servizio.
+  const inviteToken = readInviteToken(location.search);
   const backTo = back?.target.to ?? "/";
   const backLabel = back?.target.label ?? "Discover";
   const [requestKey, setRequestKey] = useState(0);
@@ -94,7 +98,7 @@ export function EventDetailPage() {
   }, [authorizedRequest, eventId, requestKey, status]);
 
   return (
-    <div className="page-with-mobile-nav">
+    <div className="page-with-mobile-nav event-page">
       {eventState.status !== "success" && (
         <div className="page-shell pt-8 sm:pt-12 lg:pt-16">
           <Link className="inline-flex min-h-11 items-center gap-2 rounded-full font-extrabold text-ink" to={backTo}>
@@ -178,6 +182,8 @@ export function EventDetailPage() {
                 Organizzato da <span className="text-ink">{eventState.event.creator.displayName}</span> · @{eventState.event.creator.username}
               </p>
             ) : null}
+
+            {eventState.event.status === "PUBLISHED" ? <InviteSharedBy eventId={eventState.event.id} token={inviteToken} /> : null}
 
             <ul className="event-facts">
               <li className="event-facts__item">
@@ -271,6 +277,10 @@ export function EventDetailPage() {
           </div>
         </article>
       )}
+
+      {/* Sotto la Bottom Navigation il testo che scorre non deve vedersi attraverso le etichette (vedi `.event-page__scrim` in pages.css). */}
+      <div className="event-page__spacer" aria-hidden="true" />
+      <div className="event-page__scrim" aria-hidden="true" />
 
       {eventState.status === "success" ? (
         <CancelEventDialog

@@ -173,7 +173,7 @@ Verificati sulla [documentazione Render](https://render.com/docs/free) il 22/10/
 - Nessuna protezione dai tentativi ripetuti su login e registrazione (esiste solo il limite di upload per utente, in memoria).
 - Un solo processo: limite upload e broker WebSocket sono in memoria; un riavvio li azzera e chi è connesso si riconnette.
 - `/api/health` verifica solo che il processo risponda, non il database.
-- JWT in `sessionStorage` (leggibile da JavaScript). Difesa principale contro l'XSS: la CSP qui sotto.
+- JWT in `localStorage` (leggibile da JavaScript), così la sessione sopravvive alla chiusura della scheda e della web app dalla Home, fino alla scadenza del token (2 ore di default). Difesa principale contro l'XSS: la CSP qui sotto. Il logout cancella la sessione.
 - Le immagini caricate e mai usate restano su disco (vedi [`UPLOAD-IMMAGINI.md`](UPLOAD-IMMAGINI.md)).
 - I test backend sul database di test e un giro completo con utenti reali non fanno parte di questa procedura (vedi §7 per i test).
 - Decisione aperta sugli orari: data e ora si interpretano nel fuso del dispositivo ma si mostrano in `Europe/Rome`. Per chi è in Italia coincide.

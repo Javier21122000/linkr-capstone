@@ -54,6 +54,43 @@
   padding: 1.75rem 1rem 0;
 }
 
+/*
+ * Mobile: il testo del dettaglio scorre sotto la Bottom Navigation di vetro e si legge attraverso le etichette («IL TUO EVENTO» sopra «Discover»).
+ * Una sfumatura del colore di fondo, ferma sul bordo basso, lo rende illeggibile solo lì. Non è `fixed` (dentro `.app-content` l'animazione
+ * d'ingresso crea un contenitore e la sposterebbe): è `sticky` in fondo alla pagina. Il padding inferiore passa da un distanziatore perché lo
+ * `sticky` si ferma al bordo del contenuto, non del padding; il margine negativo della sfumatura non aggiunge altezza.
+ */
+.event-page {
+  --event-scrim-h: calc(var(--mobile-nav-bottom) + var(--mobile-nav-h) + 1.25rem);
+}
+
+.event-page__spacer,
+.event-page__scrim {
+  display: none;
+}
+
+@media (max-width: 47.999rem) {
+  .event-page.page-with-mobile-nav {
+    padding-bottom: 0;
+  }
+
+  .event-page__spacer {
+    display: block;
+    height: calc(7.25rem + env(safe-area-inset-bottom));
+  }
+
+  .event-page__scrim {
+    position: sticky;
+    z-index: 2;
+    bottom: 0;
+    display: block;
+    height: var(--event-scrim-h);
+    margin-top: calc(-1 * var(--event-scrim-h));
+    background: linear-gradient(0deg, rgb(245 243 238 / 0.97) 0%, rgb(245 243 238 / 0.92) 55%, rgb(245 243 238 / 0) 100%);
+    pointer-events: none;
+  }
+}
+
 .event-facts {
   display: grid;
   gap: 0.6rem;

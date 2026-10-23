@@ -136,8 +136,8 @@ Durante lo sviluppo sono state affrontate problematiche di prestazioni, sicurezz
 1. **Problema:** un refresh non doveva far perdere immediatamente l'accesso, ma token scaduti e connessioni STOMP non dovevano sopravvivere oltre la sessione valida.
 2. **Impatto:** stato di autenticazione, badge e messaggi potevano divergere dall'API.
 3. **Indagine:** autenticazione, storage e lifecycle WebSocket sono stati centralizzati nei rispettivi context; gli errori di autorizzazione vengono gestiti in modo uniforme.
-4. **Soluzione:** sessione in `sessionStorage`, scadenza verificata all'avvio, logout che rimuove lo stato, connessione STOMP associata all'utente autenticato e messaggi persistiti via REST prima della notifica.
-5. **Trade-off:** non esiste refresh token; dopo la scadenza occorre accedere di nuovo. `sessionStorage` riduce la persistenza ma non elimina il rischio XSS.
+4. **Soluzione:** sessione in `localStorage` (sopravvive alla chiusura della web app fino alla scadenza del token), scadenza verificata all'avvio e al ritorno in primo piano, logout che rimuove lo stato, connessione STOMP associata all'utente autenticato e messaggi persistiti via REST prima della notifica.
+5. **Trade-off:** non esiste refresh token; dopo la scadenza (2 ore di default) occorre accedere di nuovo. Lo storage del browser, `sessionStorage` o `localStorage`, non elimina il rischio XSS; la persistenza più lunga è una proposta da approvare in [`docs/PROPOSTE-SESSIONI-E-INVITI.md`](docs/PROPOSTE-SESSIONI-E-INVITI.md).
 
 ### Schema, dati demo e sicurezza delle migrazioni
 
@@ -435,8 +435,8 @@ Development involved performance, security, integration, and UX challenges. The 
 1. **Problem:** refreshes should not immediately sign users out, while expired tokens and STOMP connections must not survive an invalid session.
 2. **Why it mattered:** authentication state, badges, and messages could diverge from the API.
 3. **Investigation:** authentication, storage, and WebSocket lifecycles were centralized in their contexts; authorization failures use a consistent path.
-4. **Solution:** session state in `sessionStorage`, expiry checks at startup, logout state removal, a STOMP connection tied to the authenticated user, and REST persistence before notification.
-5. **Trade-off:** there is no refresh token, so users sign in again after expiry. `sessionStorage` limits persistence but does not remove XSS risk.
+4. **Solution:** session state in `localStorage` (it survives closing the web app until the token expires), expiry checks at startup and on returning to the foreground, logout state removal, a STOMP connection tied to the authenticated user, and REST persistence before notification.
+5. **Trade-off:** there is no refresh token, so users sign in again after expiry (two hours by default). Browser storage, whether `sessionStorage` or `localStorage`, does not remove XSS risk; longer persistence is a proposal awaiting approval in [`docs/PROPOSTE-SESSIONI-E-INVITI.md`](docs/PROPOSTE-SESSIONI-E-INVITI.md).
 
 ### Schema, demo data, and migration safety
 

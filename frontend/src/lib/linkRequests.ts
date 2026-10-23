@@ -9,6 +9,12 @@ import type {
 import type { PageResponse } from "../types/people";
 import { apiClient } from "./api";
 import { getProblemDetail } from "./auth";
+import { isStaleLinkStateTitle } from "./linkState.ts";
+
+/** L'errore dice che lo stato mostrato non è più quello del servizio: conviene rileggerlo invece di far ripetere il clic. */
+export function isStaleLinkState(error: unknown): boolean {
+  return isStaleLinkStateTitle(getProblemDetail(error)?.title);
+}
 
 interface GetLinkRequestsOptions {
   readonly direction: LinkRequestDirectionFilter;
@@ -59,12 +65,17 @@ export async function declineLinkRequest(accessToken: string, requestId: string)
   return data;
 }
 
-export function getLinkRequestErrorMessage(error: unknown): string {
+/** `context`: dove si trova chi agisce. Cambia solo il testo di "persona non disponibile", che per un evento parla dell'evento. */
+export function getLinkRequestErrorMessage(error: unknown, context: "event" | "profile" = "event"): string {
   const problem = getProblemDetail(error);
   if (problem?.title === "Event has ended") return "L’evento è terminato e non accetta nuove richieste Link.";
   if (problem?.title === "Link request already exists") return "Esiste già una richiesta Link con questa persona.";
   if (problem?.title === "Link request already answered") return "La richiesta Link è già stata gestita.";
-  if (problem?.title === "Person not available") return "La persona non è più disponibile per questo evento.";
+  if (problem?.title === "Person not available") {
+    return context === "profile"
+      ? "Non puoi inviare un Link a questa persona in questo momento."
+      : "La persona non è più disponibile per questo evento.";
+  }
   if (problem?.title === "Link request not found") return "La richiesta Link non è più disponibile.";
   if (problem?.title === "Too many link requests") return "Hai raggiunto il limite di richieste Link. Riprova più tardi.";
 

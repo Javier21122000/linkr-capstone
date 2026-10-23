@@ -9,30 +9,23 @@ import { EditorialHeading } from "../components/editorial/EditorialHeading";
 import { PeopleHeroArt } from "../components/editorial/scenes";
 import { EmptyState } from "../components/ui/EmptyState";
 import { useAuth } from "../context/AuthContext";
-import { useLinkRequestCount } from "../context/LinkRequestCountContext";
+import { useLinkActions } from "../hooks/useLinkActions";
+import type { LinkAction } from "../hooks/useLinkActions";
 import { getAuthRequestErrorMessage, updateDiscovery } from "../lib/auth";
-import {
-  acceptLinkRequest,
-  declineLinkRequest,
-  getLinkRequestErrorMessage,
-  sendLinkRequest,
-} from "../lib/linkRequests";
+import { LINK_NEEDS_SHARED_INTEREST_HINT } from "../lib/linkState.ts";
 import {
   getDiscoverPeople,
   getDiscoverPeopleErrorMessage,
   isDiscoveryRequired,
 } from "../lib/people";
 import { staggerStyle } from "../lib/motion";
-import type { LinkRequestResponse } from "../types/linkRequest";
-import type { DiscoverPersonResponse, LinkStatus, PageResponse } from "../types/people";
+import type { DiscoverPersonResponse, PageResponse } from "../types/people";
 
 type PeopleState =
   | { readonly status: "loading" }
   | { readonly status: "success"; readonly page: PageResponse<DiscoverPersonResponse> }
   | { readonly status: "discovery-required" }
   | { readonly status: "error"; readonly message: string };
-
-type LinkAction = "send" | "accept" | "decline";
 
 function appendUniquePeople(
   current: readonly DiscoverPersonResponse[],
@@ -48,16 +41,8 @@ function sharedInterestsLabel(count: number): string {
   return `${count} interessi in comune`;
 }
 
-function linkStatusFromResponse(response: LinkRequestResponse): LinkStatus {
-  if (response.status === "ACCEPTED") return "ACCEPTED";
-  if (response.direction === "OUTGOING") return "OUTGOING_PENDING";
-  if (response.status === "DECLINED") return "INCOMING_DECLINED";
-  return "INCOMING_PENDING";
-}
-
 export function DiscoverPeoplePage() {
   const { authorizedRequest } = useAuth();
-  const { refreshIncomingCount } = useLinkRequestCount();
   const [pageNumber, setPageNumber] = useState(0);
   const [requestKey, setRequestKey] = useState(0);
   const [state, setState] = useState<PeopleState>({ status: "loading" });
@@ -67,9 +52,7 @@ export function DiscoverPeoplePage() {
   const [activationError, setActivationError] = useState<string | null>(null);
   const requestIdRef = useRef(0);
   const requestPendingRef = useRef(false);
-  const linkActionLocksRef = useRef(new Set<string>());
-  const [pendingLinkActions, setPendingLinkActions] = useState<Readonly<Record<string, LinkAction>>>({});
-  const [linkActionErrors, setLinkActionErrors] = useState<Readonly<Record<string, string>>>({});
+  const { pendingActions: pendingLinkActions, actionErrors: linkActionErrors, perform: performLinkAction } = useLinkActions();
 
   useEffect(() => {
     const requestId = ++requestIdRef.current;
@@ -138,46 +121,24 @@ export function DiscoverPeoplePage() {
   }
 
   async function handleLinkAction(person: DiscoverPersonResponse, action: LinkAction) {
-    if (linkActionLocksRef.current.has(person.userId)) return;
-    if (action !== "send" && !person.linkRequestId) return;
-
-    linkActionLocksRef.current.add(person.userId);
-    setPendingLinkActions((current) => ({ ...current, [person.userId]: action }));
-    setLinkActionErrors((current) => {
-      const next = { ...current };
-      delete next[person.userId];
-      return next;
-    });
-
-    try {
-      const response = await authorizedRequest((accessToken) => {
-        if (action === "send") return sendLinkRequest(accessToken, { recipientId: person.userId });
-        if (action === "accept") return acceptLinkRequest(accessToken, person.linkRequestId!);
-        return declineLinkRequest(accessToken, person.linkRequestId!);
-      });
-      if (action !== "send") void refreshIncomingCount(true);
-      setState((current) => current.status === "success" ? {
-        status: "success",
-        page: {
-          ...current.page,
-          items: current.page.items.map((item) => item.userId === person.userId ? {
-            ...item,
-            linkStatus: linkStatusFromResponse(response),
-            linkRequestId: response.requestId,
-          } : item),
-        },
-      } : current);
-    } catch (error) {
-      if (isDiscoveryRequired(error)) setState({ status: "discovery-required" });
-      else setLinkActionErrors((current) => ({ ...current, [person.userId]: getLinkRequestErrorMessage(error) }));
-    } finally {
-      linkActionLocksRef.current.delete(person.userId);
-      setPendingLinkActions((current) => {
-        const next = { ...current };
-        delete next[person.userId];
-        return next;
-      });
+    const result = await performLinkAction(person, action);
+    if (result.outcome === "discovery-required") {
+      setState({ status: "discovery-required" });
+      return;
     }
+    if (result.outcome !== "done") return;
+
+    setState((current) => current.status === "success" ? {
+      status: "success",
+      page: {
+        ...current.page,
+        items: current.page.items.map((item) => item.userId === person.userId ? {
+          ...item,
+          linkStatus: result.linkStatus,
+          linkRequestId: result.linkRequestId,
+        } : item),
+      },
+    } : current);
   }
 
   const loadedPage = state.status === "success" ? state.page : null;
@@ -275,7 +236,7 @@ export function DiscoverPeoplePage() {
 
                     <div className="mt-auto pt-5">
                       {person.linkStatus === "NONE" && person.sharedInterestsCount === 0 ? (
-                        <p className="text-xs font-semibold leading-5 text-muted">Puoi inviare un Link quando avete almeno un interesse in comune.</p>
+                        <p className="text-xs font-semibold leading-5 text-muted">{LINK_NEEDS_SHARED_INTEREST_HINT}</p>
                       ) : null}
                       {person.linkStatus === "NONE" && person.sharedInterestsCount > 0 ? (
                         <button className="button-primary inline-flex items-center gap-2" type="button" disabled={pending} onClick={() => void handleLinkAction(person, "send")}>

@@ -30,6 +30,7 @@ import { nextRetryDelay } from "../../lib/mapHealth";
 import { coversMap, hasRenderedOnce, mapLoadingMessage } from "../../lib/mapLoading";
 import { attachMapRecovery, recoverableFrom } from "../../lib/mapRecovery";
 import type { MapHealthState, MapRecovery } from "../../lib/mapRecovery";
+import { canvasNeedsResize, MAP_SIZE_CHECK_DELAY_MS } from "../../lib/mapSize";
 import { getStyleSwapOptions } from "../../lib/mapStyle";
 import { prefersReducedMotion } from "../../lib/motion";
 import type { EventSummary } from "../../types/event";
@@ -259,6 +260,21 @@ export function EventMap({ events, eventsReady, viewKey, selection, active, onSe
       if (mapRef.current === map) mapRef.current = null;
     };
   }, [styleUrl, markAdjusted, attempt]);
+
+  // Tornando su Discover la mappa deve avere la dimensione del suo contenitore. Di norma lo garantisce il ResizeObserver, ma non sempre (vedi
+  // `lib/mapSize.ts`): un controllo dopo il ritorno la riallinea comunque. Solo `resize()`: stessa istanza, la camera, i marker e la selezione non si toccano.
+  useEffect(() => {
+    if (!active) return undefined;
+    const timeoutId = window.setTimeout(() => {
+      const map = mapRef.current;
+      const container = containerRef.current;
+      if (!map || !container) return;
+      const canvas = map.getCanvas();
+      const canvasSize = { width: canvas.clientWidth, height: canvas.clientHeight };
+      if (canvasNeedsResize(canvasSize, { width: container.clientWidth, height: container.clientHeight })) map.resize();
+    }, MAP_SIZE_CHECK_DELAY_MS);
+    return () => window.clearTimeout(timeoutId);
+  }, [active]);
 
   // Stile non scaricabile: due tentativi automatici (con attesa), poi la schermata "non disponibile". Mai per errori permanenti.
   useEffect(() => {

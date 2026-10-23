@@ -1,16 +1,20 @@
 import axios from "axios";
-import { ArrowLeft, Check, Link2, RotateCcw, UserRoundX } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ArrowLeft, Check, RotateCcw, UserRoundX } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 
 import { UserAvatar } from "../components/auth/UserAvatar";
 import { EditorialHeading } from "../components/editorial/EditorialHeading";
 import { ProfileArt } from "../components/editorial/scenes";
+import { ProfileLinkActions } from "../components/links/ProfileLinkActions";
 import { EmptyState } from "../components/ui/EmptyState";
 import { useAuth } from "../context/AuthContext";
+import { useLinkActions } from "../hooks/useLinkActions";
 import { getAuthRequestErrorMessage } from "../lib/auth";
 import { categoryForInterest, discoverPathForInterest, splitInterests } from "../lib/interestFilter";
 import { categoryLabels } from "../lib/eventPresentation";
+import { isStaleLinkState } from "../lib/linkRequests";
+import { getProfileLinkAffordance } from "../lib/linkState.ts";
 import { getPublicProfile, isPublicProfileUnavailable } from "../lib/profile";
 import type { ProfileInterest, PublicProfile } from "../lib/profile";
 
@@ -35,19 +39,15 @@ function InterestPill({ interest, shared }: { readonly interest: ProfileInterest
   );
 }
 
-function linkStatusLabel(status: PublicProfile["linkStatus"]): string | null {
-  if (status === "ACCEPTED") return "Siete collegati";
-  if (status === "OUTGOING_PENDING") return "Richiesta Link inviata";
-  if (status === "INCOMING_PENDING") return "Richiesta Link ricevuta";
-  if (status === "INCOMING_DECLINED") return "Richiesta Link archiviata";
-  return null;
-}
-
 export function PublicProfilePage() {
   const { personId } = useParams();
-  const { authorizedRequest } = useAuth();
+  const { user, authorizedRequest } = useAuth();
+  const { pendingActions, actionErrors, perform } = useLinkActions({ errorContext: "profile" });
   const [requestKey, setRequestKey] = useState(0);
   const [state, setState] = useState<ProfileState>({ status: "loading" });
+  const [discoveryRequired, setDiscoveryRequired] = useState(false);
+  const [announcement, setAnnouncement] = useState("");
+  const refreshControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (!personId) {
@@ -57,6 +57,8 @@ export function PublicProfilePage() {
 
     const controller = new AbortController();
     setState({ status: "loading" });
+    setDiscoveryRequired(false);
+    setAnnouncement("");
     void authorizedRequest((accessToken) => getPublicProfile(accessToken, personId, controller.signal))
       .then((profile) => setState({ status: "success", profile }))
       .catch((error: unknown) => {
@@ -65,12 +67,63 @@ export function PublicProfilePage() {
         else setState({ status: "error", message: getAuthRequestErrorMessage(error) });
       });
 
-    return () => controller.abort();
+    return () => {
+      controller.abort();
+      refreshControllerRef.current?.abort();
+    };
   }, [authorizedRequest, personId, requestKey]);
+
+  /** Rilegge il profilo senza passare dallo scheletro: serve quando lo stato Link che si vede non è più quello del servizio. */
+  const refreshProfile = useCallback(async () => {
+    if (!personId) return;
+    refreshControllerRef.current?.abort();
+    const controller = new AbortController();
+    refreshControllerRef.current = controller;
+    try {
+      const fresh = await authorizedRequest((accessToken) => getPublicProfile(accessToken, personId, controller.signal));
+      setState({ status: "success", profile: fresh });
+    } catch (error) {
+      if (axios.isCancel(error)) return;
+      // Se la persona non è più visibile lo si dice; per ogni altro errore restano il profilo e il messaggio dell'azione.
+      if (isPublicProfileUnavailable(error)) setState({ status: "unavailable" });
+    }
+  }, [authorizedRequest, personId]);
 
   const profile = state.status === "success" ? state.profile : null;
   const { shared: sharedInterests, others: otherInterests } = splitInterests(profile?.interests ?? [], profile?.sharedInterests ?? []);
-  const statusLabel = profile ? linkStatusLabel(profile.linkStatus) : null;
+  const linkAffordance = profile ? getProfileLinkAffordance({
+    viewerId: user?.id ?? null,
+    userId: profile.userId,
+    linkStatus: profile.linkStatus,
+    linkRequestId: profile.linkRequestId,
+    sharedInterestsCount: profile.sharedInterests.length,
+  }) : null;
+
+  async function runLinkAction(action: "send" | "accept") {
+    if (!profile) return;
+    setDiscoveryRequired(false);
+    setAnnouncement("");
+
+    const result = await perform({ userId: profile.userId, linkRequestId: profile.linkRequestId }, action);
+    if (result.outcome === "discovery-required") {
+      setDiscoveryRequired(true);
+      return;
+    }
+    // Esiste già una richiesta, è già stata gestita, o la persona non è più raggiungibile: ripetere il clic darebbe lo stesso errore.
+    if (result.outcome === "failed") {
+      if (isStaleLinkState(result.error)) void refreshProfile();
+      return;
+    }
+    if (result.outcome !== "done") return;
+
+    // Se nel frattempo si è passati a un altro profilo, la risposta non gli appartiene.
+    setState((current) => current.status === "success" && current.profile.userId === profile.userId
+      ? { status: "success", profile: { ...current.profile, linkStatus: result.linkStatus, linkRequestId: result.linkRequestId } }
+      : current);
+    setAnnouncement(action === "send"
+      ? `Richiesta Link inviata a ${profile.displayName}.`
+      : `Link accettato: ora puoi scrivere a ${profile.displayName}.`);
+  }
 
   return (
     <div className="page-shell page-with-mobile-nav pt-8 sm:pt-12 lg:pt-16" data-editorial="profile">
@@ -123,13 +176,20 @@ export function PublicProfilePage() {
                 <div className="min-w-0">
                   <EditorialHeading id="public-profile-title" kicker="Profilo" size="title" className="mt-2 break-words text-3xl font-extrabold tracking-[-0.05em] text-ink sm:text-4xl">{profile.displayName}</EditorialHeading>
                   <p className="ed-handle mt-1 break-words font-semibold text-muted">@{profile.username}</p>
-                  {statusLabel ? (
-                    <span className={`mt-3 inline-flex min-h-9 items-center gap-2 rounded-full px-3 py-1 text-xs font-extrabold ${profile.linkStatus === "ACCEPTED" ? "bg-[#edf8f3] text-success" : "bg-linkr-soft text-linkr-strong"}`}>
-                      <Link2 size={15} aria-hidden="true" /> {statusLabel}
-                    </span>
-                  ) : null}
                 </div>
               </div>
+              {linkAffordance ? (
+                <ProfileLinkActions
+                  displayName={profile.displayName}
+                  affordance={linkAffordance}
+                  pendingAction={pendingActions[profile.userId]}
+                  errorMessage={actionErrors[profile.userId]}
+                  discoveryRequired={discoveryRequired}
+                  announcement={announcement}
+                  onSend={() => void runLinkAction("send")}
+                  onAccept={() => void runLinkAction("accept")}
+                />
+              ) : null}
               {profile.bio?.trim() ? <p className="mt-6 whitespace-pre-line text-base leading-7 text-ink">{profile.bio}</p> : null}
             </article>
 

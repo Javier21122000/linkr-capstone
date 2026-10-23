@@ -271,6 +271,7 @@ a {
 }
 
 .button-primary:disabled,
+.button-primary[aria-disabled="true"],
 .button-secondary:disabled,
 .button-secondary[aria-disabled="true"],
 .form-input:disabled {

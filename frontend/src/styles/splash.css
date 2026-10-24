@@ -72,10 +72,33 @@
  *   0–10 %   aperto, fermo        10–38 %  chiusura (d 0→170, in accelerazione)   38–44 %  compressione (d →186)
  *   44–47 %  massimo              47–80 %  riapertura morbida (d →−12)            80–90 %  assestamento (d →0)    90–100 % aperto
  * Se cambi la durata o queste soglie aggiorna anche lib/splashCycle.ts (SPLASH_CYCLE_MS, SPLASH_REST_FROM, SPLASH_HEAD_HOLD).
- * Solo transform/opacity. La variabile --linkr-delay sposta la partenza (avvii successivi: ritardo; loader: sfasamento comune).
+ * Solo transform/opacity, su elementi HTML (i tre strati di `LinkrLockup`, vedi components/brand): le animazioni le esegue il compositore e
+ * non dipendono dal thread principale, che all'avvio è occupato (router, eventi, mappa). Gli spostamenti sono in % dell'altezza dello strato,
+ * cioè delle 1447 unità del disegno: 170 → 11,7484 %, 186 → 12,8542 %, 12 → 0,8293 %. Animare i gruppi SVG invece faceva perdere fotogrammi.
+ * La variabile --linkr-delay sposta la partenza (avvii successivi: ritardo; loader: sfasamento comune).
  */
 .linkr-splash {
   --linkr-cycle: 1600ms;
+}
+
+/* Il logo animato: tre strati HTML (mano in basso, mano in alto, wordmark) sovrapposti, tutti con lo stesso riquadro del disegno. */
+.linkr-lockup {
+  position: relative;
+  display: block;
+  aspect-ratio: 1121 / 1447;
+}
+
+.linkr-layer {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+
+.linkr-layer > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
 }
 
 .linkr-splash .linkr-hand--top {
@@ -87,8 +110,7 @@
 }
 
 .linkr-splash .linkr-word {
-  transform-box: fill-box;
-  transform-origin: center;
+  transform-origin: 51.49% 50.15%; /* centro del wordmark nello strato */
   animation: linkr-word var(--linkr-cycle) linear var(--linkr-delay, 0ms) infinite both;
 }
 
@@ -103,19 +125,19 @@
 
 @keyframes linkr-hand-top {
   0%, 10% { transform: translateY(0); animation-timing-function: cubic-bezier(0.55, 0, 0.9, 0.45); }
-  38% { transform: translateY(170px); animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1); }
-  44% { transform: translateY(186px); animation-timing-function: linear; }
-  47% { transform: translateY(186px); animation-timing-function: cubic-bezier(0.16, 0.84, 0.28, 1); }
-  80% { transform: translateY(-12px); animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1); }
+  38% { transform: translateY(11.7484%); animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1); }
+  44% { transform: translateY(12.8542%); animation-timing-function: linear; }
+  47% { transform: translateY(12.8542%); animation-timing-function: cubic-bezier(0.16, 0.84, 0.28, 1); }
+  80% { transform: translateY(-0.8293%); animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1); }
   90%, 100% { transform: translateY(0); }
 }
 
 @keyframes linkr-hand-bottom {
   0%, 10% { transform: translateY(0); animation-timing-function: cubic-bezier(0.55, 0, 0.9, 0.45); }
-  38% { transform: translateY(-170px); animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1); }
-  44% { transform: translateY(-186px); animation-timing-function: linear; }
-  47% { transform: translateY(-186px); animation-timing-function: cubic-bezier(0.16, 0.84, 0.28, 1); }
-  80% { transform: translateY(12px); animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1); }
+  38% { transform: translateY(-11.7484%); animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1); }
+  44% { transform: translateY(-12.8542%); animation-timing-function: linear; }
+  47% { transform: translateY(-12.8542%); animation-timing-function: cubic-bezier(0.16, 0.84, 0.28, 1); }
+  80% { transform: translateY(0.8293%); animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1); }
   90%, 100% { transform: translateY(0); }
 }
 

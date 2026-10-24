@@ -14,6 +14,8 @@ import {
   splashExitDelayMs,
 } from "../src/lib/splashCycle.ts";
 
+/** Spostamenti in % dell'altezza del logo (1447 unità del disegno); a 158 unità le dita si toccano (spazio centrale 316). */
+const CONTACT = (158 / 1447) * 100;
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 
 /** Fotogrammi di una @keyframes: [{ at: "0%, 10%", body: "..." }]. */
@@ -45,18 +47,18 @@ test("CSS del logo: ciclo di 1,6 s come la costante dell'uscita; mani speculari,
 
   const top = frames(css, "linkr-hand-top");
   const bottom = frames(css, "linkr-hand-bottom");
-  const shift = (body) => Number(body.match(/translateY\((-?[\d.]+)(?:px)?\)/)[1]);
+  const shift = (body) => Number(body.match(/translateY\((-?[\d.]+)(?:%)?\)/)[1]);
   assert.equal(top.length, bottom.length);
   top.forEach((frame, i) => assert.equal(shift(frame.body), 0 - shift(bottom[i].body), `${frame.at}: mani speculari, logo sempre centrato`));
   assert.equal(shift(top[0].body), 0, "parte aperto");
   assert.equal(shift(top.at(-1).body), 0, "finisce aperto come inizia: il ciclo si ripete senza salti");
-  assert.ok(Math.max(...top.map((f) => shift(f.body))) > 158, "oltre il contatto (spazio centrale 316 unità): compressione");
+  assert.ok(Math.max(...top.map((f) => shift(f.body))) > CONTACT, "oltre il contatto (spazio centrale 316 unità = 21,8 % dell'altezza): compressione");
 
   const word = frames(css, "linkr-word");
   assert.match(word[0].body, /opacity:\s*1/, "wordmark leggibile all'inizio");
   assert.match(word.at(-1).body, /opacity:\s*1/, "e alla fine");
   const hiddenAt = word.filter((f) => /opacity:\s*0\b/.test(f.body)).map((f) => lastPct(f.at));
-  const closedAt = top.filter((f) => shift(f.body) >= 158).map((f) => lastPct(f.at));
+  const closedAt = top.filter((f) => shift(f.body) >= CONTACT).map((f) => lastPct(f.at));
   assert.ok(hiddenAt.length >= 2);
   assert.ok(Math.min(...hiddenAt) < Math.min(...closedAt), "il wordmark è sparito prima che le mani si tocchino");
   assert.ok(Math.max(...hiddenAt) > Math.max(...closedAt), "e ricompare dopo l'inizio della riapertura");
@@ -142,4 +144,23 @@ test("easter egg del logo: gira solo il simbolo delle mani, solo su Discover, no
   assert.match(css, /@keyframes brand-spin\s*\{\s*to\s*\{\s*transform:\s*rotate\(360deg\)/);
   const afterSpin = css.slice(css.indexOf("@media (prefers-reduced-motion: reduce)", css.indexOf("brand-spin")));
   assert.match(afterSpin, /app-header__logo\[data-spinning\] \.brand-mark__symbol[\s\S]*?animation:\s*none/);
+});
+
+test("animazioni sul compositore: strati HTML con transform/opacity, mai gruppi SVG; nessun will-change indiscriminato", async () => {
+  const logo = await read("../src/components/brand/LinkrLogo.tsx");
+  const lockup = logo.slice(logo.indexOf("export function LinkrLockup"));
+  assert.equal((lockup.match(/className="linkr-layer /g) ?? []).length, 3, "mano in basso, mano in alto, wordmark");
+  assert.match(lockup, /<span className="linkr-layer linkr-hand linkr-hand--bottom">/);
+  assert.doesNotMatch(logo.slice(0, logo.indexOf("export function LinkrLockup")), /linkr-hand|linkr-word/, "il simbolo statico non ha classi animate");
+  const css = await read("../src/styles/splash.css");
+  assert.doesNotMatch(css, /translateY\(-?[\d.]+px\)/, "spostamenti in % dell'altezza dello strato, non in px del disegno");
+  assert.doesNotMatch(css, /transform-box/, "niente trasformazioni su gruppi SVG");
+  assert.doesNotMatch(css, /will-change/);
+  assert.doesNotMatch(css, /filter\s*:/, "niente filtri");
+  // 170 / 1447 = 11,7484 %, 186 / 1447 = 12,8542 %, 12 / 1447 = 0,8293 %
+  const values = new Set([...css.matchAll(/translateY\((-?[\d.]+)%\)/g)].map((m) => Math.abs(Number(m[1]))));
+  for (const [units, pct] of [[170, 11.7484], [186, 12.8542], [12, 0.8293]]) {
+    assert.ok(values.has(pct), `${units} unità = ${pct} %`);
+    assert.ok(Math.abs((units / 1447) * 100 - pct) < 0.0001);
+  }
 });

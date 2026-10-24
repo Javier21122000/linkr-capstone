@@ -6,19 +6,19 @@ interface LogoProps {
 
 const COMMON = { fill: "currentColor", "aria-hidden": true, focusable: "false" } as const;
 
-/** Le due mani, dentro i gruppi che l'animazione sposta (`.linkr-hand`); la posizione fissa sta nel gruppo interno. */
+/** Le due mani del simbolo statico (intestazione, onboarding, errori): nessuna animazione. */
 function Hands() {
   return (
     <>
-      <g className="linkr-hand linkr-hand--bottom"><g transform={LOCKUP.bottomHand}><path d={HAND_PATH} /></g></g>
-      <g className="linkr-hand linkr-hand--top"><g transform={LOCKUP.topHand}><path d={HAND_PATH} /></g></g>
+      <g transform={LOCKUP.bottomHand}><path d={HAND_PATH} /></g>
+      <g transform={LOCKUP.topHand}><path d={HAND_PATH} /></g>
     </>
   );
 }
 
 /**
  * Simbolo LINKR: due mani che si cercano e incorniciano uno spazio. Solo tracciati, senza font; `currentColor` (nero inchiostro di base,
- * chiaro su sfondo scuro). Le classi `.linkr-hand--top` / `--bottom` servono alle animazioni (splash e caricamento, vedi splash.css).
+ * chiaro su sfondo scuro).
  */
 export function LinkrHands({ className }: LogoProps) {
   return (
@@ -37,12 +37,24 @@ export function LinkrWordmark({ className }: LogoProps) {
   );
 }
 
-/** Logo completo: le mani incorniciano il wordmark. `.linkr-word` serve all'animazione d'ingresso. */
-export function LinkrLockup({ className }: LogoProps) {
+/**
+ * Logo completo: le mani incorniciano il wordmark. È fatto di tre strati sovrapposti (mano in basso, mano in alto, wordmark), ciascuno un
+ * contenitore HTML con il suo SVG, tutti con lo stesso viewBox: così l'animazione (splash.css) muove elementi HTML (transform/opacity,
+ * gestiti dal compositore, quindi fluidi anche quando il thread principale è occupato dall'avvio dell'app) invece di gruppi SVG, che il
+ * browser ridisegna a ogni fotogramma. Il disegno è identico a quello del simbolo statico (stesse trasformazioni di LOCKUP).
+ */
+export function LinkrLockup({ className = "" }: LogoProps) {
   return (
-    <svg className={className} viewBox={LOCKUP.viewBox} {...COMMON}>
-      <Hands />
-      <g className="linkr-word"><g transform={LOCKUP.wordmark}><path d={WORDMARK_PATH} /></g></g>
-    </svg>
+    <span className={`linkr-lockup ${className}`.trim()} aria-hidden="true">
+      <span className="linkr-layer linkr-hand linkr-hand--bottom">
+        <svg viewBox={LOCKUP.viewBox} {...COMMON}><g transform={LOCKUP.bottomHand}><path d={HAND_PATH} /></g></svg>
+      </span>
+      <span className="linkr-layer linkr-hand linkr-hand--top">
+        <svg viewBox={LOCKUP.viewBox} {...COMMON}><g transform={LOCKUP.topHand}><path d={HAND_PATH} /></g></svg>
+      </span>
+      <span className="linkr-layer linkr-word">
+        <svg viewBox={LOCKUP.viewBox} {...COMMON}><g transform={LOCKUP.wordmark}><path d={WORDMARK_PATH} /></g></svg>
+      </span>
+    </span>
   );
 }

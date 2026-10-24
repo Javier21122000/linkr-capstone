@@ -1,3 +1,13 @@
+> # DOCUMENTO STORICO — PROGETTAZIONE INIZIALE
+>
+> Questo documento descrive le decisioni e le ipotesi delle **prime fasi** di LINKR e viene conservato per il suo valore storico: non è stato riscritto e non rappresenta lo stato della Beta 1.0.
+>
+> - Alcuni endpoint, entità, pagine e **stati di implementazione** qui descritti (per esempio l'elenco «DA IMPLEMENTARE» in fondo) sono superati: molte funzioni elencate come future sono state realizzate, mentre altre (inviti, condivisione degli eventi, upload delle immagini, Ticketmaster, scoperta delle persone) non sono descritte affatto.
+> - Per lo **stato attuale** si consultino [`README.md`](../README.md) e la documentazione tecnica aggiornata in questa cartella (per esempio [`DEPLOY.md`](DEPLOY.md), [`UPLOAD-IMMAGINI.md`](UPLOAD-IMMAGINI.md), [`UX-MAPPA-E-NAVIGAZIONE.md`](UX-MAPPA-E-NAVIGAZIONE.md), [`PROFILO-API.md`](PROFILO-API.md), [`CONDIVISIONE-EVENTI.md`](CONDIVISIONE-EVENTI.md)).
+> - **Fonte di verità per gli endpoint implementati:** il codice dei controller in `backend/src/main/java/com/linkr/backend/` (classi `*Controller`), non le tabelle di questo documento.
+
+---
+
 # PROGETTAZIONE — LINKR
 
 ## DESCRIZIONE
@@ -462,6 +472,8 @@ Frontend:
 ---
 
 # STATO DEL PROGETTO
+
+> **Nota (Beta 1.0).** L'elenco seguente fotografa lo stato delle prime fasi e non è stato aggiornato. LINKR Beta 1.0 è stata completata e pubblicata: le funzioni elencate come «DA IMPLEMENTARE» (autenticazione, profili, partecipazioni, richieste Link, mappa interattiva, CRUD eventi, deploy) risultano realizzate nel codice e nel deploy pubblico, e sono state aggiunte funzioni non previste qui. La documentazione finale è il [`README.md`](../README.md) con i documenti di questa cartella.
 
 COMPLETATO:
 

@@ -55,7 +55,7 @@ Non esiste l'elenco della cartella.
 | `linkr.uploads.max-per-day` | | 60 |
 | `spring.servlet.multipart.max-file-size` / `max-request-size` | | 5MB / 6MB |
 
-La cartella si crea al primo upload (permessi `700` dove possibile). Se `LINKR_UPLOAD_DIR` punta **dentro** la copia di
+Nel container Docker di produzione `LINKR_UPLOAD_DIR` vale `/data/uploads` (impostato nel `Dockerfile`). Se la variabile manca, il default `~/.linkr/uploads` nel container sarebbe effimero: vedi «Persistenza su Render». La cartella si crea al primo upload (permessi `700` dove possibile). Se `LINKR_UPLOAD_DIR` punta **dentro** la copia di
 lavoro di Git il backend non parte, con un messaggio esplicito. Nei test la cartella e' sempre temporanea.
 
 ## Metadati rimossi (EXIF, GPS, XMP...)
@@ -117,13 +117,32 @@ qualita' e nessun decoder esposto a file ostili. E' una *lista di ammissione*: c
    connessione chiusa, a seconda del timing.
 7. **Frontend**: `imageUrl` e' un percorso relativo (`/api/...`). Con Vite funziona tramite il proxy `/api`; con frontend e API su
    domini diversi il frontend deve anteporre l'URL base dell'API quando `imageUrl` inizia per `/api/uploads/`.
-8. **Deploy**: dietro HTTPS la cartella deve stare su un volume persistente e con backup, altrimenti un nuovo deploy perde le immagini.
+8. **Deploy**: dietro HTTPS la cartella deve stare su un volume persistente e con backup, altrimenti un nuovo deploy perde le immagini (vedi «Persistenza su Render»).
 
-## Persistenza su Render: diagnosi del 24/10/2026
+## Persistenza su Render
 
-- **Dove:** `LINKR_UPLOAD_DIR=/data/uploads` (impostato nel `Dockerfile`), file in `/data/uploads/event-images/<uuid>.<ext>`; nel database resta solo l'URL relativo `/api/uploads/event-images/<uuid>.<ext>`.
-- **Sopravvivenza:** il filesystem del container è effimero. Con l'istanza Free (nessun disco persistente) le foto spariscono a ogni riavvio, deploy o risveglio dopo lo sleep. Il database continua a puntare a file che non esistono più.
-- **Verificato in produzione con sole `GET`:** delle 3 foto caricate da utenti presenti nell'elenco eventi, **3 su 3 rispondono già 404**. Le 48 copertine demo sono file del frontend e non sono interessate.
-- **URL:** stabili (UUID, `Cache-Control` di un anno e `immutable`), ma un URL stabile non aiuta se il file non c'è: i browser che l'hanno già scaricata la mostrano ancora, gli altri no. La pagina mostra la copertina della categoria al posto dell'immagine mancante.
+Il repository **non può dimostrare** come è configurato il servizio Render: non c'è un `render.yaml` (vedi `DEPLOY.md`) e il disco, il piano dell'istanza e le variabili d'ambiente vivono solo nel pannello Render. Questa sezione distingue ciò che il codice garantisce da ciò che dipende dal pannello.
+
+| Concetto | Che cosa è | Dove si vede |
+|---|---|---|
+| **Percorso configurato per gli upload** | `LINKR_UPLOAD_DIR` = `/data/uploads` (impostato nel `Dockerfile`; sovrascrivibile dal pannello). I file stanno in `/data/uploads/event-images/<uuid>.<ext>`; nel database resta solo l'URL relativo `/api/uploads/event-images/<uuid>.<ext>` | `backend/Dockerfile`, `application.properties` (`linkr.uploads.dir`) |
+| **Filesystem effimero** | Il disco del container: nasce vuoto a ogni deploy e viene perso a ogni riavvio, deploy o risveglio dopo lo sleep. Il `Dockerfile` crea `/data/uploads` dentro l'immagine, ma quella cartella **non è persistente** | proprietà di Render, non del repository |
+| **Disco persistente** | Un disco Render montato su un percorso del servizio: il contenuto di quel percorso sopravvive a riavvii e deploy. Richiede un'istanza a pagamento e **una sola istanza**; si crea dalla pagina del servizio nel pannello (sezione *Disks*) | solo nel pannello Render: **non dimostrabile dal repository** |
+
+**Conseguenze di un deploy senza disco persistente sul percorso degli upload:** le foto caricate dagli utenti spariscono a ogni riavvio, deploy o sleep; il database continua a puntare a file che non esistono più (`GET` → 404) e la pagina mostra la copertina della categoria al posto dell'immagine mancante. Le copertine e gli avatar demo non sono toccati: sono file del frontend (`/demo/…`). Gli URL sono stabili (UUID, `Cache-Control` di un anno e `immutable`), ma un URL stabile non aiuta se il file non c'è: i browser che l'hanno già scaricata la mostrano ancora, gli altri no.
+
+**Stato dichiarato per la Beta 1.0 (dato operativo, non verificabile dal repository):** il servizio backend usa un disco persistente Render da **2 GB** con mount path **`/data/uploads`** (impostazione del pannello). `LINKR_UPLOAD_DIR` (default del `Dockerfile`: `/data/uploads`) è un'impostazione **distinta**: la directory degli upload deve coincidere con il mount path o stare dentro di esso, e il repository non può verificare che sia così. Se il disco fosse rimosso, montato altrove o la variabile puntasse fuori dal disco, il comportamento tornerebbe a quello della diagnosi storica qui sotto.
+
+**Come verificarlo (fuori dal repository):**
+1. Nel pannello Render, pagina del servizio backend → *Disks*: mount path e dimensione. Controlla poi la variabile `LINKR_UPLOAD_DIR` (o il default `/data/uploads` del `Dockerfile`): deve coincidere con il mount path o stare dentro di esso.
+2. L'utente del container non è root (vedi `Dockerfile`): la directory degli upload deve essere scrivibile. Un upload che risponde `201` ne è la prova.
+3. Dopo un riavvio o un deploy, una foto caricata prima deve rispondere ancora `200` su `GET <API>/api/uploads/event-images/<nome>` (richiesta in sola lettura). Un `404` su una foto già usata da un evento indica che il disco non è montato sul percorso giusto.
+
+Spazio e backup: non esiste un tetto sullo spazio totale usato dagli upload né una cancellazione automatica dei file orfani (vedi «Limiti residui noti»); lo spazio del disco è quello acquistato e i backup non sono gestiti dal repository.
+
+### Diagnosi storica del 24/10/2026 (prima del disco persistente)
+
+- **Sopravvivenza:** con l'istanza Free (nessun disco persistente) le foto sparivano a ogni riavvio, deploy o risveglio dopo lo sleep.
+- **Verificato in produzione con sole `GET`:** delle 3 foto caricate da utenti presenti nell'elenco eventi, **3 su 3 rispondevano già 404**. Le 48 copertine demo sono file del frontend e non erano interessate.
 - **Rischio per una beta con utenti reali:** concreto e già avvenuto. Lo stesso vale, più in grande, per PostgreSQL Free (scade 30 giorni dopo la creazione e non ha backup, vedi `DEPLOY.md`).
-- **Soluzioni minime** (nessuna è implementata): (1) disco persistente Render montato su `/data/uploads` (solo infrastruttura, nessun codice, richiede un'istanza a pagamento, una sola istanza); (2) storage oggetti esterno (S3, R2, Cloudinary…) con credenziali nuove e un piccolo adattatore nel backend; (3) fino ad allora, sconsigliare o nascondere il caricamento foto e usare le copertine per categoria.
+- **Soluzioni minime considerate:** (1) disco persistente Render il cui mount path contenga `LINKR_UPLOAD_DIR` (per esempio `/data/uploads`; solo infrastruttura, nessun codice, richiede un'istanza a pagamento, una sola istanza); (2) storage oggetti esterno (S3, R2, Cloudinary…) con credenziali nuove e un piccolo adattatore nel backend; (3) fino ad allora, sconsigliare o nascondere il caricamento foto e usare le copertine per categoria. Il repository implementa solo la scrittura su filesystem: la soluzione (1) è una scelta di infrastruttura, la (2) non è implementata.

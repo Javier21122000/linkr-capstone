@@ -167,7 +167,7 @@ La textarea cresce automaticamente fino a 144px. Un `ResizeObserver` conserva il
 
 ```bash
 cd frontend
-npm test            # 153 test: luoghi MapTiler, fuso di Milano, orari, navigazione, ALT, scroll chat, salute e recupero della mappa, guida, stato Link del profilo pubblico, dimensione della mappa, bottom sheet
+npm test            # tutti i tests/**/*.test.mjs (node:test): luoghi MapTiler, fuso di Milano, orari, navigazione, ALT, scroll chat, salute e recupero della mappa, guida, stato Link del profilo pubblico, dimensione della mappa, bottom sheet, splash e movimento del logo, manifest e icone
 npm run typecheck
 npm run build
 ```
@@ -176,10 +176,10 @@ Le verifiche nel browser (Chrome, API in sola lettura) non fanno parte del repos
 
 # Onboarding e assistenza (`lib/guidance.ts`, `context/ProductGuidanceContext.tsx`, `styles/guidance.css`)
 
-**Prima visita (anonima o autenticata, è lo stesso).** Sequenza: splash → onboarding (SCOPRI / CONNETTITI / VIVI) → app. Appena lo splash di avvio ha il via libera (vedi sotto) e si è su Discover, dopo la sua dissolvenza (≈ 0,3 s) compare l'onboarding a tre schermate, con **Scopri come funziona** (avvia il tour) ed **Esplora Milano**. Non aspetta la mappa: mentre si legge, la mappa si carica dietro.
+**Prima visita (anonima o autenticata, è lo stesso).** Sequenza: splash → onboarding (SCOPRI / CONNETTITI / VIVI) → app. Quando lo splash di avvio è uscito del tutto (ha completato il ciclo del logo e la dissolvenza, vedi sotto; segnale `splashGone`) e si è su Discover, dopo 0,32 s (`WELCOME_DELAY_MS`) compare l'onboarding a tre schermate, con **Scopri come funziona** (nell'ultima schermata: avvia il tour) ed **Esplora Milano**. Non compare mai sotto lo splash né lo interrompe a metà. Non aspetta la mappa: mentre si legge, la mappa si carica dietro.
 
-- **Scopri LINKR** avvia il tour contestuale. I passi sono risolti guardando il DOM: compaiono solo i controlli che esistono davvero in quel momento (su mobile e su desktop sono diversi). Ogni passo ha un callout con freccia che punta all'elemento evidenziato, **Avanti**, **Indietro** e **Salta**; tastiera: frecce, Esc, Tab trattenuto nel callout. Il callout non copre l'elemento che spiega (si sposta sul lato libero o nella metà opposta dello schermo).
-- **Non ora** (e Esc) chiude e segna il benvenuto come visto: non ricompare da solo ai refresh successivi.
+- **Scopri come funziona** (ultima schermata dell'onboarding) avvia il tour contestuale. I passi sono risolti guardando il DOM: compaiono solo i controlli che esistono davvero in quel momento (su mobile e su desktop sono diversi). Ogni passo ha un callout con freccia che punta all'elemento evidenziato, **Avanti**, **Indietro** e **Salta**; tastiera: frecce, Esc, Tab trattenuto nel callout. Il callout non copre l'elemento che spiega (si sposta sul lato libero o nella metà opposta dello schermo).
+- **Salta**, Esc ed **Esplora Milano** chiudono e segnano il benvenuto come visto: non ricompare da solo ai refresh successivi.
 - Mai in automatico su Login o Registrazione (né su altre pagine): compare solo su Discover, anche se ci si arriva dopo l'accesso.
 - **Riaprire il tour**: il pulsante «?» (Centro assistenza) offre «Tour dell'interfaccia» e le schermate «Come funziona LINKR».
 - Con `prefers-reduced-motion` non ci sono ingressi animati né transizioni del callout.
@@ -189,18 +189,45 @@ Le verifiche nel browser (Chrome, API in sola lettura) non fanno parte del repos
 Le illustrazioni delle schermate «Come funziona LINKR» sono componenti grafici CSS originali e provvisori, senza richieste remote; possono essere sostituite da asset editoriali mantenendo invariata la struttura accessibile.
 
 
-# Splash di avvio e caricamento della mappa (`lib/appBoot.ts`, `lib/mapLoading.ts`, `components/ui/LinkrSplash.tsx`, `components/ui/BootSplash.tsx`, `styles/splash.css`)
+# Splash di avvio e caricamento della mappa (`lib/appBoot.ts`, `lib/splashCycle.ts`, `lib/mapLoading.ts`, `components/brand/LinkrLogo.tsx`, `components/ui/LinkrSplash.tsx`, `components/ui/BootSplash.tsx`, `styles/splash.css`)
 
-**Splash.** `LinkrSplash` è il componente riutilizzabile (sfondo bianco caldo, simbolo nero, puntino corallo, scritta LINKR; solo SVG e CSS). Il simbolo è **temporaneo**: vive in `SplashSymbol` (un anello e un puntino) e si sostituisce con il logo definitivo cambiando solo quella funzione (e, se ha altre parti animate, i nomi `linkr-splash__ring`/`__dot` in `splash.css`).
+**Logo animato.** `LinkrSplash` è il componente riutilizzabile (sfondo caldo, logo nero: due mani e wordmark «linkr»). Il logo è fatto solo di tracciati SVG (nessun font, nessuna immagine) ed è composto da tre strati HTML sovrapposti (`LinkrLockup`: mano in basso, mano in alto, wordmark) con lo stesso riquadro. Si animano solo `transform` e `opacity` degli strati, quindi se ne occupa il compositore e non dipende dal thread principale, occupato all'avvio (router, eventi, mappa). Animare i gruppi SVG interni, la prima versione, costringeva il browser a ricalcolare layout e ridisegnare a ogni fotogramma (misurato su Chrome con GPU reale: circa 390 layout e 870 paint in 8 s contro circa 19 e 120 con gli strati HTML; l'aspetto è identico).
 
-- Compare **una volta per caricamento della pagina**, mai nelle navigazioni interne, e se ne va con una dissolvenza di 240 ms **appena l'app è pronta**: il router ha inizializzato la prima pagina (anche una pagina `lazy`) e, se si atterra su Discover, la prima richiesta degli eventi si è conclusa (con un elenco o con un errore). Nessun ritardo artificiale: con onboarding già completato dura quanto la richiesta degli eventi.
-- Non copre mai un errore: dopo 4 s compare «Il server si sta avviando…» (utile col backend gratuito che si risveglia) e dopo 8 s lascia comunque spazio all'app, che mostra il suo stato di caricamento o di errore. Un errore di rendering lo chiude subito.
-- Il browser scarica prima il JavaScript: fino a quel momento si vede solo il fondo caldo della pagina (nessuno splash HTML duplicato).
-- `prefers-reduced-motion`: nessun disegno, dissolvenza o impulso; lo splash sparisce subito. L'unica animazione che si ripete è l'impulso del puntino (opacity/transform).
+**Il ciclo (1,6 s, `--linkr-cycle` in `splash.css`)**, uguale per splash e loader:
 
-**Mappa in caricamento.** La mappa di Discover resta montata tra le pagine (una sola istanza MapLibre): tornare su Discover non ricrea nulla e non mostra overlay. L'overlay LINKR (`LinkrSplash variant="panel"`, stesso aspetto, statico) copre la mappa **solo finché non ha mai disegnato**: da `loading`/`recovering` (inclusi i due tentativi automatici) fino a `ready` (evento `load` + `idle`, nessun errore di tasselli, `queryRenderedFeatures` non vuoto: la logica di `mapRecovery.ts`, invariata). Quando è pronta svanisce in 240 ms e i marker compaiono con lei. Non copre mai per una selezione, un filtro, un movimento della camera o un recupero successivo (resta la pillola «Ricarico la mappa…»).
+| Fase | Quota del ciclo | Movimento |
+|---|---|---|
+| Aperto | 0–10 % | fermo, wordmark leggibile (**è anche il primo fotogramma**: il logo è completo fin dall'inizio, senza entrata animata) |
+| Chiusura | 10–38 % | le mani si avvicinano in modo speculare (la mano in alto scende, quella in basso sale) e accelerano fino a toccarsi |
+| Compressione | 38–47 % | proseguono leggermente oltre il contatto: le dita a L e lo spazio centrale sono assorbiti dalla massa nera |
+| Riapertura | 47–80 % | si separano in modo morbido, con una lievissima sovra-apertura |
+| Assestamento | 80–90 % | tornano nella posizione di riposo |
+| Aperto | 90–100 % | riposo, prima del ciclo successivo |
+
+Il wordmark sparisce (opacità e scala) tra il 22,5 % e il 29 % del ciclo, cioè **prima** che le mani lo sfiorino, ed è nascosto per tutta la compressione; ricompare tra il 54 % e il 58 %, **solo** quando lo spazio centrale è di nuovo sufficiente. Lo stato aperto di inizio e fine ciclo coincide, quindi il ciclo si ripete senza salti. Il logo resta centrato perché le due mani si muovono dello stesso tratto.
+
+**Splash di avvio.**
+- Compare **una volta per caricamento della pagina**, mai nelle navigazioni interne, e resta finché l'app non è pronta: il router ha inizializzato la prima pagina (anche una pagina `lazy`) e, se si atterra su Discover, la prima richiesta degli eventi si è conclusa (con un elenco o con un errore). Nessun ritardo artificiale oltre al completamento del ciclo.
+- **Uscita coordinata con il ciclo.** Quando l'app è pronta lo splash non si interrompe a metà: attende che le mani siano di nuovo aperte (dal 90 % del ciclo, `splashExitDelayMs` in `splashCycle.ts`), poi sfuma in 240 ms con il logo fermo e aperto. L'attesa non supera mai un ciclo.
+- **Primo avvio sul dispositivo** (chiave `linkr:splash:seen:v1` in `localStorage` assente): il ciclo parte subito e se ne vede almeno uno intero, quindi lo splash dura circa 1,7 s anche con l'API veloce (misurato in emulazione WebKit e Chrome). La chiave si scrive quando lo splash comincia a uscire.
+- **Avvii successivi:** il logo resta fermo e aperto per 350 ms (`SPLASH_RETURN_DELAY_MS`) prima del ciclo. Se l'app è pronta prima, o durante la breve sosta iniziale a mani aperte, lo splash esce subito (circa 0,4 s in tutto, senza movimento); se è pronta a ciclo avviato aspetta la fine del ciclo in corso. Senza `localStorage` disponibile (per esempio in alcune modalità di navigazione privata) si considera già visto: avvio rapido.
+- Non copre mai un errore: dopo 4 s compare «Il server si sta avviando…» (utile col backend gratuito che si risveglia) e dopo 8 s lascia comunque spazio all'app, al termine del ciclo in corso. Un errore di rendering fa uscire lo splash allo stesso modo (al termine del ciclo in corso, non più istantaneamente).
+- Il browser scarica prima il JavaScript: fino a quel momento si vede solo il fondo caldo della pagina (`index.html` lo imposta con uno stile inline, così non c'è un lampo bianco; nessuno splash HTML duplicato).
+- **L'onboarding aspetta l'uscita completa dello splash** (`splashGone`, vedi la sezione precedente), quindi non lo interrompe né ci si sovrappone.
+- `prefers-reduced-motion`: il logo resta fermo, aperto e con il wordmark leggibile; nessuna animazione né dissolvenza, e lo splash sparisce subito quando l'app è pronta.
+
+**Mappa in caricamento.** La mappa di Discover resta montata tra le pagine (una sola istanza MapLibre): tornare su Discover non ricrea nulla e non mostra overlay. L'overlay LINKR (`LinkrSplash variant="panel"`) usa lo **stesso logo e lo stesso ciclo dello splash**, più piccolo (5,5 rem), con il wordmark leggibile quando le mani sono aperte e nascosto durante la compressione, e il testo «Caricamento mappa» sotto. Il ciclo si ripete finché serve e ha una fase comune a tutti i loader (il segnaposto di Discover e l'overlay della mappa non fanno scattare il logo quando uno sostituisce l'altro). Copre la mappa **solo finché non ha mai disegnato**: da `loading`/`recovering` (inclusi i due tentativi automatici) fino a `ready` (evento `load` + `idle`, nessun errore di tasselli, `queryRenderedFeatures` non vuoto: la logica di `mapRecovery.ts`, invariata). Quando è pronta svanisce subito in 240 ms, **senza aspettare la fine del ciclo** (non ritarda la mappa; il logo continua a muoversi mentre sfuma) e i marker compaiono con lei. Con `prefers-reduced-motion` il logo è fermo e aperto. Non copre mai per una selezione, un filtro, un movimento della camera o un recupero successivo (resta la pillola «Ricarico la mappa…»).
 
 - Dopo 20 s (`slow` di `mapRecovery.ts`) l'overlay dice «La mappa sta impiegando più del previsto…» e offre **Riprova**. Un timeout non dichiara mai pronta la mappa.
 - Errore (stile non scaricabile, WebGL assente, chiave mancante): schermata «Mappa non disponibile» con il messaggio e **Riprova**; con «Riprova» l'overlay ritorna finché la mappa non disegna.
 - Cartografia incompleta dopo i tentativi (`degraded`): si vede la mappa con l'avviso e **Riprova**, come prima (marker e lista restano usabili).
 - Correzione collegata: la regola CSS che nasconde i marker finché la mappa non è pronta non funzionava (MapLibre scrive `opacity` inline sul marker): ora usa `!important`.
+
+# Header: logo e rotazione (`components/layout/AppHeader.tsx`, `components/ui/BrandMark.tsx`, `styles/layout.css`)
+
+Il logo completo (simbolo delle mani e wordmark «linkr», entrambi tracciati SVG) sta nella pillola in alto a sinistra ed è un link a `/` (`aria-label` «LINKR home»).
+
+- **Da una pagina diversa da Discover** il tocco naviga a Discover come un normale link, senza nessuna animazione che ritardi la navigazione.
+- **Già su Discover** un clic o tocco semplice (tasto sinistro, senza Ctrl/Cmd/Shift/Alt) **non naviga e non ricarica**: il solo **simbolo delle mani** ruota di 360° attorno al proprio centro in **540 ms** (`brand-spin`, `cubic-bezier(0.6, 0, 0.2, 1)`) e torna esattamente nella posizione di partenza. Il wordmark, la pillola e il contenitore restano immobili e le dimensioni dell'header non cambiano; mappa, filtri, selezione e URL non si toccano. I clic con modificatori mantengono il comportamento normale del browser.
+- **Tocchi ripetuti:** durante il giro i tocchi successivi vengono ignorati (un solo giro per volta, nessuna animazione accumulata); se `animationend` non arrivasse, il blocco si toglie comunque dopo 700 ms.
+- **Accessibilità:** resta un normale link, raggiungibile con Tab e attivabile con Invio (il giro parte anche da tastiera, il focus resta sul link). Con `prefers-reduced-motion` il simbolo non ruota e, su Discover, il tocco non fa nulla (non naviga comunque).

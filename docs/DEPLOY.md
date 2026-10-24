@@ -13,6 +13,8 @@ Frontend e API hanno **domini diversi** (`*.onrender.com`): il browser fa chiama
 
 > La versione precedente di questo documento (una sola macchina con Caddy e systemd) è nella cronologia di Git.
 
+> **Stato e limiti di questo documento (Beta 1.0).** Descrive la procedura di pubblicazione di partenza, con istanze **Free**. Piano delle istanze, dischi e variabili d'ambiente si impostano solo dal pannello Render: il repository non contiene un `render.yaml`, quindi **non può dimostrare** come è configurato oggi il servizio pubblico. Dato operativo dichiarato per la Beta 1.0 (non verificabile dal repository): backend con istanza a pagamento e disco persistente da 2 GB con **mount path** `/data/uploads` (impostazione del pannello), PostgreSQL sul piano Free. Il mount path del disco e la directory in cui il backend scrive gli upload (`LINKR_UPLOAD_DIR`, default del `Dockerfile` `/data/uploads`) sono **due impostazioni distinte**: che coincidano, o che la seconda stia dentro la prima, non è verificabile dal solo repository. Per gli upload vedi §5 e [`UPLOAD-IMMAGINI.md`](UPLOAD-IMMAGINI.md#persistenza-su-render).
+
 ## 0. Prima di cominciare
 
 - [ ] Account Render con il repository GitHub collegato (il branch `main` deve contenere `backend/Dockerfile`).
@@ -58,6 +60,8 @@ Dashboard → **New → Web Service → Build and deploy from a Git repository**
 | Instance type | Free |
 | Health Check Path (Advanced) | `/api/health` |
 
+`Free` è il piano della procedura di partenza. Con il piano Free il servizio va in sleep e il filesystem è effimero (§5): per conservare gli upload serve un'istanza a pagamento con un **disco persistente**, il cui *mount path* si sceglie nel pannello Render. La directory in cui il backend scrive gli upload è invece `LINKR_UPLOAD_DIR` (default del `Dockerfile`: `/data/uploads`): deve coincidere con il mount path o stare dentro di esso (§5). Il disco si aggiunge dalla pagina del servizio, non dal repository.
+
 Se nei log di build compare "Dockerfile not found": imposta Root Directory `backend`, Dockerfile Path `./Dockerfile` e contesto `.`. I due modi si escludono a vicenda.
 
 ### Variabili d'ambiente del backend
@@ -77,7 +81,7 @@ Si inseriscono nel pannello **Environment** del servizio (mai in file del reposi
 Facoltative: `LINKR_JWT_EXPIRATION` (default `2h`, non esiste refresh token) e `LINKR_DB_EXPECTED_NAME` (solo se il database non si chiama `linkr_db`).
 **Non** impostare nulla di `LINKR_TICKETMASTER_*`: l'integrazione è spenta di base e non blocca l'avvio.
 
-Il `Dockerfile` imposta già, senza segreti: `JAVA_OPTS` (heap al 65% della memoria del container, GC seriale), `SPRING_JPA_SHOW_SQL=false`, `SERVER_FORWARD_HEADERS_STRATEGY=framework` e `LINKR_UPLOAD_DIR=/data/uploads`. Sono sovrascrivibili dal pannello.
+Il `Dockerfile` imposta già, senza segreti: `JAVA_OPTS` (heap al 65% della memoria del container, GC seriale), `SPRING_JPA_SHOW_SQL=false`, `SERVER_FORWARD_HEADERS_STRATEGY=framework` e `LINKR_UPLOAD_DIR=/data/uploads` (senza un disco persistente il cui mount path la contenga è una cartella del container, quindi effimera). Sono sovrascrivibili dal pannello.
 
 ### Profilo `demo`
 
@@ -144,6 +148,7 @@ curl -si -m 5 $API/ws -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Sec-W
      -H "Sec-WebSocket-Key: x3JJHMbDL1EzLkh9GBhXDw==" -H "Origin: $WEB" | head -n 3
 
 curl -sI $WEB/people | head -n 1              # HTTP/2 200 (rewrite attiva), non 404
+curl -sI $WEB/manifest.webmanifest | head -n 1   # HTTP/2 200: il manifest per l'aggiunta alla Home (Render lo serve come binary/octet-stream; i browser lo leggono comunque, ma non è stato provato su dispositivi reali)
 curl -s -o /dev/null -w "%{http_code}\n" -X POST $API/api/events -H "Content-Type: application/json" -d '{}'   # 401
 ```
 
@@ -155,6 +160,8 @@ Nel browser (console aperta, nessun errore CORS/CSP):
 - [ ] Partecipa a due o tre eventi; attiva Discovery; **Discover People** mostra persone.
 - [ ] Richiesta Link a un personaggio demo; con due browser, un secondo utente accetta e la chat consegna i messaggi in tempo reale (DevTools → Network → WS: `wss://…/ws`).
 - [ ] Crea un evento con una foto JPEG/PNG e controlla che l'immagine si veda.
+- [ ] Solo se il servizio ha un disco persistente: dopo un riavvio manuale o un deploy, la foto caricata prima risponde ancora `200` (altrimenti la directory `LINKR_UPLOAD_DIR` non sta sul disco persistente: controlla mount path e variabile, vedi §5).
+- [ ] Aggiunta alla Home (iOS: Condividi → Aggiungi alla schermata Home): icona e nome «LINKR». Non esiste un service worker: nessuna modalità offline.
 
 ## 5. Piano gratuito: limiti da conoscere per la demo
 
@@ -162,8 +169,9 @@ Verificati sulla [documentazione Render](https://render.com/docs/free) il 22/10/
 
 - **Web Service Free va in sleep dopo 15 minuti senza traffico** e si risveglia in circa un minuto (qui anche JVM, Flyway e seed). Il client ha un timeout di 10 s (`frontend/src/lib/api.ts`): se apri l'app a freddo, le prime chiamate falliscono o la mappa resta vuota.
   **Procedura demo:** 10 minuti prima di presentare apri `$API/api/health` e naviga l'app finché Discover mostra gli eventi. Un piano a pagamento per il backend elimina lo sleep (prezzo da verificare sul sito Render).
-- **Filesystem effimero**: le foto caricate dagli utenti spariscono a ogni riavvio, deploy o sleep (un disco persistente non è disponibile sul Free). La pagina mostra un'immagine rotta. Le copertine e gli avatar demo non sono toccati: stanno nel frontend (`/demo/…`). Non basare la demo su foto caricate prima. Con un disco a pagamento: montalo su `/data`; l'utente del container non è root, quindi verifica che `/data/uploads` sia scrivibile.
-- **PostgreSQL Free scade 30 giorni dopo la creazione** e non ha backup: è adatto a un ambiente dimostrativo temporaneo, non a un servizio permanente.
+- **Filesystem effimero (Free, o qualsiasi servizio senza disco)**: le foto caricate dagli utenti spariscono a ogni riavvio, deploy o sleep (un disco persistente non è disponibile sul Free). Il database continua a puntare a file che non esistono più e la pagina mostra la copertina della categoria al posto dell'immagine. Le copertine e gli avatar demo non sono toccati: stanno nel frontend (`/demo/…`). Non basare la demo su foto caricate prima.
+- **Disco persistente (istanza a pagamento, una sola istanza)**: ha un **mount path**, scelto nel pannello Render (nella Beta 1.0 è dichiarato `/data/uploads`). La directory in cui il backend scrive è un'altra impostazione, la variabile `LINKR_UPLOAD_DIR` (default del `Dockerfile`: `/data/uploads`): per essere persistente deve coincidere con il mount path o stare dentro di esso, e se cambi uno dei due devi controllare l'altro. Il repository conosce solo `LINKR_UPLOAD_DIR`, non il mount path. L'utente del container non è root, quindi verifica che la directory sia scrivibile (un upload che risponde `201` lo conferma). La presenza del disco **non è dimostrabile dal repository**: si controlla nella sezione *Disks* del servizio e con la verifica descritta in [`UPLOAD-IMMAGINI.md`](UPLOAD-IMMAGINI.md#persistenza-su-render). Il disco non sostituisce un backup.
+- **PostgreSQL Free scade 30 giorni dopo la creazione** e non ha backup: è adatto a un ambiente dimostrativo temporaneo, non a un servizio permanente. Per la Beta 1.0 la scadenza dichiarata è il 21 novembre 2026 (dato del pannello Render, non verificabile dal repository): prima di quella data serve un piano a pagamento o una migrazione dei dati.
 - **Auto-deploy**: ogni push su `main` ridistribuisce i servizi. Prima della presentazione disattivalo (Settings → Build & Deploy → Auto-Deploy: Off) per non avere un deploy a metà demo.
 - Il JWT dura 2 ore e non c'è refresh token: fai il login poco prima di presentare.
 - Memoria del Free: limitata (indicativamente 512 MB). Il backend è configurato per restarci (`JAVA_OPTS`); se Render segnala "out of memory" nei log, abbassa `-XX:MaxRAMPercentage` in `JAVA_OPTS`.
@@ -193,7 +201,7 @@ Permissions-Policy: camera=(self), microphone=(), geolocation=()
 
 ## 7. Test backend sul database di test (facoltativo, in locale)
 
-Servono utente e password di PostgreSQL nell'ambiente (non nel repository) e il database `linkr_test_db` con lo stesso utente. Da una copia, per non far riavviare un'app di sviluppo in esecuzione (devtools ricompila `backend/target`):
+Servono utente e password di PostgreSQL nell'ambiente (non nel repository) e il database `linkr_test_db` già creato con lo stesso utente (`CREATE DATABASE linkr_test_db;`: i test non lo creano). Il profilo `test` ha l'URL fisso `jdbc:postgresql://localhost:5432/linkr_test_db` e legge le credenziali da `LINKR_TEST_DB_USERNAME`/`LINKR_TEST_DB_PASSWORD` oppure, in alternativa, da `LINKR_DB_USERNAME`/`LINKR_DB_PASSWORD`; la guardia `linkr.database.expected-name=linkr_test_db` impedisce di toccare `linkr_db`. Servono Java 21 e il Maven Wrapper del repository (`./mvnw`). Da una copia, per non far riavviare un'app di sviluppo in esecuzione (devtools ricompila `backend/target`):
 
 ```bash
 set -a; source .env; set +a                                     # carica LINKR_DB_USERNAME / LINKR_DB_PASSWORD, senza stamparli
@@ -201,7 +209,7 @@ mkdir -p /tmp/linkr-build/backend /tmp/linkr-build/frontend
 rsync -a --exclude target backend/ /tmp/linkr-build/backend/
 rsync -a frontend/public/ /tmp/linkr-build/frontend/public/     # asset locali richiesti da CommunityDemoSeederTest
 cd /tmp/linkr-build/backend
-JAVA_HOME=$(/usr/libexec/java_home -v 21) ./mvnw test           # usa SOLO linkr_test_db (URL fisso nei test)
+JAVA_HOME=$(/usr/libexec/java_home -v 21) ./mvnw test           # usa SOLO linkr_test_db (URL fisso nei test); /usr/libexec/java_home è di macOS: altrove imposta JAVA_HOME su un JDK 21
 ```
 
 Atteso: tutto verde. Il jar di produzione si costruisce con `./mvnw -DskipTests package` (è quello che fa il `Dockerfile`).

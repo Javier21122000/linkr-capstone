@@ -16,7 +16,7 @@ L'applicazione riunisce questi passaggi in un unico flusso: esplorazione su mapp
 | Stato del backend | [linkr-api-9ezt.onrender.com/api/health](https://linkr-api-9ezt.onrender.com/api/health) |
 | Repository | [github.com/Javier21122000/linkr-capstone](https://github.com/Javier21122000/linkr-capstone) |
 
-I tre collegamenti sono stati verificati il 23 ottobre 2026. Il deploy pubblico usa risorse Render Free: dopo un periodo di inattività il backend può richiedere un cold start e le prime richieste possono impiegare più tempo o dover essere ripetute.
+I tre collegamenti sono stati verificati il 24 ottobre 2026, dopo la pubblicazione della Beta 1.0. La procedura di partenza descritta in [`docs/DEPLOY.md`](docs/DEPLOY.md) usa istanze Render Free: con quel piano il backend, dopo un periodo di inattività, può richiedere un cold start e le prime richieste possono impiegare più tempo o dover essere ripetute. Il piano effettivo di ogni servizio e gli eventuali dischi si impostano dal pannello Render: il repository non contiene un `render.yaml`, quindi non può dimostrarli.
 
 ## Screenshot
 
@@ -38,6 +38,8 @@ Schermate acquisite dall'applicazione LINKR in esecuzione locale: Discover e la 
 - **Messaggistica privata:** conversazioni disponibili tra Link accettati; invio e storico via REST, notifiche in tempo reale tramite WebSocket/STOMP e badge dei non letti.
 - **Amministrazione:** area protetta per utenti `ADMIN` e strumenti Ticketmaster di dry-run/importazione manuale.
 - **Onboarding e guida contestuale:** percorso editoriale introduttivo, suggerimenti progressivi e tour delle funzioni principali.
+- **Identità visiva e movimento:** logo LINKR (due mani e wordmark) disegnato come tracciati SVG, splash di avvio e loader della mappa che usano lo stesso ciclo animato, e un piccolo easter egg sul logo dell'header; tutto rispetta `prefers-reduced-motion` (vedi [`docs/UX-MAPPA-E-NAVIGAZIONE.md`](docs/UX-MAPPA-E-NAVIGAZIONE.md)).
+- **Aggiunta alla schermata Home:** `manifest.webmanifest`, icone (192, 512, maskable, Apple Touch Icon) e favicon permettono di aggiungere LINKR alla Home e di aprirla in modalità `standalone`. **Non è una PWA offline:** non c'è nessun service worker né cache offline, quindi l'app richiede sempre la rete. L'aggiunta alla Home non è stata provata su dispositivi reali.
 - **Immagini:** upload JPEG/PNG con controllo del contenuto reale, limite di dimensione, rate limit, nomi casuali e rimozione dei metadati.
 - **Eventi esterni:** l'integrazione Ticketmaster esiste ma è **disattivata di default**. Il dry-run richiede l'abilitazione generale e il ruolo admin; l'importazione persistente richiede un secondo interruttore esplicito. Non esiste uno scheduler automatico.
 
@@ -79,7 +81,7 @@ React e TypeScript dividono la UI in pagine, componenti e logica pura verificabi
 
 ### API stateless con JWT
 
-Spring Security tratta il backend come resource server stateless. Il JWT viaggia nell'header `Authorization`, contiene i ruoli e scade dopo due ore per impostazione predefinita; non sono usati cookie né refresh token. Il frontend conserva il token in `sessionStorage`: sopravvive al refresh della pagina ma termina con la sessione del browser. È un compromesso semplice, ma un eventuale XSS potrebbe leggere il token; la prevenzione delle injection e una CSP verificata restano necessarie.
+Spring Security tratta il backend come resource server stateless. Il JWT viaggia nell'header `Authorization`, contiene i ruoli e scade dopo due ore per impostazione predefinita (`LINKR_JWT_EXPIRATION`); non sono usati cookie né refresh token. Il frontend conserva la sessione (token, scadenza e dati dell'utente) in `localStorage`, alla chiave `linkr.auth.session`: sopravvive a refresh, chiusura della scheda e chiusura della web app aggiunta alla Home, ma solo finché il JWT è valido. La persistenza locale non allunga la validità del token: una sessione scaduta viene scartata e cancellata (all'avvio, al ritorno in primo piano e con un timer) e il logout la cancella subito; il token non viene eliminato alla chiusura del browser. `sessionStorage` non conserva più la sessione di accesso: viene letto soltanto per spostare in `localStorage` una sessione ancora valida creata dalle versioni precedenti. È un compromesso semplice, ma un eventuale XSS potrebbe leggere il token; la prevenzione delle injection e una CSP verificata restano necessarie.
 
 ### PostgreSQL e migrazioni controllate
 
@@ -112,7 +114,7 @@ Durante lo sviluppo sono state affrontate problematiche di prestazioni, sicurezz
 1. **Problema:** il canvas poteva non produrre tile visibili, rimanere in caricamento o perdere il contesto WebGL; su infrastruttura Free anche una risposta API lenta rendeva ambiguo lo stato iniziale.
 2. **Impatto:** Discover sembrava bloccata anche se lista eventi e controlli erano ancora utilizzabili.
 3. **Indagine:** la logica è stata separata in stati osservabili (`loading`, `ready`, `recovering`, `degraded`, `error`, `missing-key`) e in controlli sul canvas, sulle tile e sugli errori MapLibre. I casi di recovery hanno test dedicati.
-4. **Soluzione:** tentativi automatici limitati, ricreazione controllata della mappa, gestione della perdita WebGL, messaggi distinti per chiave assente/errori permanenti e un'azione manuale di retry. Lo splash attende router ed eventi, non il rendering cartografico, e ha un limite massimo.
+4. **Soluzione:** tentativi automatici limitati, ricreazione controllata della mappa, gestione della perdita WebGL, messaggi distinti per chiave assente/errori permanenti e un'azione manuale di retry. Lo splash attende router ed eventi, non il rendering cartografico, e ha un limite massimo; quando può uscire lascia comunque finire il ciclo animato del logo in corso.
 5. **Trade-off:** una chiave MapTiler non valida o una rete indisponibile non possono essere corrette dal client. La lista eventi può restare disponibile, mentre i marker potrebbero non essere utilizzabili se il canvas MapLibre non riesce a renderizzare.
 
 ### Evento selezionato coperto dai pannelli
@@ -136,8 +138,8 @@ Durante lo sviluppo sono state affrontate problematiche di prestazioni, sicurezz
 1. **Problema:** un refresh non doveva far perdere immediatamente l'accesso, ma token scaduti e connessioni STOMP non dovevano sopravvivere oltre la sessione valida.
 2. **Impatto:** stato di autenticazione, badge e messaggi potevano divergere dall'API.
 3. **Indagine:** autenticazione, storage e lifecycle WebSocket sono stati centralizzati nei rispettivi context; gli errori di autorizzazione vengono gestiti in modo uniforme.
-4. **Soluzione:** sessione in `localStorage` (sopravvive alla chiusura della web app fino alla scadenza del token), scadenza verificata all'avvio e al ritorno in primo piano, logout che rimuove lo stato, connessione STOMP associata all'utente autenticato e messaggi persistiti via REST prima della notifica.
-5. **Trade-off:** non esiste refresh token; dopo la scadenza (2 ore di default) occorre accedere di nuovo. Lo storage del browser, `sessionStorage` o `localStorage`, non elimina il rischio XSS; la persistenza più lunga è una proposta da approvare in [`docs/PROPOSTE-SESSIONI-E-INVITI.md`](docs/PROPOSTE-SESSIONI-E-INVITI.md).
+4. **Soluzione:** sessione in `localStorage` (sopravvive alla chiusura della scheda e della web app fino alla scadenza del token; `sessionStorage` serve solo a migrare le sessioni create dalle versioni precedenti), scadenza verificata all'avvio, al ritorno in primo piano e con un timer, logout che rimuove lo stato, connessione STOMP associata all'utente autenticato e messaggi persistiti via REST prima della notifica.
+5. **Trade-off:** non esiste refresh token; dopo la scadenza (2 ore di default) occorre accedere di nuovo, anche se la sessione era rimasta salvata nel dispositivo. Lo storage del browser non elimina il rischio XSS (un token in `localStorage` è leggibile da JavaScript); la persistenza più lunga è una proposta da approvare in [`docs/PROPOSTE-SESSIONI-E-INVITI.md`](docs/PROPOSTE-SESSIONI-E-INVITI.md).
 
 ### Schema, dati demo e sicurezza delle migrazioni
 
@@ -169,7 +171,7 @@ Durante lo sviluppo sono state affrontate problematiche di prestazioni, sicurezz
 2. **Impatto:** file non validi, consumo eccessivo di risorse o dati non necessari potevano raggiungere lo storage pubblico.
 3. **Indagine:** fixture reali e sintetiche coprono firme, struttura, limiti e metadati JPEG/PNG.
 4. **Soluzione:** ispezione del contenuto, limiti multipart, rate limit per utente, nomi UUID, rimozione dei metadati e test unitari/integrati della pipeline.
-5. **Trade-off:** sul piano Render Free lo storage locale è effimero; un deploy o riavvio può rimuovere gli upload. Per dati persistenti serve uno storage esterno o un disco persistente.
+5. **Trade-off:** gli upload sono file sul filesystem del backend (`LINKR_UPLOAD_DIR`, nel container `/data/uploads`). Il filesystem di un container Render è effimero: senza un disco persistente il cui mount path contenga quella directory un deploy, un riavvio o uno sleep rimuovono le immagini, mentre il database continua a puntare a file che non esistono più. Il disco si configura dal pannello Render e non è dimostrabile dal repository; vedi [`docs/UPLOAD-IMMAGINI.md`](docs/UPLOAD-IMMAGINI.md#persistenza-su-render).
 
 ## Installazione e sviluppo locale
 
@@ -242,7 +244,7 @@ npm test
 npm run build
 ```
 
-I test coprono, tra le altre aree, navigazione, autenticazione lato client, filtri, formulari, orari `Europe/Rome` e passaggi DST, camera e recovery della mappa, layout chat, onboarding, splash e accessibilità/stili editoriali.
+`npm test` esegue tutti i file `tests/**/*.test.mjs` con `node:test` (il numero di test cambia nel tempo e non viene riportato qui). I test coprono, tra le altre aree, navigazione, autenticazione lato client, filtri, formulari, orari `Europe/Rome` e passaggi DST, camera e recovery della mappa, layout chat, onboarding, splash e movimento del logo, manifest e icone, accessibilità/stili editoriali.
 
 Backend:
 
@@ -251,7 +253,7 @@ cd backend
 ./mvnw test
 ```
 
-I test backend includono API e sicurezza, eventi e partecipazioni, interessi e profili, discovery e concorrenza delle richieste Link, chat/WebSocket, upload e sanitizzazione dei metadati, Ticketmaster, CORS, migrazioni e isolamento del database. I test di integrazione usano `linkr_test_db`: configurare prima credenziali locali dedicate come descritto in [`docs/DEPLOY.md`](docs/DEPLOY.md#7-test-backend-sul-database-di-test-facoltativo-in-locale).
+I test backend includono API e sicurezza, eventi e partecipazioni, interessi e profili, discovery e concorrenza delle richieste Link, chat/WebSocket, upload e sanitizzazione dei metadati, Ticketmaster, CORS, migrazioni e isolamento del database. I test di integrazione usano soltanto `linkr_test_db` (URL fisso nel profilo `test`): il database deve già esistere sullo stesso PostgreSQL (`CREATE DATABASE linkr_test_db;`, i test non lo creano) e utente e password devono essere nell'ambiente (`LINKR_TEST_DB_USERNAME`/`LINKR_TEST_DB_PASSWORD` oppure, in alternativa, `LINKR_DB_USERNAME`/`LINKR_DB_PASSWORD`). La procedura completa, con l'avvertenza sul riavvio automatico dell'app di sviluppo, è in [`docs/DEPLOY.md`](docs/DEPLOY.md#7-test-backend-sul-database-di-test-facoltativo-in-locale).
 
 Non viene dichiarata una percentuale di copertura.
 
@@ -265,6 +267,8 @@ Il deploy pubblico è composto da:
 - MapTiler come servizio esterno per cartografia e geocoding;
 - Ticketmaster solo quando l'integrazione viene abilitata esplicitamente.
 
+Gli upload vengono scritti in `LINKR_UPLOAD_DIR` (nel container Docker: `/data/uploads`). Perché le immagini sopravvivano a riavvii e deploy, su Render serve un **disco persistente** il cui *mount path* (scelto nel pannello) coincida con quella directory o la contenga. Dichiarazione operativa per la Beta 1.0: il servizio usa un disco da 2 GB con mount path `/data/uploads`; mount path e `LINKR_UPLOAD_DIR` sono impostazioni distinte e il repository non permette di verificare nessuna delle due (nessun `render.yaml`, nessuna configurazione del disco versionata).
+
 Variabili, CORS, rewrite SPA, profilo demo, smoke test e limiti operativi sono descritti in [`docs/DEPLOY.md`](docs/DEPLOY.md). La pipeline delle immagini è descritta in [`docs/UPLOAD-IMMAGINI.md`](docs/UPLOAD-IMMAGINI.md), l'integrazione esterna in [`docs/TICKETMASTER.md`](docs/TICKETMASTER.md) e i dati dimostrativi in [`docs/COMMUNITY-DEMO.md`](docs/COMMUNITY-DEMO.md).
 
 ## Limiti e roadmap
@@ -272,9 +276,10 @@ Variabili, CORS, rewrite SPA, profilo demo, smoke test e limiti operativi sono d
 ### Limiti attuali
 
 - Il deploy pubblico contiene dati dimostrativi inventati e chiaramente marcati; non rappresenta eventi o persone reali.
-- Le risorse Render Free possono andare in sleep, il PostgreSQL gratuito ha vincoli temporali/operativi e gli upload sul filesystem del backend non sono persistenti.
+- Con il piano Render Free (la procedura di partenza di `DEPLOY.md`) il backend va in sleep e il filesystem è effimero; il PostgreSQL gratuito ha vincoli temporali (scade 30 giorni dopo la creazione) e non ha backup. Gli upload sopravvivono a riavvii e deploy solo se il servizio ha un disco persistente montato su `LINKR_UPLOAD_DIR`: è una configurazione del pannello Render, non dimostrabile dal repository.
+- Nessuna modalità offline: non esiste un service worker, quindi l'app non funziona senza rete anche se è stata aggiunta alla Home.
 - Il broker STOMP e i limiti di upload sono in memoria e presuppongono una singola istanza backend.
-- Il JWT non ha refresh token e scade dopo due ore per impostazione predefinita.
+- Il JWT non ha refresh token e scade dopo due ore per impostazione predefinita; la sessione salvata in `localStorage` non ne prolunga la validità.
 - Non è presente protezione dedicata contro tentativi ripetuti di login/registrazione.
 - Ticketmaster è disattivato di default e non esegue importazioni automatiche.
 - La CSP documentata deve essere verificata sul deploy a domini separati prima di essere considerata una protezione attiva.
@@ -282,7 +287,7 @@ Variabili, CORS, rewrite SPA, profilo demo, smoke test e limiti operativi sono d
 
 ### Evoluzioni possibili
 
-- storage oggetti persistente per avatar e copertine;
+- storage oggetti esterno per avatar e copertine (oggi sono file su un solo disco/filesystem);
 - broker esterno e stato condiviso per più istanze backend;
 - rate limiting distribuito e protezioni aggiuntive sull'autenticazione;
 - osservabilità di database e dipendenze nel health check;
@@ -315,7 +320,7 @@ The application brings those steps into one flow: map-based exploration, event d
 | Backend health | [linkr-api-9ezt.onrender.com/api/health](https://linkr-api-9ezt.onrender.com/api/health) |
 | Repository | [github.com/Javier21122000/linkr-capstone](https://github.com/Javier21122000/linkr-capstone) |
 
-All three links were verified on October 23, 2026. The public deployment uses Render Free resources: after a period of inactivity the backend may need a cold start, so the first requests can take longer or need to be retried.
+All three links were verified on October 24, 2026, after Beta 1.0 was published. The starting procedure in [`docs/DEPLOY.md`](docs/DEPLOY.md) uses Render Free instances: on that plan, after a period of inactivity the backend may need a cold start, so the first requests can take longer or need to be retried. Each service's actual plan and any disks are set in the Render dashboard; the repository has no `render.yaml`, so it cannot prove them.
 
 ## Screenshot
 
@@ -337,6 +342,8 @@ Screens captured from the LINKR application running locally: Discover and the fi
 - **Private messaging:** conversations between accepted Links; REST delivery and history, realtime WebSocket/STOMP notifications, and unread badges.
 - **Administration:** an `ADMIN`-protected area and manual Ticketmaster dry-run/import tools.
 - **Onboarding and contextual guidance:** an editorial introduction, progressive hints, and a tour of the main features.
+- **Visual identity and motion:** the LINKR logo (two hands and a wordmark) drawn as SVG paths, a boot splash and a map loader sharing the same animated cycle, and a small easter egg on the header logo; everything honours `prefers-reduced-motion` (see [`docs/UX-MAPPA-E-NAVIGAZIONE.md`](docs/UX-MAPPA-E-NAVIGAZIONE.md), in Italian).
+- **Add to Home Screen:** `manifest.webmanifest`, icons (192, 512, maskable, Apple Touch Icon), and favicons let LINKR be added to the Home Screen and opened in `standalone` mode. **It is not an offline PWA:** there is no service worker and no offline cache, so the app always needs a network connection. Adding it to the Home Screen has not been tested on real devices.
 - **Images:** JPEG/PNG upload with content inspection, size limits, rate limits, random names, and metadata removal.
 - **External events:** the Ticketmaster integration exists but is **disabled by default**. Dry runs require the general switch and an admin account; persistent imports require a second explicit switch. There is no automatic scheduler.
 
@@ -378,7 +385,7 @@ React and TypeScript divide the UI into pages, components, and testable pure log
 
 ### Stateless JWT API
 
-Spring Security treats the backend as a stateless resource server. The JWT travels in the `Authorization` header, contains roles, and expires after two hours by default; cookies and refresh tokens are not used. The frontend stores the token in `sessionStorage`: it survives a page refresh but ends with the browser session. This is a simple compromise, but XSS could still read the token; injection prevention and a verified CSP remain necessary.
+Spring Security treats the backend as a stateless resource server. The JWT travels in the `Authorization` header, contains roles, and expires after two hours by default (`LINKR_JWT_EXPIRATION`); cookies and refresh tokens are not used. The frontend keeps the session (token, expiry, and user data) in `localStorage` under the key `linkr.auth.session`: it survives refreshes, closing the tab, and closing the web app added to the Home Screen, but only while the JWT is valid. Local persistence does not extend the token's validity: an expired session is discarded and removed (at startup, when returning to the foreground, and by a timer), and logout removes it immediately; the token is not deleted when the browser closes. `sessionStorage` no longer holds the login session: it is only read to move a still-valid session created by earlier versions into `localStorage`. This is a simple compromise, but XSS could still read the token; injection prevention and a verified CSP remain necessary.
 
 ### PostgreSQL and guarded migrations
 
@@ -411,7 +418,7 @@ Development involved performance, security, integration, and UX challenges. The 
 1. **Problem:** the canvas could fail to produce visible tiles, remain in a loading state, or lose its WebGL context; on Free infrastructure, a slow API response also made the initial state ambiguous.
 2. **Why it mattered:** Discover appeared blocked even when the event list and controls were still usable.
 3. **Investigation:** the logic was divided into observable states (`loading`, `ready`, `recovering`, `degraded`, `error`, `missing-key`) and checks for canvas output, tile activity, and MapLibre errors. Recovery paths have dedicated tests.
-4. **Solution:** bounded automatic retries, controlled map recreation, WebGL-loss handling, distinct messages for missing keys/permanent errors, and a manual retry action. The boot splash waits for the router and events—not map rendering—and has a maximum duration.
+4. **Solution:** bounded automatic retries, controlled map recreation, WebGL-loss handling, distinct messages for missing keys/permanent errors, and a manual retry action. The boot splash waits for the router and events—not map rendering—and has a maximum duration; when it may leave, it still lets the logo's current animated cycle finish.
 5. **Trade-off:** the client cannot repair an invalid MapTiler key or unavailable network. The event list may remain available, while markers may not be usable if the MapLibre canvas cannot render.
 
 ### Selected event hidden by interface panels
@@ -435,8 +442,8 @@ Development involved performance, security, integration, and UX challenges. The 
 1. **Problem:** refreshes should not immediately sign users out, while expired tokens and STOMP connections must not survive an invalid session.
 2. **Why it mattered:** authentication state, badges, and messages could diverge from the API.
 3. **Investigation:** authentication, storage, and WebSocket lifecycles were centralized in their contexts; authorization failures use a consistent path.
-4. **Solution:** session state in `localStorage` (it survives closing the web app until the token expires), expiry checks at startup and on returning to the foreground, logout state removal, a STOMP connection tied to the authenticated user, and REST persistence before notification.
-5. **Trade-off:** there is no refresh token, so users sign in again after expiry (two hours by default). Browser storage, whether `sessionStorage` or `localStorage`, does not remove XSS risk; longer persistence is a proposal awaiting approval in [`docs/PROPOSTE-SESSIONI-E-INVITI.md`](docs/PROPOSTE-SESSIONI-E-INVITI.md).
+4. **Solution:** session state in `localStorage` (it survives closing the tab and the web app until the token expires; `sessionStorage` is only used to migrate sessions created by earlier versions), expiry checks at startup, on returning to the foreground, and by a timer, logout state removal, a STOMP connection tied to the authenticated user, and REST persistence before notification.
+5. **Trade-off:** there is no refresh token, so users sign in again after expiry (two hours by default), even if the session was still stored on the device. Browser storage does not remove XSS risk (a token in `localStorage` is readable by JavaScript); longer persistence is a proposal awaiting approval in [`docs/PROPOSTE-SESSIONI-E-INVITI.md`](docs/PROPOSTE-SESSIONI-E-INVITI.md).
 
 ### Schema, demo data, and migration safety
 
@@ -468,7 +475,7 @@ Development involved performance, security, integration, and UX challenges. The 
 2. **Why it mattered:** invalid files, excessive resource use, or unnecessary data could reach public storage.
 3. **Investigation:** real and synthetic fixtures cover signatures, structure, limits, and JPEG/PNG metadata.
 4. **Solution:** content inspection, multipart limits, per-user rate limits, UUID names, metadata removal, and unit/integration tests for the pipeline.
-5. **Trade-off:** backend filesystem storage is ephemeral on Render Free; deployment or restart can remove uploads. Persistent data requires object storage or a persistent disk.
+5. **Trade-off:** uploads are files on the backend filesystem (`LINKR_UPLOAD_DIR`, `/data/uploads` in the container). A Render container filesystem is ephemeral: without a persistent disk whose mount path contains that directory, a deploy, restart, or sleep removes the images while the database keeps pointing at files that no longer exist. The disk is configured in the Render dashboard and cannot be proven from the repository; see [`docs/UPLOAD-IMMAGINI.md`](docs/UPLOAD-IMMAGINI.md#persistenza-su-render) (in Italian).
 
 ## Installation and local development
 
@@ -541,7 +548,7 @@ npm test
 npm run build
 ```
 
-Tests cover navigation, client authentication, filters, forms, `Europe/Rome` time and DST transitions, map camera and recovery, chat layout, onboarding, splash behaviour, and editorial accessibility/styles, among other areas.
+`npm test` runs every `tests/**/*.test.mjs` file with `node:test` (the number of tests changes over time and is not quoted here). Tests cover navigation, client authentication, filters, forms, `Europe/Rome` time and DST transitions, map camera and recovery, chat layout, onboarding, splash and logo motion, manifest and icons, and editorial accessibility/styles, among other areas.
 
 Backend:
 
@@ -550,7 +557,7 @@ cd backend
 ./mvnw test
 ```
 
-Backend tests include API and security, events and participation, interests and profiles, discovery and concurrent Link requests, chat/WebSocket, upload and metadata sanitization, Ticketmaster, CORS, migrations, and database isolation. Integration tests use `linkr_test_db`; configure dedicated local credentials first as described in [`docs/DEPLOY.md`](docs/DEPLOY.md#7-test-backend-sul-database-di-test-facoltativo-in-locale).
+Backend tests include API and security, events and participation, interests and profiles, discovery and concurrent Link requests, chat/WebSocket, upload and metadata sanitization, Ticketmaster, CORS, migrations, and database isolation. Integration tests only use `linkr_test_db` (fixed URL in the `test` profile): the database must already exist on the same PostgreSQL instance (`CREATE DATABASE linkr_test_db;`—the tests do not create it) and the username and password must be in the environment (`LINKR_TEST_DB_USERNAME`/`LINKR_TEST_DB_PASSWORD` or, alternatively, `LINKR_DB_USERNAME`/`LINKR_DB_PASSWORD`). The full procedure, including the warning about the development app's automatic restart, is in [`docs/DEPLOY.md`](docs/DEPLOY.md#7-test-backend-sul-database-di-test-facoltativo-in-locale) (in Italian).
 
 No test coverage percentage is claimed.
 
@@ -564,6 +571,8 @@ The public deployment consists of:
 - MapTiler as the external mapping and geocoding service;
 - Ticketmaster only when the integration is explicitly enabled.
 
+Uploads are written to `LINKR_UPLOAD_DIR` (`/data/uploads` in the Docker container). For images to survive restarts and deploys, Render needs a **persistent disk** whose *mount path* (chosen in the dashboard) is that directory or contains it. Operational statement for Beta 1.0: the service uses a 2 GB disk with mount path `/data/uploads`; the mount path and `LINKR_UPLOAD_DIR` are separate settings and the repository cannot verify either (no `render.yaml`, no versioned disk configuration).
+
 Environment variables, CORS, the SPA rewrite, demo profile, smoke tests, and operational limits are documented in [`docs/DEPLOY.md`](docs/DEPLOY.md). The image pipeline is described in [`docs/UPLOAD-IMMAGINI.md`](docs/UPLOAD-IMMAGINI.md), the external integration in [`docs/TICKETMASTER.md`](docs/TICKETMASTER.md), and demonstrative data in [`docs/COMMUNITY-DEMO.md`](docs/COMMUNITY-DEMO.md).
 
 ## Limitations and roadmap
@@ -571,9 +580,10 @@ Environment variables, CORS, the SPA rewrite, demo profile, smoke tests, and ope
 ### Current limitations
 
 - The public deployment contains clearly marked fictional demonstration data; it does not represent real events or people.
-- Render Free resources can sleep, free PostgreSQL has time/operational constraints, and backend filesystem uploads are not persistent.
+- On the Render Free plan (the starting procedure in `DEPLOY.md`) the backend sleeps and the filesystem is ephemeral; free PostgreSQL has time limits (it expires 30 days after creation) and no backups. Uploads survive restarts and deploys only if the service has a persistent disk mounted on `LINKR_UPLOAD_DIR`: that is a Render dashboard setting that the repository cannot prove.
+- No offline mode: there is no service worker, so the app does not work without a network connection even when added to the Home Screen.
 - The STOMP broker and upload limits are in memory and assume a single backend instance.
-- JWTs have no refresh token and expire after two hours by default.
+- JWTs have no refresh token and expire after two hours by default; the session saved in `localStorage` does not extend their validity.
 - There is no dedicated protection against repeated login/registration attempts.
 - Ticketmaster is disabled by default and performs no automatic imports.
 - The documented CSP must be verified on the split-domain deployment before it can be treated as an active protection.
@@ -581,7 +591,7 @@ Environment variables, CORS, the SPA rewrite, demo profile, smoke tests, and ope
 
 ### Possible next steps
 
-- persistent object storage for avatars and event covers;
+- external object storage for avatars and event covers (today they are files on a single disk/filesystem);
 - an external broker and shared state for multiple backend instances;
 - distributed rate limiting and further authentication protections;
 - database and dependency observability in the health check;
